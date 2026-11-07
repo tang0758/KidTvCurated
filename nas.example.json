@@ -1,0 +1,7 @@
+{
+  "host": "192.168.31.72",
+  "user": "YOUR_NAS_USER",
+  "password": "YOUR_NAS_PASSWORD",
+  "share": "儿童资源",
+  "playlistShare": "data"
+}

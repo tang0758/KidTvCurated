@@ -1,0 +1,150 @@
+package com.family.curated.data
+
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * NAS 连接配置
+ */
+data class NasConfig(
+    val host: String,
+    val port: Int = 445,
+    val user: String,
+    val password: String,
+    val share: String
+)
+
+/**
+ * 片单里的一个条目。
+ *
+ * 两种用法（二选一）：
+ *  - file   : 直接指向一个视频文件
+ *  - folder : 指向一个文件夹，点进去后列出里面所有视频（适合整季动画）
+ *
+ * cover 可选：指向一张封面图（相对 share 的路径）。
+ * 不写的话会自动在视频同目录找同名 .jpg / .png，再找不到就显示标题卡片。
+ */
+data class Item(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val file: String? = null,
+    val folder: String? = null,
+    val cover: String? = null
+) {
+    val isFolder: Boolean get() = folder != null
+    fun key(): String = id.ifEmpty { (file ?: folder ?: title) }
+}
+
+/**
+ * 分区。gate = true 表示这是"今日必修"，必须全部看完才解锁后面 requires 指向它的分区。
+ */
+data class Section(
+    val key: String,
+    val title: String,
+    val gate: Boolean = false,
+    val requires: String? = null,
+    val columns: Int = 5,
+    val items: List<Item> = emptyList(),
+    /** 自动轮换：从这个文件夹里每天取 count 个，按天推进 */
+    val autoFolder: String? = null,
+    val autoCount: Int = 2
+)
+
+data class Playlist(
+    val nas: NasConfig?,
+    val sections: List<Section>,
+    val pin: String = "1234",
+    val passRatio: Float = 0.92f,  // 播放进度达到这个比例就算"看完"
+    val schedule: Schedule? = null // 可用时段 / 每日时长上限；不写就不限制
+) {
+    val gateSections: List<Section> get() = sections.filter { it.gate }
+}
+
+object PlaylistParser {
+
+    /**
+     * 兼容简写：也可以直接把 allowed / dailyLimitMinutes / lockMessage / pin 写在顶层。
+     * 有 schedule 段时以 schedule 为准。
+     */
+    private fun scheduleFromLegacy(root: JSONObject): JSONObject? {
+        val hasAny = root.has("allowed") || root.has("allowedHours") ||
+            root.has("dailyLimitMinutes") || root.has("lockMessage")
+        if (!hasAny) return null
+        return JSONObject().apply {
+            put("enabled", true)
+            val arr = root.optJSONArray("allowed") ?: root.optJSONArray("allowedHours")
+            if (arr != null) {
+                put("weekday", arr)
+                put("weekend", arr)
+            }
+            put("dailyLimitMinutes", root.optInt("dailyLimitMinutes", 0))
+            if (root.has("lockMessage")) put("lockMessage", root.optString("lockMessage"))
+            if (root.has("pin")) put("pin", root.optString("pin"))
+        }
+    }
+
+    fun parse(json: String): Playlist {
+        val root = JSONObject(json)
+
+        val nas = root.optJSONObject("nas")?.let {
+            NasConfig(
+                host = it.optString("host", "192.168.31.72"),
+                port = it.optInt("port", 445),
+                user = it.optString("user", ""),
+                password = it.optString("password", ""),
+                share = it.optString("share", "")
+            )
+        }
+
+        val arr: JSONArray = root.optJSONArray("sections") ?: JSONArray()
+        val sections = ArrayList<Section>(arr.length())
+        for (i in 0 until arr.length()) {
+            val s = arr.getJSONObject(i)
+            val key = s.optString("key", "section$i")
+            val itemsArr = s.optJSONArray("items") ?: JSONArray()
+            val items = ArrayList<Item>(itemsArr.length())
+            for (j in 0 until itemsArr.length()) {
+                val o = itemsArr.getJSONObject(j)
+                val file = o.optString("file").ifBlank { null }
+                val folder = o.optString("folder").ifBlank { null }
+                if (file == null && folder == null) continue
+                items.add(
+                    Item(
+                        id = o.optString("id", key + "_" + j),
+                        title = o.optString("title").ifBlank {
+                            (file ?: folder ?: "").substringAfterLast('/')
+                        },
+                        subtitle = o.optString("subtitle").ifBlank { null },
+                        file = file,
+                        folder = folder,
+                        cover = o.optString("cover").ifBlank { null }
+                    )
+                )
+            }
+            val auto = s.optJSONObject("auto")
+            sections.add(
+                Section(
+                    key = key,
+                    title = s.optString("title", key),
+                    gate = s.optBoolean("gate", false),
+                    requires = s.optString("requires").ifBlank { null },
+                    columns = s.optInt("columns", 5),
+                    items = items,
+                    autoFolder = auto?.optString("folder")?.ifBlank { null },
+                    autoCount = auto?.optInt("count", 2) ?: 2
+                )
+            )
+        }
+
+        return Playlist(
+            nas = nas,
+            sections = sections,
+            pin = root.optString("pin", "1234"),
+            passRatio = root.optDouble("passRatio", 0.92).toFloat(),
+            schedule = Schedule.parse(
+                root.optJSONObject("schedule") ?: scheduleFromLegacy(root)
+            )
+        )
+    }
+}

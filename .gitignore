@@ -1,0 +1,29 @@
+# Android / Gradle
+.gradle/
+.idea/
+*.iml
+local.properties
+app/build/
+build/
+.externalNativeBuild
+.cxx/
+captures/
+*.apk
+*.aab
+
+# 本机私有配置（绝不上传）
+nas.local.json
+app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
+
+# 运行时生成的片单（含真实账号密码）
+tv.json
+.tv_backup.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 系统
+.DS_Store
+Thumbs.db
