@@ -289,8 +289,10 @@ docker compose up -d --build            # 在仓库根目录执行
 docker compose logs -f kidtv-console    # 看访问码和手机链接
 ```
 
-容器把凭据和访问码放在命名卷 `kidtv-config` 里，首次打开页面点「连接设置」填一次即可，重建容器不丢。
-绿联 UGOS Pro 可在「容器 / Docker」里导入本仓库的 `docker-compose.yml`；端口是 8765。
+标准 compose 把凭据和访问码放在命名卷 `kidtv-config` 里（UGOS Pro 部署包放在项目文件夹的 `config/` 里），
+首次打开页面点「连接设置」填一次即可，重建容器不丢。
+绿联 UGOS Pro 推荐用打包好的部署包（`python tools/make_nas_bundle.py` 生成 `dist/kidtv-console-ugospro.zip`），
+解压到 NAS 后在「容器 → 项目」里选那个文件夹即可；详见[外网也能改片单](#外网也能改片单不用开家里电脑)。端口是 8765。
 
 > 安全：默认只监听 `127.0.0.1`；`--lan` / Docker 会监听局域网，所有 API 都要求访问码。
 > 页面不回显 NAS 密码，但局域网是明文 HTTP，只建议在家里 WiFi 用，别做公网端口映射。
@@ -401,10 +403,32 @@ docker compose up -d --build
 docker compose logs -f kidtv-console        # 看访问码和局域网链接
 ```
 
-绿联 **UGOS Pro**：控制面板 → 容器 / Docker → 项目（Stack）→ 导入本仓库 `docker-compose.yml`，
-在环境变量里同样填 `KIDTV_TOKEN`；端口 8765。老 UGOS 没有 Docker 的话，用家里任意一台常开的小主机跑同样的 compose 即可。
-首次打开页面点「连接设置」填一次 NAS 地址 / 账号 / 密码 / 清单共享与路径，凭据存在命名卷 `kidtv-config` 里，重建容器不丢。
-之后在家里直接开 `http://<NAS 内网 IP>:8765/`。
+#### UGOS Pro：用部署包，别只传一个 compose 文件
+
+绿联图形界面的「项目」如果只上传 `docker-compose.yml`，`build: context: .` 会因为找不到
+`Dockerfile` / `tools/` / `examples/` 而构建失败。所以先生成自包含部署包：
+
+```bash
+python tools/make_nas_bundle.py            # 生成 dist/kidtv-console-ugospro.zip
+python tools/make_nas_bundle.py --no-secrets   # 不想把本机 SMB 凭据打进包里时用这个
+```
+
+包里自带 `Dockerfile`、`tools/console.py`、`tools/static/`、`examples/tv.json`、
+固定好的强访问码、连接设置和 `使用说明.md`；解压后保持目录结构，上传到 NAS 共享文件夹
+（例如 `data/kidtv-console/`），然后：
+
+1. 控制面板 → **容器（Docker）→ 项目 → 创建**，项目路径**选这个文件夹本身**。
+2. Compose 选「使用现有 `docker-compose.yml`」或把文件内容粘贴进去，点部署（首次拉镜像要几分钟）。
+3. 容器 running 后开 `http://<NAS 内网 IP>:8765/`，首次输一次包里附的访问码。
+4. 如果图形界面不支持 `build`，改用包里的 `docker-compose.nobuild.yml`（免构建，挂载目录直接跑）；
+   会开 SSH 的话更简单：`cd kidtv-console && sh ./install.sh`。
+
+> 部署包默认把本机的 `nas.local.json` 一起放进去，打开就能连 NAS，**含明文密码，别外传**；
+> 传到 NAS 后可删掉电脑上的 zip。用 `--no-secrets` 则首次打开页面点「连接设置」自己填。
+> 访问码写在 compose 的 `KIDTV_TOKEN` 里，走 UGREENlink 时把同文件的 `KIDTV_TRUST_PROXY` 改成 `1`。
+
+其它系统（老 UGOS / 常开小主机）：用仓库根的 `docker-compose.yml`，
+凭据和访问码存在命名卷 `kidtv-config` 里，重建容器不丢。
 
 > 容器默认 `--lan` 监听 `0.0.0.0`，只在家庭局域网可达；**只要不做路由器端口映射，公网就进不来**。
 > 配置文件、访问码和 `tv.json` 都在 NAS 上，PC 桌面版和这个容器可以并存（在不同机器上，互不干扰）。
@@ -431,7 +455,8 @@ docker compose logs -f kidtv-console        # 看访问码和局域网链接
 1. 绿联 NAS：Docker → 容器 → 找到 `kidtv-console` → 三点菜单 → **桌面快捷方式 / 快速访问** → 端口填 `8765` → 保存。
 2. 外网手机/电脑浏览器登录绿联账号（UGREENlink），在 UGOS 桌面点这个快捷方式；
    也可以直接用系统生成的 `https://app-8765-<你的ID>.xx.ugdocker.link`（以绿联实际给的地址为准）。
-3. 在 `.env` 里设 `KIDTV_TRUST_PROXY=1` 后重建容器——经反向代理时才能按真实客户端做访问码限速。
+3. 设 `KIDTV_TRUST_PROXY=1` 后重新部署（标准 compose 改 `.env`，UGOS Pro 部署包改
+   `docker-compose.yml` 里同一行）——经反向代理时才能按真实客户端做访问码限速。
 4. 这个网址和配置入口**不要发到群里 / 不要外传**。
 
 ### 第 2 步 C：Cloudflare Tunnel（有域名时）
@@ -459,6 +484,10 @@ docker compose logs -f kidtv-console        # 看访问码和局域网链接
 
 | 现象 | 检查 |
 |---|---|
+| `Dockerfile not found` / `COPY failed` | UGOS Pro 只传了 `docker-compose.yml`；把整个部署包目录放到项目路径，或改用 `docker-compose.nobuild.yml` |
+| 镜像拉取慢 / 构建超时 | 在 UGOS Pro 的 Docker 设置里配国内镜像加速，等几分钟重试 |
+| 挂载 `./config` 报错 | 少数固件要求绝对路径，把 `./config:/app/config` 换成 NAS 上该文件夹的绝对路径 |
+| 容器里检测连接失败 | NAS 地址换 `host.docker.internal` / 网桥网关 `172.17.0.1` 试试；确认 SMB 445 可达、账号密码正确 |
 | 弹访问码，输入后没反应 | 码输错或触发 429 锁定，等 5 分钟；`docker compose logs` 里能看访问码 |
 | 页面能开但读不到清单 | 容器里「连接设置」没填 / SMB 445 不通 / 共享名和 `curated/tv.json` 路径不对 |
 | Tailscale 连上却打不开 8765 | 确认用的是 NAS 在 tailnet 里的 `100.x` 地址；用封闭版 compose 时看 `kidtv-tailscale` 的 IP；容器日志有无报错 |
@@ -652,6 +681,7 @@ tools/fetch_art.py       重新下载 / 更换内置名画图片
 tools/make_covers.py     从 NAS 视频截帧，批量生成海报缩略图并写回 cover 字段
 tools/check_library.py   内置题库自检（数量 / A–Z / 图片引用 / 重复）
 tools/requirements.txt   控制台依赖（pysmb / qrcode）
+tools/make_nas_bundle.py 生成 UGOS Pro 部署包（dist/kidtv-console-ugospro.zip，自包含可导入）
 tools/Dockerfile + docker-compose.yml   常驻 NAS，手机随时可改
 docker-compose.tailscale.yml  外网方案 A：控制台只在 Tailscale 私有网络可见
 .env.example                 固定访问码 / 端口 / 反向代理开关模板（复制成 .env 用）
