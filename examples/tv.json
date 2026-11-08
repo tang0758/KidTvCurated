@@ -54,6 +54,16 @@
       }
     ]
   },
+  "kiosk": {
+    "_说明": "儿童锁：不让遥控器退出应用去看别的内容。整段删掉或 enabled=false = 不启用。注意 Android 的 Home 键普通应用拦不住，必须先按 README 把本应用设为默认桌面；否则会靠「后台自动拉回」兜底，中间有约 1 秒闪现。",
+    "enabled": false,
+    "_退出说明": "家长按菜单键输入 PIN → 「退出到桌面」即可临时放行。留空 exitComponent 会在电视上列出所有可选桌面（Aerial / 海信桌面）让家长选；也可以写死组件名，例如 app.orchard.tv/.MainActivity。",
+    "exitComponent": "",
+    "exitMinutes": 30,
+    "reentryMs": 1000,
+    "blockBack": true,
+    "blockSystemKeys": true
+  },
   "_封面说明": "App 不联网刮削海报、也不自己截帧：cover 留空时按「视频同名 jpg/png → -poster.jpg → folder.jpg → poster.jpg → cover.jpg → 封面.jpg」在视频共享里找现成图片，找不到就显示标题占位卡。视频共享只读、或目录里一张图都没有时，跑 python tools/make_covers.py --apply 从视频截帧生成，写成 data:curated/covers/xxx.jpg（冒号前是共享名，冒号后是路径）。",
   "sections": [
     {

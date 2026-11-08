@@ -133,6 +133,25 @@ object Extras {
 
     fun savePassRatio(v: Float) = p().edit().putFloat("passRatio", v).apply()
 
+    // ---------- 儿童锁 / 家长临时放行 ----------
+
+    fun kiosk(): Kiosk = Kiosk.fromJson(p().getString("kiosk", null))
+
+    fun saveKiosk(v: Kiosk) = p().edit().putString("kiosk", v.toJson()).apply()
+
+    /** 家长临时放行的截止时间；在此之前前台守卫不会把应用拉回来 */
+    fun kioskExitUntil(): Long = p().getLong("kioskExitUntil", 0L)
+
+    fun kioskExitActive(): Boolean = System.currentTimeMillis() < kioskExitUntil()
+
+    fun grantKioskExit(minutes: Int) =
+        p().edit().putLong(
+            "kioskExitUntil",
+            System.currentTimeMillis() + minutes.coerceIn(1, 24 * 60) * 60_000L
+        ).apply()
+
+    fun clearKioskExit() = p().edit().remove("kioskExitUntil").apply()
+
     // ---------- 锁屏学习角 ----------
 
     /** 没同步过清单时用内置题库，保证第一次装好就能显示 */

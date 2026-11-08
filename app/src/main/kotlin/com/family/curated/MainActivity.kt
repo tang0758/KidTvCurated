@@ -1,8 +1,10 @@
 package com.family.curated
 
 import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
@@ -17,6 +19,7 @@ import com.family.curated.data.Badges
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.Item
+import com.family.curated.data.KioskKeys
 import com.family.curated.data.Playlist
 import com.family.curated.data.Repo
 import com.family.curated.data.Section
@@ -97,6 +100,7 @@ class MainActivity : AppCompatActivity() {
                 Extras.savePin(res.playlist.pin)
                 Extras.savePassRatio(res.playlist.passRatio)
                 Extras.saveLearning(res.playlist.learning ?: com.family.curated.data.Learning())
+                Extras.saveKiosk(res.playlist.kiosk)
                 render(res.error)
             }
         }.start()
@@ -233,6 +237,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (KioskKeys.blocked(keyCode)) {
+            nudgeKiosk()
+            return true
+        }
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> {
                 askPin { showParentMenu() }
@@ -245,6 +253,66 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    private var lastKioskToastAt = 0L
+
+    private fun nudgeKiosk() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastKioskToastAt < 3000) return
+        lastKioskToastAt = now
+        Toast.makeText(this, "家长选项请按菜单键输入密码", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 家长出口：先开一段临时放行，再显式启动别的桌面。
+     * 不放行的话前台守卫会立刻把家长拉回来，等于把自己也锁在外面。
+     */
+    private fun exitToLauncher() {
+        val k = Extras.kiosk()
+        val configured = ComponentName.unflattenFromString(k.exitComponent)
+        if (configured != null) {
+            if (launchComponent(configured, k.exitMinutes)) return
+        }
+
+        val pm = packageManager
+        val candidates = pm.queryIntentActivities(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0
+        ).filter { it.activityInfo.packageName != packageName }
+            .distinctBy { it.activityInfo.packageName + "/" + it.activityInfo.name }
+
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, "没找到其它桌面，请在 kiosk.exitComponent 里指定", Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = candidates.map {
+            it.loadLabel(pm).toString() + "  (" + it.activityInfo.packageName + ")"
+        }.toTypedArray()
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("退出到哪个桌面？")
+            .setItems(labels) { _, which ->
+                val ai = candidates[which].activityInfo
+                if (!launchComponent(ComponentName(ai.packageName, ai.name), k.exitMinutes)) {
+                    Toast.makeText(this, "启动失败，请把组件名写进 kiosk.exitComponent", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun launchComponent(cmp: ComponentName, minutes: Int): Boolean = try {
+        Extras.grantKioskExit(minutes)
+        startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .setComponent(cmp)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        Toast.makeText(this, "已临时放行 $minutes 分钟，回来后可在家长菜单结束放行", Toast.LENGTH_LONG).show()
+        true
+    } catch (e: Exception) {
+        Extras.clearKioskExit()
+        false
     }
 
     /** 家长菜单要密码，防止孩子自己解锁 */
@@ -275,7 +343,8 @@ class MainActivity : AppCompatActivity() {
             if (skipGateOnce) "恢复必看限制" else "这次先跳过必看",
             "清空所有播放进度",
             "打卡墙 · 勋章墙",
-            "临时放行 15 分钟"
+            "临时放行 15 分钟",
+            if (Extras.kioskExitActive()) "结束家长放行（恢复儿童锁）" else "退出到桌面（家长维护）"
         )
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle("家长选项")
@@ -312,6 +381,14 @@ class MainActivity : AppCompatActivity() {
                     5 -> {
                         Extras.grantTemp(15)
                         Toast.makeText(this, "已临时放行 15 分钟", Toast.LENGTH_SHORT).show()
+                    }
+                    6 -> {
+                        if (Extras.kioskExitActive()) {
+                            Extras.clearKioskExit()
+                            Toast.makeText(this, "儿童锁已恢复", Toast.LENGTH_SHORT).show()
+                        } else {
+                            exitToLauncher()
+                        }
                     }
                 }
             }

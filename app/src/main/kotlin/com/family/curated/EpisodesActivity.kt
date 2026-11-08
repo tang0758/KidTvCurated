@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.data.Item
+import com.family.curated.data.KioskKeys
 import com.family.curated.data.Repo
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityEpisodesBinding
@@ -27,6 +28,11 @@ class EpisodesActivity : AppCompatActivity() {
     private var folder: String = ""
     private var episodes: List<Item> = emptyList()
     private var seekLock = false
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (KioskKeys.systemBlocked(keyCode)) return true
+        return super.onKeyDown(keyCode, event)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

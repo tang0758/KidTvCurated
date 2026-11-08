@@ -23,6 +23,7 @@
 | `passRatio` | 否 | 播放进度达到多少算「看完」，默认 `0.92` |
 | `schedule` | 否 | 可用时段 + 每日时长，整段省略 = 不限制 |
 | `learning` | 否 | 锁屏右半边的「等待时间学习角」；整段省略 = 启用内置题库 |
+| `kiosk` | 否 | 儿童锁：拦截返回键 / 系统功能键、被切走自动拉回；整段省略 = 关闭。见下方专节 |
 
 `file` / `folder` / `cover` 都相对 `nas.share` 的根目录，用 `/` 分隔，中文直接写，**不要百分号编码**。
 以 `_` 开头的字段只是注释，App 会忽略。
@@ -160,6 +161,44 @@ python tools/make_covers.py --force --from-nas     # 重新截帧（换构图 / 
 **加内容**：内置题库按类别放在 `app/src/main/kotlin/com/family/curated/data/builtin/`（`Poems.kt` / `Words.kt` / `Arts.kt` / `Texts.kt`），照着现有格式加一行即可。改完跑 `python tools/check_library.py` 自检数量、A–Z 覆盖、图片引用和重复标题。
 
 **遥控器**：`◀ ▶`（或 `▲ ▼` / OK）手动翻页，播放 / 暂停键暂停自动轮播，菜单键 + PIN 仍是家长临时放行，返回键照旧被拦住，孩子翻不出去。
+
+## 儿童锁 kiosk
+
+只靠 App 是拦不住 Home 键的 —— Android 把 Home 键留给系统，应用连 `onKeyDown` 都收不到。
+所以这个功能是「应用层能做的三件事 + 一步系统设置」的组合。整段省略或 `enabled: false` 时，行为和旧版完全一样。
+
+| 层 | 挡住什么 | 怎么做 |
+|---|---|---|
+| 应用层 | 返回键、设置 / 输入源 / 最近任务等能收到的功能键 | `kiosk.enabled=true`；主界面吞返回键，子界面只吞系统键（返回仍可回上一级） |
+| 桌面层 | Home 键 | 把本应用设为默认桌面，按 Home 就回到自己，见 [README](../README.md) 的「开机自启与儿童锁」 |
+| 守卫层 | 被别的应用切到后台 | `reentryMs` 毫秒后自动把主界面拉回前台；屏幕熄灭、家长放行期间不打扰 |
+| 硬件层 | 输入源 / 直播 / 电源等硬件快捷键 | 应用层无解：遮挡按键、换简易遥控器，或 Device Owner / 锁任务模式 |
+
+```json
+"kiosk": {
+  "enabled": true,
+  "exitComponent": "app.orchard.tv/.MainActivity",
+  "exitMinutes": 30,
+  "reentryMs": 1000,
+  "blockBack": true,
+  "blockSystemKeys": true
+}
+```
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `false` | 总开关。改完在电视按菜单 → 重新读取清单生效 |
+| `exitComponent` | 空 | 家长退出时启动的桌面组件；留空则在电视上列出所有桌面让家长选 |
+| `exitMinutes` | `30` | 家长临时放行分钟数，期间不自动拉回，避免把家长也锁在外面 |
+| `reentryMs` | `1000` | 离开应用多久后拉回（300–10000 毫秒） |
+| `blockBack` | `true` | 主界面是否拦截返回键；剧集 / 播放 / 奖励页的返回键始终可回上一级 |
+| `blockSystemKeys` | `true` | 是否拦截能收到的设置、输入源、最近任务、语音等功能键 |
+
+家长出口：电视上按 **菜单 → 输入 PIN → 「退出到桌面」**。放行到期会自动恢复锁定，
+也可以回到小剧场后再进一次家长菜单点「结束家长放行」提前恢复。
+
+> 只开 `kiosk.enabled` 而不设默认桌面也能用：孩子按 Home 会先看到 Aerial / 系统桌面约 1 秒，
+> 然后被守卫拉回来。想完全看不到这一下，必须做那一步系统设置。
 
 ## 常见配方
 

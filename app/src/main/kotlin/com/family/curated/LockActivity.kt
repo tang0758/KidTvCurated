@@ -20,6 +20,7 @@ import com.family.curated.data.ArtImages
 import com.family.curated.data.CardType
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
+import com.family.curated.data.KioskKeys
 import com.family.curated.data.Learning
 import com.family.curated.data.LearningCard
 import com.family.curated.data.Store
@@ -258,6 +259,7 @@ class LockActivity : AppCompatActivity() {
     // ---------------- 遥控器 ----------------
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (KioskKeys.systemBlocked(keyCode)) return true
         when (keyCode) {
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> {
                 showParentOverride()

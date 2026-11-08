@@ -303,6 +303,14 @@ function normalize(d){
   delete L.items;
   L.stage = Number(L.stage) || 0;
   L.stageSize = Number(L.stageSize) || 0;
+  if (!d.kiosk || typeof d.kiosk !== "object") d.kiosk = {};
+  const K = d.kiosk;
+  if (K.enabled === undefined) K.enabled = false;
+  if (!K.exitComponent) K.exitComponent = "";
+  K.exitMinutes = Number(K.exitMinutes) || 30;
+  K.reentryMs = Number(K.reentryMs) || 1000;
+  if (K.blockBack === undefined) K.blockBack = true;
+  if (K.blockSystemKeys === undefined) K.blockSystemKeys = true;
   return d;
 }
 function cleanKeys(o){
@@ -333,6 +341,15 @@ function payload(){
     if (!s.gate) delete s.gate;
     if (s.auto) delete s.items;
   });
+  if (d.kiosk){
+    const K = d.kiosk;
+    K.enabled = !!K.enabled;
+    K.blockBack = !!K.blockBack;
+    K.blockSystemKeys = !!K.blockSystemKeys;
+    K.exitMinutes = Math.max(1, Math.min(1440, Number(K.exitMinutes) || 30));
+    K.reentryMs = Math.max(300, Math.min(10000, Number(K.reentryMs) || 1000));
+    if (!K.exitComponent) delete K.exitComponent;
+  }
   if (d.learning){
     const L = d.learning;
     L.enabled = !!L.enabled;
@@ -570,6 +587,19 @@ function renderRules(){
       '<button class="tiny danger" data-act="disableSchedule">删掉整段时段限制</button></div>' +
       "</div>";
   }
+  const K = d.kiosk || (d.kiosk = {enabled:false, exitComponent:"", exitMinutes:30, reentryMs:1000, blockBack:true, blockSystemKeys:true});
+  const chk = (bind, label, on) => '<label class="chk" style="display:flex;align-items:center;gap:8px;margin:8px 0">' +
+    '<input type="checkbox" data-type="bool" data-bind="' + bind + '"' + (on ? " checked" : "") + '> ' + label + '</label>';
+  h += '<div class="card"><h3>儿童锁 <span class="sub">不让遥控器退回桌面</span></h3>' +
+    chk("kiosk.enabled", "启用儿童锁", K.enabled) +
+    '<div class="fields" style="margin-top:12px">' +
+    '<label>家长退出到（组件名，留空则电视上选）<input data-bind="kiosk.exitComponent" value="' + esc(K.exitComponent) + '" placeholder="app.orchard.tv/.MainActivity"></label>' +
+    '<label>临时放行（分钟）<input type="number" data-type="number" data-bind="kiosk.exitMinutes" value="' + esc(K.exitMinutes) + '"></label>' +
+    '<label>被切走后拉回（毫秒）<input type="number" data-type="number" data-bind="kiosk.reentryMs" value="' + esc(K.reentryMs) + '"></label>' +
+    '</div>' +
+    chk("kiosk.blockBack", "主界面拦截返回键", K.blockBack) +
+    chk("kiosk.blockSystemKeys", "拦截设置 / 输入源 / 最近任务等功能键", K.blockSystemKeys) +
+    '<p class="empty">Android 的 Home 键普通应用拦不住。要完全无缝，需把本应用设为默认桌面（见 README「开机自启与儿童锁」）；未设置时靠后台自动拉回兜底，约 1 秒闪回。输入源 / 直播 / 电源等硬件键应用层无解，需物理遮挡或系统级限制。家长出口：电视上按菜单键 → PIN → 「退出到桌面」。</p></div>';
   body.innerHTML = h;
 }
 

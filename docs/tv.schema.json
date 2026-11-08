@@ -67,6 +67,21 @@
         }
       }
     },
+    "kiosk": {
+      "type": "object",
+      "description": "儿童锁：防止按遥控器退出应用去看别的内容。整段省略 = 关闭，行为与旧版一致。需要配合把本应用设为默认桌面，Home 键才不会回到系统/Aerial 桌面。",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false, "description": "开启后拦截返回键与系统功能键，并在应用被切到后台时自动拉回" },
+        "exitComponent": {
+          "type": "string",
+          "description": "家长退出时启动的桌面组件，如 app.orchard.tv/.MainActivity 或 com.jamdeo.tv.vod/com.ju.main.launcher.LauncherActivity。留空则在电视上列出所有桌面让家长选"
+        },
+        "exitMinutes": { "type": "integer", "minimum": 1, "maximum": 1440, "default": 30, "description": "家长临时放行分钟数，期间自动拉回暂停，避免把家长也锁在外面" },
+        "reentryMs": { "type": "integer", "minimum": 300, "maximum": 10000, "default": 1000, "description": "离开应用多久后自动拉回（毫秒）" },
+        "blockBack": { "type": "boolean", "default": true, "description": "主界面是否拦截返回键；子界面返回键始终可回上一级" },
+        "blockSystemKeys": { "type": "boolean", "default": true, "description": "是否拦截能收到的设置 / 输入源 / 最近任务 / 语音等功能键" }
+      }
+    },
     "allowed": { "$ref": "#/definitions/windows", "description": "旧版简写：同时作用于工作日与周末" },
     "allowedHours": { "$ref": "#/definitions/windows", "description": "旧版简写" },
     "dailyLimitMinutes": { "type": "integer", "minimum": 0, "description": "旧版简写，有 schedule 段时以 schedule 为准" },

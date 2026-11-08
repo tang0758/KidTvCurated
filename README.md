@@ -50,12 +50,83 @@
 | 上 / 下 | 选分区 |
 | 左 / 右 | 选片；播放时快退 / 快进 15 秒 |
 | OK | 播放 / 暂停、进入 |
-| 返回 | 回上一级 |
-| 菜单 | 家长选项（要 PIN） |
+| 返回 | 回上一级（开了儿童锁时，主界面的返回键会被吞掉） |
+| 菜单 | 家长选项（要 PIN）；儿童锁下也是「退出到桌面」的入口 |
 | 信息 / 指南 | 打卡墙 · 勋章墙 |
 | 数字键（锁屏时） | 直接输 PIN 临时放行 |
 | ◀ ▶ / ▲▼ / OK（锁屏时） | 手动翻一张学习卡片 |
 | 播放 / 暂停（锁屏时） | 暂停 / 继续自动轮播 |
+
+---
+
+## 开机自启与儿童锁（不让孩子退回桌面）
+
+**先说一个硬约束：Android 的 Home 键由系统独占，普通应用收不到、也拦不住。**
+所以「只改 App 代码」一定会被绕过，必须按按键归谁管分层处理：
+
+| 防线 | 挡住什么 | 要不要动系统 |
+|---|---|---|
+| ① 应用内拦截 | 返回键、设置 / 输入源 / 最近任务等**能收到**的功能键 | 不用，改 `tv.json` |
+| ② 默认桌面 | **Home 键** | 要，一条 adb 命令 |
+| ③ 前台守卫 | 被切到后台、最近任务切走 | 不用，App 自带 |
+| ④ 物理 / 系统 | 输入源、直播、电源等硬件快捷键 | 要，遮挡按键或 Device Owner |
+
+### ① + ③：App 内已实现，改清单即可
+
+```json
+"kiosk": {
+  "enabled": true,
+  "exitComponent": "app.orchard.tv/.MainActivity",
+  "exitMinutes": 30,
+  "reentryMs": 1000,
+  "blockBack": true,
+  "blockSystemKeys": true
+}
+```
+
+改完在电视按 **菜单 → 重新读取清单** 生效。字段说明见 [docs/CONFIG.md](docs/CONFIG.md#儿童锁-kiosk)，网页控制台「时段密码」页也有开关。
+
+- 主界面吞掉返回键；剧集 / 播放 / 奖励页的返回键仍可回上一级（还在 App 内，安全）。
+- 应用被切到后台约 1 秒后，前台守卫自动把主界面拉回；**关屏待机、家长放行期间不会打扰**。
+- 家长出口：菜单 → PIN → 「退出到桌面」，会临时放行 `exitMinutes` 分钟再启动 Aerial / 海信桌面；回来后可在同一菜单「结束家长放行」。
+
+### ② 设为默认桌面（Home 键失效的关键一步）
+
+`AndroidManifest.xml` 已给 `MainActivity` 声明 `HOME` category。在这台海信 55E3F-MAX / Android 9 上：
+
+```bash
+# 先看当前默认桌面和所有 HOME 候选
+adb shell getprop persist.vt.use_home_pkg
+adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
+adb shell cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME
+
+# 设为小剧场
+adb shell setprop persist.vt.use_home_pkg com.family.curated
+adb shell am force-stop app.orchard.tv
+adb shell am start -n com.family.curated/.MainActivity
+
+# 撤销：回到 Aerial
+adb shell setprop persist.vt.use_home_pkg app.orchard.tv
+```
+
+本机实测当前默认桌面是 `app.orchard.tv`（Aerial），正是由 `persist.vt.use_home_pkg` 指定，且该属性 adb 可写。
+Android 9 没有 `cmd package set-home-activity`（更高版本才有），所以走这条海信私有属性。
+
+设完之后 **开机直接进小剧场**，Aerial 的「开机自动调起」就不再需要了；按 Home 也只会回到小剧场主界面
+（`singleTask` 会收掉上面的播放页），Aerial 退居为家长维护用的桌面。
+万一清单读不到、电视停在空清单界面，PIN 出口仍可用，或用上面的撤销命令恢复。
+
+> 图省事也可以**不做第 ② 步**：只开 `kiosk.enabled`，孩子按 Home 会先看到 Aerial 约 1 秒再被拉回。
+> 电视桌面加载通常就要好几秒，实际很难点进去，但会闪一下。
+
+### ④ 硬件键：软件真的管不了
+
+输入源 / 直播 / 电源 / 语音快捷键由系统或红外固件直接处理，应用连按键事件都收不到。可选：
+
+- **最省事也最可逆**：把 Home、输入源、设置、直播键贴住，或换一把只有方向键 + OK + 返回的简易遥控器。
+- **更彻底**：把 App 设成 Device Owner（`dpm set-device-owner`）后用锁任务模式，可禁掉最近任务、状态栏等。
+  但要求设备无账号、往往得恢复出厂，撤销也麻烦，**不建议在已经装了一堆应用的电视上盲操作**。
+- 海信若自带「儿童模式 / 应用锁」，可以再叠一层。
 
 ---
 

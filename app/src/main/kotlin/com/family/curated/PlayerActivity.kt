@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
+import com.family.curated.data.KioskKeys
 import com.family.curated.data.Smb
 import com.family.curated.data.SmbDataSource
 import com.family.curated.data.SmbPlaybackContext
@@ -375,6 +376,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (KioskKeys.systemBlocked(keyCode)) return true
         // 失败页上按「确认」可以手动重来一次，并重新给满自动重试额度
         if (b.tvError.visibility == View.VISIBLE && !retrying) {
             when (keyCode) {

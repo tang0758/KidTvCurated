@@ -1,6 +1,7 @@
 package com.family.curated
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.data.Badge
 import com.family.curated.data.Badges
 import com.family.curated.data.Extras
+import com.family.curated.data.KioskKeys
 import com.family.curated.data.Stats
 import com.family.curated.databinding.ActivityRewardsBinding
 import com.family.curated.databinding.ItemBadgeBinding
@@ -22,6 +24,11 @@ class RewardsActivity : AppCompatActivity() {
     private lateinit var b: ActivityRewardsBinding
     private var monthOffset = 0
     private var stats: Stats = Badges.stats()
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (KioskKeys.systemBlocked(keyCode)) return true
+        return super.onKeyDown(keyCode, event)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
