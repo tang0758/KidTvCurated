@@ -1,0 +1,19 @@
+.git
+.gradle
+.idea
+app/build
+build
+*.apk
+*.aab
+*.png
+*.jpg
+__pycache__
+.venv
+# 任何含真实凭据 / 家庭片库信息的文件都不进镜像构建上下文
+nas.local.json
+tv.json
+.tv_backup.json
+*.backup.json
+.console_token
+local.properties
+app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt

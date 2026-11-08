@@ -1,0 +1,21 @@
+# 在 NAS / 常开的小主机上运行：docker compose up -d --build
+# 起来后看日志拿访问码：docker compose logs -f kidtv-console
+services:
+  kidtv-console:
+    build:
+      context: .
+      dockerfile: tools/Dockerfile
+    container_name: kidtv-console
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      TZ: Asia/Shanghai
+      # 想固定访问码（手机存书签）就取消注释并改掉：
+      # KIDTV_TOKEN: "换成你自己的一串字符"
+      KIDTV_CONFIG: /app/config/nas.local.json
+    volumes:
+      - kidtv-config:/app/config
+
+volumes:
+  kidtv-config:

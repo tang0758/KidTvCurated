@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4f6bed">
+<title>小剧场 · 片单控制台</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+  --brand:#4f6bed; --brand-soft:#eef1ff; --ok:#16a34a; --warn:#e07b00; --err:#dc2626;
+  --shadow:0 2px 10px rgba(30,41,90,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:1080px;margin:0 auto;padding:0 14px 120px}
+header{display:flex;align-items:center;gap:10px;padding:16px 2px 12px;flex-wrap:wrap}
+.brand{font-size:19px;font-weight:700;letter-spacing:.3px}
+.brand small{display:block;font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0}
+.status{margin-left:auto;font-size:12px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:20px;padding:6px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button,input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink)}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 12px;min-height:38px;transition:.12s}
+button:hover{border-color:var(--brand);color:var(--brand)}
+button:active{transform:scale(.98)}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+button.primary:hover{background:#3f58d6;color:#fff}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 9px;min-height:32px}
+button.ghost:hover{background:var(--brand-soft)}
+button.danger:hover{border-color:var(--err);color:var(--err)}
+button.tiny{padding:5px 9px;min-height:32px;font-size:13px}
+input,select,textarea{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;width:100%;min-height:38px}
+textarea{min-height:340px;font:12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+input[type=checkbox]{width:18px;height:18px;min-height:0;accent-color:var(--brand);flex:none}
+a{color:var(--brand)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 12px;-webkit-overflow-scrolling:touch}
+.tabs button{white-space:nowrap;border-color:transparent;background:transparent;color:var(--muted);font-weight:600}
+.tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pane{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 12px;font-size:15px}
+.card h3 .sub{font-weight:400;color:var(--muted);font-size:12px;margin-left:8px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.toolbar label{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px}
+.toolbar select,.toolbar input{width:auto;min-width:110px}
+.toolbar .grow{flex:1;min-width:130px}
+.crumbs{font-size:13px;color:var(--muted);margin:2px 0 12px;word-break:break-all;line-height:2}
+.crumbs button{padding:2px 6px;min-height:26px;font-size:13px;border-color:transparent;background:transparent;color:var(--brand)}
+.row{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid #f1f2f6}
+.row:last-child{border-bottom:0}
+.row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:transparent;color:var(--ink);font-weight:500;min-height:0;padding:4px 0}
+.row .nm:hover{color:var(--brand)}
+.row .cnt{font-size:12px;color:var(--muted);white-space:nowrap;min-width:44px;text-align:right}
+.tag{font-size:11px;border-radius:6px;padding:2px 6px;background:var(--brand-soft);color:var(--brand);white-space:nowrap}
+.tag.v{background:#eefaf1;color:var(--ok)}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.fields label,.stack label{display:block;font-size:12px;color:var(--muted)}
+.fields label input,.fields label select,.stack label input{margin-top:4px}
+.fields .chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);align-self:end;padding-bottom:8px}
+.stack{display:grid;gap:10px}
+.items{margin-top:12px}
+.item{display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed var(--line)}
+.item input{flex:1;min-width:80px}
+.item .p{font-size:11px;color:var(--muted);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sec-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sec-head .idx{font-size:12px;color:var(--muted)}
+.badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--brand-soft);color:var(--brand)}
+.badge.gate{background:#fff3e0;color:var(--warn)}
+.rowbtn{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.win{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.win input{flex:1}
+.notice{background:#fff8e8;border:1px solid #f6dfae;color:#8a5a00;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+.err{color:var(--err);font-size:13px}
+.empty{color:var(--muted);font-size:13px;padding:14px 0}
+.bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);padding:10px max(14px,calc((100vw - 1080px)/2)) calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;z-index:20;backdrop-filter:blur(8px)}
+.bottom .hint{font-size:12px;color:var(--muted);margin-right:auto;display:none}
+@media(min-width:720px){.bottom .hint{display:block}}
+.bottom button{min-width:110px}
+.toast{position:fixed;left:50%;transform:translate(-50%,20px);bottom:88px;background:#1f2937;color:#fff;padding:11px 18px;border-radius:10px;font-size:14px;max-width:90vw;opacity:0;pointer-events:none;transition:.22s;z-index:60;box-shadow:0 6px 22px rgba(0,0,0,.2)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--err)}
+.modal,.login-gate{position:fixed;inset:0;background:rgba(20,26,45,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.sheet{background:#fff;border-radius:16px;padding:20px;width:min(460px,100%);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.sheet h3{margin:0 0 6px}
+.sheet p{color:var(--muted);font-size:13px;margin:0 0 14px}
+.sheet .stack{margin-bottom:16px}
+.hidden{display:none!important}
+.filebtn{position:relative;overflow:hidden;display:inline-flex;align-items:center}
+.filebtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.kbd{font:12px ui-monospace,monospace;background:#f1f2f6;border-radius:5px;padding:2px 6px}
+
+/* 手机窄屏：所有控件改成整行 / 两行排布，绝不横向溢出 */
+@media(max-width:640px){
+  body{overflow-x:hidden}
+  .wrap{padding:0 10px 120px}
+  header{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
+  .brand{font-size:17px}
+  .status{grid-column:2;margin-left:0;font-size:11px;max-width:180px;padding:5px 9px}
+  #btnSettings{grid-column:1/-1;justify-self:start;min-height:34px;padding:6px 12px}
+  .tabs button{font-size:13px;padding:7px 10px}
+  .card{padding:12px;min-width:0}
+  .toolbar{display:grid;grid-template-columns:1fr;gap:8px}
+  .toolbar label{display:grid;grid-template-columns:52px 1fr;align-items:center;gap:6px;font-size:12px}
+  .toolbar label select,.toolbar .grow{width:100%;min-width:0}
+  .toolbar.btns{display:flex;flex-wrap:wrap}
+  .toolbar.btns button{flex:1 1 45%;min-width:0;font-size:12px;padding:6px 4px}
+  .row{flex-wrap:wrap;justify-content:flex-end;gap:6px}
+  .row .nm{flex:1 1 100%;text-align:left}
+  .row .tag{flex:0 0 auto;margin-right:auto}
+  .row .cnt{min-width:0;margin-right:auto}
+  .row button.tiny{flex:0 0 auto}
+  .fields{grid-template-columns:1fr}
+  .fields .chk{padding-bottom:2px}
+  .item{flex-wrap:wrap}
+  .item input{flex:1 1 55%}
+  .item .p{flex:1 1 100%;order:9;max-width:100%}
+  .bottom{padding-left:10px;padding-right:10px;gap:6px}
+  .bottom button{flex:1;min-width:0;font-size:13px;padding:8px 6px}
+  .bottom .hint{display:none}
+  textarea{min-height:260px;font-size:12px}
+  .sheet{padding:16px}
+}
+</style>
+</head>
+<body>
+
+<div id="gate" class="login-gate hidden">
+  <div class="sheet">
+    <h3>输入访问码</h3>
+    <p>在运行控制台的电脑终端里能看到访问码，也可以直接用带 <span class="kbd">?k=</span> 的完整链接打开。手机保存书签后不用再输。</p>
+    <div class="stack"><input id="gateInput" placeholder="访问码" autocomplete="off"></div>
+    <div class="rowbtn"><button class="primary" id="gateOk">进入</button></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="brand">小剧场 · 片单控制台<small>浏览 NAS 资源 / 编排电视片单</small></div>
+    <div class="status" id="status">连接中…</div>
+    <button id="btnSettings">连接设置</button>
+  </header>
+
+  <div class="tabs">
+    <button data-tab="browse" class="on">资源浏览</button>
+    <button data-tab="sections">片单编排</button>
+    <button data-tab="rules">时段与密码</button>
+    <button data-tab="json">JSON / 导入导出</button>
+  </div>
+
+  <div id="notice" class="notice hidden"></div>
+
+  <section id="pane-browse" class="pane">
+    <div class="card">
+      <div class="toolbar">
+        <label>共享<select id="browseShare"></select></label>
+        <label>添加到<select id="targetSel"></select></label>
+        <input id="browseFilter" class="grow" placeholder="过滤当前目录名字">
+      </div>
+      <div class="toolbar btns">
+        <button class="tiny" data-act="up">上一级</button>
+        <button class="tiny" data-act="refresh">刷新</button>
+        <button class="tiny" data-act="scan">把本层子目录全部做成卡片</button>
+        <button class="tiny" data-act="toggleCount">显示集数</button>
+      </div>
+      <div class="crumbs" id="crumbs"></div>
+      <div id="browseBody"><p class="empty">正在连接 NAS…</p></div>
+    </div>
+  </section>
+
+  <section id="pane-sections" class="pane hidden">
+    <div class="card">
+      <h3>分区顺序 <span class="sub">电视上从上到下就是这个顺序；必看分区建议放第一个</span></h3>
+      <div id="sectionsBody"></div>
+      <div class="rowbtn"><button class="primary" data-act="newSection">＋ 新建分区</button></div>
+    </div>
+  </section>
+
+  <section id="pane-rules" class="pane hidden">
+    <div id="rulesBody"></div>
+  </section>
+
+  <section id="pane-json" class="pane hidden">
+    <div class="card">
+      <h3>tv.json 原文 <span class="sub">可直接编辑，改完点「应用到编辑器」再保存</span></h3>
+      <textarea id="jsonText" spellcheck="false"></textarea>
+      <div class="rowbtn">
+        <button data-act="jsonApply">应用到编辑器</button>
+        <button data-act="jsonDownload">下载 tv.json</button>
+        <button data-act="jsonTemplate">载入公开模板</button>
+        <button data-act="saveLocal">写到本地 tv.json</button>
+        <label class="filebtn button tiny" style="border:1px solid var(--line);border-radius:9px;padding:8px 12px">导入 JSON<input type="file" id="importFile" accept=".json,application/json"></label>
+      </div>
+      <p class="empty">保存时会自动把 <span class="kbd">nas</span> 段同步成「连接设置」里正在用的真实账号密码（前端不回显密码），并把 <span class="kbd">playlistShare</span> 一并写好，所以载入模板后不用手动改凭据。<br>
+      保存到 NAS 时旧清单会备份成同目录的 <span class="kbd">tv.backup.json</span>；以 _ 开头的注释字段不会写入。<br>
+      注意：导出的 tv.json 含明文密码，只放在 NAS / 本机，别传到公开仓库。</p>
+    </div>
+  </section>
+</div>
+
+<div class="bottom">
+  <span class="hint" id="srcHint">改完到电视按「菜单 → 重新读取清单」</span>
+  <button data-act="reload">从 NAS 重新读取</button>
+  <button class="primary" data-act="save">保存到 NAS</button>
+</div>
+
+<div id="modal" class="modal hidden"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+"use strict";
+const Q = s => document.querySelector(s);
+const QA = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s === undefined || s === null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+const urlParams = new URLSearchParams(location.search);
+let TOKEN = urlParams.get("k") || localStorage.getItem("kidtv_token") || "";
+if (TOKEN) localStorage.setItem("kidtv_token", TOKEN);
+
+const START_TAB = ["browse","sections","rules","json"].includes(urlParams.get("tab"))
+  ? urlParams.get("tab") : "browse";   // 支持 ?tab=rules 直接进某一页，手机可存书签
+const S = {
+  data:null, cfg:null, shares:[], share:"", path:"", items:null,
+  target:0, showCount:false, counts:{}, tab:START_TAB, source:""
+};
+
+async function api(path, opts){
+  opts = opts || {};
+  const r = await fetch(path, Object.assign({}, opts, {
+    headers: Object.assign({"X-Console-Token":TOKEN,"Content-Type":"application/json"}, opts.headers||{})
+  }));
+  let j;
+  try { j = await r.json(); } catch(e){ throw new Error("服务没响应 (HTTP " + r.status + ")"); }
+  if (r.status === 401){ showGate(); throw new Error(j.error || "访问码不对"); }
+  if (!r.ok || j.ok === false) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+
+let toastTimer;
+function toast(msg, bad, ms){
+  const t = Q("#toast");
+  t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.className = "toast"; }, ms || 2800);
+}
+function notice(msg){
+  const n = Q("#notice");
+  if (!msg){ n.classList.add("hidden"); return; }
+  n.textContent = msg; n.classList.remove("hidden");
+}
+function showGate(){ Q("#gate").classList.remove("hidden"); }
+function setStatus(txt, bad){ const s = Q("#status"); s.textContent = txt; s.style.color = bad ? "var(--err)" : ""; }
+
+// ---------- 数据整理 ----------
+function winToStrings(w){
+  return (w || []).map(x => Array.isArray(x) ? x.join("-") :
+    (x && typeof x === "object" ? (x.start || "") + "-" + (x.end || "") : String(x)));
+}
+function normalize(d){
+  d = d || {};
+  if (!Array.isArray(d.sections)) d.sections = [];
+  d.sections.forEach((s,i)=>{
+    s.key = s.key || ("sec" + i);
+    s.title = s.title || s.key;
+    if (!Array.isArray(s.items)) s.items = [];
+    s.gate = !!s.gate;
+    if (!s.columns) s.columns = 5;
+  });
+  if (d.pin === undefined) d.pin = "1234";
+  if (d.passRatio === undefined) d.passRatio = 0.92;
+  if (d.schedule){
+    d.schedule.weekday = winToStrings(d.schedule.weekday);
+    d.schedule.weekend = d.schedule.weekend === undefined ? null : winToStrings(d.schedule.weekend);
+    if (d.schedule.dailyLimitMinutes === undefined) d.schedule.dailyLimitMinutes = 0;
+    if (d.schedule.enabled === undefined) d.schedule.enabled = true;
+    if (!d.schedule.lockMessage) d.schedule.lockMessage = "电视休息时间，先去玩会儿别的吧";
+  }
+  return d;
+}
+function cleanKeys(o){
+  if (!o || typeof o !== "object" || Array.isArray(o)) return;
+  Object.keys(o).forEach(k=>{
+    if (k.startsWith("_") || k === "$schema") delete o[k];
+    else cleanKeys(o[k]);
+  });
+}
+function payload(){
+  const d = JSON.parse(JSON.stringify(S.data));
+  if (d.schedule){
+    if (d.schedule.weekend === null) delete d.schedule.weekend;
+    d.schedule.weekday = (d.schedule.weekday || []).filter(x => String(x).trim());
+    if (Array.isArray(d.schedule.weekend))
+      d.schedule.weekend = d.schedule.weekend.filter(x => String(x).trim());
+    d.schedule.dailyLimitMinutes = Number(d.schedule.dailyLimitMinutes) || 0;
+  }
+  (d.sections || []).forEach(s=>{
+    if (s.auto && !s.auto.folder) delete s.auto;
+    s.items = (s.items || []).filter(it => it.file || it.folder);
+    s.items.forEach(it => { if (!it.title) delete it.title; if (!it.subtitle) delete it.subtitle; });
+    if (!s.requires) delete s.requires;
+    if (!s.gate) delete s.gate;
+    if (s.auto) delete s.items;
+  });
+  cleanKeys(d);
+  return d;
+}
+function setPath(o, p, v){
+  const parts = p.split(".");
+  let cur = o;
+  for (let i=0;i<parts.length-1;i++){
+    const k = parts[i];
+    if (cur[k] === undefined || cur[k] === null)
+      cur[k] = /^\d+$/.test(parts[i+1]) ? [] : {};
+    cur = cur[k];
+  }
+  cur[parts[parts.length-1]] = v;
+}
+
+// ---------- 载入 ----------
+async function loadConfig(){
+  const r = await api("/api/config");
+  S.data = normalize(r.data);
+  S.source = r.source;
+  notice(r.warning || "");
+  Q("#srcHint").textContent = "来源：" +
+    ({nas:"NAS 上的 tv.json", local:"本地 tv.json", template:"公开模板"}[r.source] || r.source) +
+    " · 改完到电视按「菜单 → 重新读取清单」";
+  if (S.target >= S.data.sections.length) S.target = 0;
+}
+async function doBrowse(path){
+  S.path = path || "";
+  Q("#browseBody").innerHTML = '<p class="empty">读取 NAS 目录中…</p>';
+  try {
+    const r = await api("/api/browse?share=" + encodeURIComponent(S.share) +
+                        "&path=" + encodeURIComponent(S.path));
+    S.items = r;
+    renderBrowse();
+    if (S.showCount) loadCounts();
+  } catch(e){
+    Q("#browseBody").innerHTML = '<p class="err">' + esc(e.message) + "</p>";
+  }
+}
+async function init(){
+  if (!TOKEN){ showGate(); setStatus("需要访问码"); return; }
+  try {
+    const st = await api("/api/state");
+    S.cfg = st.settings;
+    S.shares = st.shares || [];
+    if (S.cfg.share && !S.shares.includes(S.cfg.share)) S.shares.unshift(S.cfg.share);
+    S.share = S.cfg.share || S.shares[0] || "";
+    setStatus((st.warning ? "连接异常 · " : "已连接 ") + (S.cfg.host || "未配置 NAS"), !!st.warning);
+    await loadConfig();
+    renderAll();
+    switchTab(S.tab);
+    if (S.share) await doBrowse("");
+    else Q("#browseBody").innerHTML = '<p class="empty">先点右上角「连接设置」填 NAS 账号和共享名。</p>';
+  } catch(e){
+    toast(e.message, true, 5000);
+    setStatus("连接失败", true);
+    Q("#browseBody").innerHTML = '<p class="err">' + esc(e.message) + "</p>";
+  }
+}
+
+// ---------- 渲染 ----------
+function renderAll(){ renderBrowse(); renderSections(); renderRules(); renderJson(); }
+
+function renderBrowse(){
+  const shares = S.shares.length ? S.shares : (S.share ? [S.share] : [""]);
+  Q("#browseShare").innerHTML = shares.map(x =>
+    '<option value="' + esc(x) + '"' + (x === S.share ? " selected" : "") + ">" + esc(x) + "</option>").join("");
+  Q("#targetSel").innerHTML = (S.data ? S.data.sections : []).map((s,i) =>
+    '<option value="' + i + '"' + (i === S.target ? " selected" : "") + ">" + esc(s.title) + "</option>").join("")
+    || '<option value="0">（还没有分区）</option>';
+
+  const parts = S.path ? S.path.split("/").filter(Boolean) : [];
+  let acc = "", crumbs = '<button data-act="open" data-path="">' + esc(S.share || "根目录") + "</button>";
+  parts.forEach((p,i)=>{
+    acc += (i ? "/" : "") + p;
+    crumbs += ' / <button data-act="open" data-path="' + esc(acc) + '">' + esc(p) + "</button>";
+  });
+  Q("#crumbs").innerHTML = crumbs;
+
+  if (!S.items){ Q("#browseBody").innerHTML = '<p class="empty">读取 NAS 目录中…</p>'; return; }
+  const kw = (Q("#browseFilter").value || "").trim().toLowerCase();
+  const dirs = S.items.dirs.filter(d => !kw || d.name.toLowerCase().includes(kw));
+  const files = S.items.files.filter(f => !kw || f.name.toLowerCase().includes(kw));
+  let h = "";
+  if (!dirs.length && !files.length) h = '<p class="empty">这个目录里没有可显示的文件夹或视频。</p>';
+  dirs.forEach(d=>{
+    const n = S.counts[d.path];
+    h += '<div class="row">' +
+      '<button class="nm" data-act="open" data-path="' + esc(d.path) + '">[目录] ' + esc(d.name) + "</button>" +
+      '<span class="cnt" data-count="' + esc(d.path) + '">' + (n === undefined ? "" : n + " 集") + "</span>" +
+      '<button class="tiny" data-act="count" data-path="' + esc(d.path) + '">集数</button>' +
+      '<button class="tiny primary" data-act="addFolder" data-path="' + esc(d.path) + '" data-name="' + esc(d.name) + '">＋ 加入</button>' +
+      "</div>";
+  });
+  files.forEach(f=>{
+    h += '<div class="row">' +
+      '<span class="tag' + (f.video ? " v" : "") + '">' + (f.video ? "视频" : "图片") + "</span>" +
+      '<span class="nm" style="font-weight:400">' + esc(f.name) + "</span>" +
+      '<span class="cnt">' + (f.size ? (f.size/1048576).toFixed(0) + "M" : "") + "</span>" +
+      (f.video ? '<button class="tiny primary" data-act="addFile" data-path="' + esc(f.path) + '" data-name="' + esc(f.name) + '">＋ 加入</button>' : "") +
+      '<button class="tiny" data-act="dl" data-path="' + esc(f.path) + '" data-size="' + f.size + '">下载</button>' +
+      "</div>";
+  });
+  Q("#browseBody").innerHTML = h;
+}
+
+function renderSections(){
+  const body = Q("#sectionsBody");
+  if (!S.data) { body.innerHTML = ""; return; }
+  const secs = S.data.sections;
+  let h = "";
+  secs.forEach((s,i)=>{
+    const reqOpts = ['<option value="">（不锁，随时可看）</option>'].concat(
+      secs.filter((o,j)=>j!==i).map(o => '<option value="' + esc(o.key) + '"' +
+        (s.requires === o.key ? " selected" : "") + ">被「" + esc(o.title) + "」锁住</option>")).join("");
+    h += '<div class="card" style="box-shadow:none;margin-bottom:10px">' +
+      '<div class="sec-head"><span class="idx">第 ' + (i+1) + ' 行</span>' +
+        (s.gate ? '<span class="badge gate">每日必看</span>' : '<span class="badge">普通分区</span>') +
+        '<span class="idx">' + (s.items || []).length + " 个条目</span></div>" +
+      '<div class="fields">' +
+        "<label>标题<input data-bind=\"sections." + i + ".title\" value=\"" + esc(s.title) + "\"></label>" +
+        "<label>key<input data-bind=\"sections." + i + ".key\" value=\"" + esc(s.key) + "\"></label>" +
+        "<label>解锁条件<select data-bind=\"sections." + i + ".requires\">" + reqOpts + "</select></label>" +
+        "<label>每行海报数<input type=\"number\" data-type=\"number\" data-bind=\"sections." + i + ".columns\" value=\"" + esc(s.columns || 5) + "\"></label>" +
+        "<label class=\"chk\"><input type=\"checkbox\" data-type=\"bool\" data-bind=\"sections." + i + ".gate\"" + (s.gate ? " checked" : "") + "> 每日必看（gate）</label>" +
+      "</div>";
+    if (s.auto){
+      h += '<div class="fields" style="margin-top:10px">' +
+        "<label>自动轮换目录<input data-bind=\"sections." + i + ".auto.folder\" value=\"" + esc(s.auto.folder || "") + "\" placeholder=\"学习/ABC Book\"></label>" +
+        "<label>每天取几集<input type=\"number\" data-type=\"number\" data-bind=\"sections." + i + ".auto.count\" value=\"" + esc(s.auto.count || 2) + "\"></label>" +
+        '<label class="chk"><button class="tiny danger" data-act="delAuto" data-i="' + i + '">删掉自动轮换</button></label></div>';
+    }
+    h += '<div class="items">';
+    (s.items || []).forEach((it,j)=>{
+      const p = it.file || it.folder || "";
+      h += '<div class="item">' +
+        '<span class="tag' + (it.file ? " v" : "") + '">' + (it.file ? "单集" : "整目录") + "</span>" +
+        '<input data-bind="sections.' + i + ".items." + j + '.title" value="' + esc(it.title || p.split("/").pop()) + '">' +
+        '<span class="p" title="' + esc(p) + '">' + esc(p) + "</span>" +
+        '<button class="ghost tiny" data-act="itemUp" data-i="' + i + '" data-j="' + j + '">↑</button>' +
+        '<button class="ghost tiny" data-act="itemDown" data-i="' + i + '" data-j="' + j + '">↓</button>' +
+        '<button class="ghost tiny danger" data-act="itemDel" data-i="' + i + '" data-j="' + j + '">×</button>' +
+        "</div>";
+    });
+    h += "</div>";
+    if (!s.auto) h += '<div class="rowbtn"><button class="tiny" data-act="addAuto" data-i="' + i + '">＋ 每日自动轮换</button></div>';
+    h += '<div class="rowbtn">' +
+      '<button class="tiny" data-act="secUp" data-i="' + i + '">上移</button>' +
+      '<button class="tiny" data-act="secDown" data-i="' + i + '">下移</button>' +
+      '<button class="tiny" data-act="gotoBrowse" data-i="' + i + '">去资源浏览添加</button>' +
+      '<button class="tiny danger" data-act="secDel" data-i="' + i + '">删除分区</button></div>' +
+      "</div>";
+  });
+  if (!secs.length) h = '<p class="empty">还没有分区，点下面「新建分区」，或到「资源浏览」勾选目录。</p>';
+  body.innerHTML = h;
+}
+
+function renderRules(){
+  const body = Q("#rulesBody");
+  if (!S.data) return;
+  const d = S.data, sch = d.schedule;
+  let h = '<div class="card"><h3>家长设置</h3><div class="fields">' +
+    "<label>家长 PIN（4 位）<input data-bind=\"pin\" maxlength=\"4\" value=\"" + esc(d.pin) + "\"></label>" +
+    "<label>看完比例<input type=\"number\" step=\"0.01\" data-type=\"number\" data-bind=\"passRatio\" value=\"" + esc(d.passRatio) + "\"></label>" +
+    "</div><p class=\"empty\">PIN 用于家长菜单、临时放行；装好请改掉默认 1234。</p></div>";
+  if (!sch){
+    h += '<div class="card"><h3>时段限制</h3><p class="empty">当前不限制时段和时长。</p>' +
+      '<button class="primary" data-act="enableSchedule">启用时段与时长限制</button></div>';
+  } else {
+    const winRows = (key, list) => (list || []).map((w,i) =>
+      '<div class="win"><input data-bind="schedule.' + key + "." + i + '" value="' + esc(w) +
+      '" placeholder="17:30-20:30"><button class="ghost danger tiny" data-act="winDel" data-key="' + key +
+      '" data-i="' + i + '">×</button></div>').join("") || '<p class="empty">没有时间窗 = 全天可用</p>';
+    h += '<div class="card"><h3>可用时段 <span class="sub">写 22:00-01:00 表示跨零点</span></h3>' +
+      '<label class="chk" style="display:flex;align-items:center;gap:8px;margin-bottom:12px">' +
+      '<input type="checkbox" data-type="bool" data-bind="schedule.enabled"' + (sch.enabled ? " checked" : "") +
+      '> 启用时段限制（关掉则只看每日时长）</label>' +
+      "<p style=\"font-size:13px;color:var(--muted);margin:8px 0 6px\">工作日</p>" + winRows("weekday", sch.weekday) +
+      '<div class="rowbtn" style="margin:4px 0 14px"><button class="tiny" data-act="winAdd" data-key="weekday">＋ 加一个时段</button></div>' +
+      '<p style="font-size:13px;color:var(--muted);margin:8px 0 6px">周末</p>';
+    if (sch.weekend === null){
+      h += '<p class="empty">沿用工作日设置。<button class="tiny" data-act="weekendOn">单独设置周末</button></p>';
+    } else {
+      h += winRows("weekend", sch.weekend) +
+        '<div class="rowbtn" style="margin:4px 0 0"><button class="tiny" data-act="winAdd" data-key="weekend">＋ 加一个时段</button>' +
+        '<button class="tiny" data-act="weekendOff">改回沿用工作日 / 全天</button></div>';
+    }
+    h += '<div class="fields" style="margin-top:16px">' +
+      "<label>每天最多（分钟，0 = 不限）<input type=\"number\" data-type=\"number\" data-bind=\"schedule.dailyLimitMinutes\" value=\"" + esc(sch.dailyLimitMinutes) + "\"></label>" +
+      "<label>锁屏提示语<input data-bind=\"schedule.lockMessage\" value=\"" + esc(sch.lockMessage) + "\"></label>" +
+      "</div>" +
+      '<div class="rowbtn"><button class="tiny" data-act="preset" data-v="school">平时 17:30-20:30 / 周末放宽</button>' +
+      '<button class="tiny" data-act="preset" data-v="off">临时全部放开</button>' +
+      '<button class="tiny danger" data-act="disableSchedule">删掉整段时段限制</button></div>' +
+      "</div>";
+  }
+  body.innerHTML = h;
+}
+
+function renderJson(){
+  if (!S.data) return;
+  Q("#jsonText").value = JSON.stringify(payload(), null, 2);
+}
+function switchTab(t){
+  S.tab = t;
+  QA(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+  QA(".pane").forEach(p => p.classList.toggle("hidden", p.id !== "pane-" + t));
+  if (t === "json") renderJson();
+  if (t === "sections") renderSections();
+  if (t === "rules") renderRules();
+  if (t === "browse") renderBrowse();
+}
+
+// ---------- 操作 ----------
+function sec(){ return S.data.sections[S.target]; }
+function addItem(item){
+  const s = sec();
+  if (!s){ toast("先到「片单编排」新建一个分区", true); return; }
+  if (s.auto){ toast("这个分区用了自动轮换，先删掉 auto 再加", true); return; }
+  const key = item.file || item.folder;
+  if ((s.items || []).some(x => (x.file || x.folder) === key)){ toast("已经在这个分区里了"); return; }
+  s.items.push(item);
+  renderSections(); renderJson();
+  toast("已加入「" + s.title + "」");
+}
+function cleanName(n){ return String(n).replace(/【[^】]*】/g,"").split(" 20")[0].trim(); }
+async function loadCounts(){
+  const queue = (S.items ? S.items.dirs : []).filter(d => S.counts[d.path] === undefined).slice(0, 80).slice();
+  const worker = async () => {
+    while (queue.length){
+      const d = queue.shift();
+      try {
+        const r = await api("/api/count?share=" + encodeURIComponent(S.share) +
+                            "&path=" + encodeURIComponent(d.path));
+        S.counts[d.path] = r.videos;
+        QA("[data-count]").forEach(el => { if (el.dataset.count === d.path) el.textContent = r.videos + " 集"; });
+      } catch(e){ /* 单个目录数不到就算了 */ }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+}
+async function saveTo(target){
+  try {
+    const d = payload();
+    if (!d.sections.length) { toast("片单里一个分区都没有，确定要保存？再点一次可强制保存", true); }
+    const r = await api("/api/config", {method:"POST", body:JSON.stringify({data:d, target:target})});
+    toast(r.message, false, 5000);
+    notice(target === "nas"
+      ? "已保存到 NAS。到电视按遥控器「菜单 → 重新读取清单」生效；旧文件备份为 tv.backup.json。"
+      : "已写到本地 tv.json。可用 make_playlist.py --upload 上传，或直接改回「保存到 NAS」。");
+  } catch(e){ toast(e.message, true, 5000); }
+}
+function openSettings(){
+  const c = S.cfg || {};
+  Q("#modal").innerHTML = '<div class="sheet"><h3>连接设置</h3>' +
+    "<p>账号密码保存在运行控制台那台机器的 <span class=\"kbd\">nas.local.json</span>（不进 Git）。密码留空表示沿用已保存的。</p>" +
+    '<div class="stack">' +
+    "<label>NAS 地址<input id=\"setHost\" value=\"" + esc(c.host || "") + "\" placeholder=\"192.168.1.10\"></label>" +
+    "<label>账号<input id=\"setUser\" value=\"" + esc(c.user || "") + "\"></label>" +
+    "<label>密码<input id=\"setPass\" type=\"password\" placeholder=\"" + (c.hasPassword ? "已保存，留空不修改" : "必填") + "\"></label>" +
+    "<label>视频共享名<input id=\"setShare\" value=\"" + esc(c.share || "") + "\" placeholder=\"儿童资源\"></label>" +
+    "<label>清单所在共享（可写）<input id=\"setPlShare\" value=\"" + esc(c.playlistShare || "data") + "\"></label>" +
+    "<label>清单路径<input id=\"setPlPath\" value=\"" + esc(c.playlistPath || "curated/tv.json") + "\"></label>" +
+    "</div>" +
+    '<div class="rowbtn"><button class="primary" data-act="saveSettings">测试并保存</button>' +
+    '<button data-act="closeModal">取消</button></div></div>';
+  Q("#modal").classList.remove("hidden");
+}
+
+// ---------- 事件 ----------
+QA(".tabs button").forEach(b => b.addEventListener("click", ()=>switchTab(b.dataset.tab)));
+Q("#btnSettings").addEventListener("click", openSettings);
+Q("#gateOk").addEventListener("click", ()=>{
+  const v = Q("#gateInput").value.trim();
+  if (v) location.href = "/?k=" + encodeURIComponent(v);
+});
+Q("#gateInput").addEventListener("keydown", e => { if (e.key === "Enter") Q("#gateOk").click(); });
+Q("#browseFilter").addEventListener("input", renderBrowse);
+Q("#browseShare").addEventListener("change", e => { S.share = e.target.value; S.counts = {}; doBrowse(""); });
+Q("#targetSel").addEventListener("change", e => { S.target = Number(e.target.value); });
+Q("#importFile").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      S.data = normalize(JSON.parse(rd.result));
+      S.target = 0; renderAll();
+      toast("已导入 " + f.name + "，记得点「保存到 NAS」");
+    } catch(err){ toast("JSON 解析失败：" + err.message, true, 5000); }
+  };
+  rd.readAsText(f, "utf-8");
+  e.target.value = "";
+});
+
+function bindInput(e){
+  const t = e.target;
+  if (!t.dataset || !t.dataset.bind) return;
+  let v = t.type === "checkbox" ? t.checked : t.value;
+  if (t.dataset.type === "number") v = Number(v);
+  setPath(S.data, t.dataset.bind, v);
+  // 输入过程中绝不重绘整个面板，否则手机软键盘会把光标吃掉；
+  // 只同步「目标分区」下拉里那一项的文字，其余等切换标签时再刷新。
+  const m = t.dataset.bind.match(/^sections\.(\d+)\.title$/);
+  if (m){
+    const opt = Q('#targetSel option[value="' + m[1] + '"]');
+    if (opt) opt.textContent = v;
+  }
+}
+document.addEventListener("input", bindInput);
+document.addEventListener("change", bindInput);
+
+document.addEventListener("click", async e => {
+  const tab = e.target.closest(".tabs button");
+  if (tab) return;
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const a = b.dataset.act, i = Number(b.dataset.i), j = Number(b.dataset.j);
+  try {
+    switch(a){
+      case "open": await doBrowse(b.dataset.path); break;
+      case "up": await doBrowse(S.items ? S.items.parent : ""); break;
+      case "refresh": S.counts = {}; await doBrowse(S.path); break;
+      case "toggleCount":
+        S.showCount = !S.showCount;
+        b.textContent = S.showCount ? "隐藏集数" : "显示集数";
+        if (S.showCount){ toast("正在统计集数…"); await loadCounts(); }
+        break;
+      case "count": {
+        const r = await api("/api/count?share=" + encodeURIComponent(S.share) +
+                            "&path=" + encodeURIComponent(b.dataset.path));
+        S.counts[b.dataset.path] = r.videos;
+        QA("[data-count]").forEach(el => { if (el.dataset.count === b.dataset.path) el.textContent = r.videos + " 集"; });
+        break;
+      }
+      case "addFolder": addItem({title:cleanName(b.dataset.name), folder:b.dataset.path}); break;
+      case "addFile": addItem({title:cleanName(b.dataset.name.replace(/\.[^.]+$/,"")), file:b.dataset.path}); break;
+      case "scan": {
+        const r = await api("/api/scan?share=" + encodeURIComponent(S.share) +
+                            "&path=" + encodeURIComponent(S.path));
+        if (!r.items.length){ toast("这一层没有可加入的目录或视频"); break; }
+        const s = sec();
+        if (!s){ toast("先新建分区", true); break; }
+        let n = 0;
+        r.items.forEach(it => {
+          const key = it.file || it.folder;
+          if (!(s.items || []).some(x => (x.file || x.folder) === key)){ s.items.push(it); n++; }
+        });
+        renderSections(); renderJson();
+        toast("已把 " + n + " 个" + (r.mode === "folders" ? "文件夹" : "单集") + "加入「" + s.title + "」");
+        break;
+      }
+      case "dl":
+        location.href = "/api/download?k=" + encodeURIComponent(TOKEN) +
+          "&share=" + encodeURIComponent(S.share) +
+          "&path=" + encodeURIComponent(b.dataset.path) + "&size=" + (b.dataset.size || 0);
+        break;
+      case "newSection": {
+        const gateSec = S.data.sections.filter(x => x.gate)[0];
+        S.data.sections.push({key:"sec" + Date.now().toString().slice(-6),
+                              title:"新分区", columns:5, items:[],
+                              requires:gateSec ? gateSec.key : ""});
+        S.target = S.data.sections.length - 1;
+        renderAll(); break;
+      }
+      case "gotoBrowse": S.target = i; renderBrowse(); switchTab("browse"); break;
+      case "secUp": if (i > 0){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i-1,0,t); S.target=i-1; renderAll(); } break;
+      case "secDown": if (i < S.data.sections.length-1){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i+1,0,t); S.target=i+1; renderAll(); } break;
+      case "secDel":
+        if (confirm("删除分区「" + S.data.sections[i].title + "」？")){
+          S.data.sections.splice(i,1); S.target = Math.max(0, Math.min(S.target, S.data.sections.length-1)); renderAll();
+        }
+        break;
+      case "itemUp": if (j > 0){ const arr=S.data.sections[i].items; const t=arr.splice(j,1)[0]; arr.splice(j-1,0,t); renderSections(); renderJson(); } break;
+      case "itemDown": if (j < S.data.sections[i].items.length-1){ const arr=S.data.sections[i].items; const t=arr.splice(j,1)[0]; arr.splice(j+1,0,t); renderSections(); renderJson(); } break;
+      case "itemDel": S.data.sections[i].items.splice(j,1); renderSections(); renderJson(); break;
+      case "addAuto": S.data.sections[i].auto = {folder:"", count:2}; renderSections(); renderJson(); break;
+      case "delAuto": delete S.data.sections[i].auto; renderSections(); renderJson(); break;
+      case "enableSchedule":
+        S.data.schedule = {enabled:true, weekday:["17:30-20:30"], weekend:null,
+                           dailyLimitMinutes:60, lockMessage:"电视休息时间，先去玩会儿别的吧"};
+        renderRules(); renderJson(); break;
+      case "disableSchedule": delete S.data.schedule; renderRules(); renderJson(); break;
+      case "weekendOn": S.data.schedule.weekend = ["09:00-11:30","16:00-21:30"]; renderRules(); renderJson(); break;
+      case "weekendOff": S.data.schedule.weekend = null; renderRules(); renderJson(); break;
+      case "winAdd": S.data.schedule[b.dataset.key].push("17:30-20:30"); renderRules(); renderJson(); break;
+      case "winDel": S.data.schedule[b.dataset.key].splice(i,1); renderRules(); renderJson(); break;
+      case "preset":
+        if (b.dataset.v === "school"){
+          S.data.schedule.weekday = ["17:30-20:30"];
+          S.data.schedule.weekend = ["09:00-11:30","16:00-21:30"];
+          S.data.schedule.dailyLimitMinutes = 60; S.data.schedule.enabled = true;
+        } else { S.data.schedule.enabled = false; S.data.schedule.dailyLimitMinutes = 0; }
+        renderRules(); renderJson(); toast("已套用预设，记得保存"); break;
+      case "reload":
+        await loadConfig(); renderAll(); toast("已从 NAS 重新读取"); break;
+      case "save": await saveTo("nas"); break;
+      case "saveLocal": await saveTo("local"); break;
+      case "jsonApply": {
+        try { S.data = normalize(JSON.parse(Q("#jsonText").value)); S.target=0; renderAll(); toast("已应用到编辑器，记得保存"); }
+        catch(err){ toast("JSON 解析失败：" + err.message, true, 5000); }
+        break;
+      }
+      case "jsonDownload": {
+        const blob = new Blob([JSON.stringify(payload(), null, 2)], {type:"application/json;charset=utf-8"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "tv.json"; a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+        break;
+      }
+      case "jsonTemplate": {
+        const r = await api("/api/template");
+        S.data = normalize(r.data); S.target = 0; renderAll();
+        toast("已载入公开模板（全是示例值），记得改 nas 段再保存");
+        break;
+      }
+      case "closeModal": Q("#modal").classList.add("hidden"); break;
+      case "saveSettings": {
+        const body = {
+          host:Q("#setHost").value.trim(), port:445,
+          user:Q("#setUser").value.trim(), password:Q("#setPass").value,
+          share:Q("#setShare").value.trim(),
+          playlistShare:Q("#setPlShare").value.trim() || "data",
+          playlistPath:Q("#setPlPath").value.trim() || "curated/tv.json",
+          save:true
+        };
+        const r = await api("/api/settings", {method:"POST", body:JSON.stringify(body)});
+        S.cfg = Object.assign({}, S.cfg, body, {hasPassword:!!(body.password || (S.cfg && S.cfg.hasPassword))});
+        S.shares = r.shares || [];
+        if (S.cfg.share && !S.shares.includes(S.cfg.share)) S.shares.unshift(S.cfg.share);
+        S.share = S.cfg.share;
+        Q("#modal").classList.add("hidden");
+        setStatus("已连接 " + S.cfg.host);
+        toast(r.message);
+        await loadConfig(); renderAll(); await doBrowse("");
+        break;
+      }
+    }
+  } catch(err){ toast(err.message, true, 5000); }
+});
+
+init();
+</script>
+</body>
+</html>

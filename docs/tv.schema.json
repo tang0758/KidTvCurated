@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "KidTvCurated 片单 tv.json",
+  "description": "电视端读取的家长编排清单。生效文件固定为 NAS 上 <playlistShare>/curated/tv.json。以 _ 开头的字段是注释，会被忽略。",
+  "type": "object",
+  "required": ["sections"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "nas": {
+      "type": "object",
+      "description": "SMB 凭据；省略时 App 使用编译时 LocalSecrets.kt 中的账号",
+      "required": ["host", "user", "password", "share"],
+      "properties": {
+        "host": { "type": "string", "description": "NAS IP 或主机名" },
+        "port": { "type": "integer", "default": 445 },
+        "user": { "type": "string" },
+        "password": { "type": "string", "description": "明文，勿提交到公开仓库" },
+        "share": { "type": "string", "description": "视频所在共享名，file/folder 都相对它的根目录" }
+      }
+    },
+    "playlistShare": {
+      "type": "string",
+      "default": "data",
+      "description": "tv.json 所在的共享名（需可写），App 读取时会依次尝试若干候选"
+    },
+    "pin": { "type": "string", "pattern": "^[0-9]{4}$", "default": "1234", "description": "家长密码，4 位数字" },
+    "passRatio": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.92, "description": "播放进度达到该比例算看完" },
+    "schedule": {
+      "type": "object",
+      "description": "可用时段与每日时长；整段省略表示不限制",
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "weekday": { "$ref": "#/definitions/windows" },
+        "weekend": { "$ref": "#/definitions/windows" },
+        "dailyLimitMinutes": { "type": "integer", "minimum": 0, "default": 60, "description": "0 = 不限" },
+        "lockMessage": { "type": "string" },
+        "pin": { "type": "string" }
+      }
+    },
+    "allowed": { "$ref": "#/definitions/windows", "description": "旧版简写：同时作用于工作日与周末" },
+    "allowedHours": { "$ref": "#/definitions/windows", "description": "旧版简写" },
+    "dailyLimitMinutes": { "type": "integer", "minimum": 0, "description": "旧版简写，有 schedule 段时以 schedule 为准" },
+    "lockMessage": { "type": "string", "description": "旧版简写" },
+    "sections": {
+      "type": "array",
+      "description": "按顺序显示的一行行海报分区",
+      "items": { "$ref": "#/definitions/section" }
+    }
+  },
+  "definitions": {
+    "windows": {
+      "type": "array",
+      "description": "时间窗列表。[] = 全天可用；不写 weekend 则沿用 weekday；结束时间小于开始时间表示跨零点",
+      "items": {
+        "oneOf": [
+          { "type": "string", "pattern": "^[0-2]?[0-9]:[0-5][0-9]\\s*[-–~至]\\s*[0-2]?[0-9]:[0-5][0-9]$", "examples": ["17:30-20:30"] },
+          {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "type": "string", "pattern": "^[0-2]?[0-9]:[0-5][0-9]$" },
+            "examples": [["17:30", "20:30"]]
+          },
+          {
+            "type": "object",
+            "required": ["start", "end"],
+            "properties": {
+              "start": { "type": "string" },
+              "end": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "section": {
+      "type": "object",
+      "required": ["key", "title"],
+      "properties": {
+        "key": { "type": "string", "description": "唯一标识，requires 指向它；通常有一个 key=daily" },
+        "title": { "type": "string", "description": "电视上显示的分区标题" },
+        "gate": { "type": "boolean", "default": false, "description": "true = 每日必看，全部看完才解锁 requires 指向本分区的其它分区" },
+        "requires": { "type": "string", "description": "被哪个 key 的 gate 分区锁住" },
+        "columns": { "type": "integer", "minimum": 1, "default": 5 },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/item" } },
+        "auto": {
+          "type": "object",
+          "description": "每天从文件夹自动取 N 集并轮换；与 items 二选一",
+          "required": ["folder"],
+          "properties": {
+            "folder": { "type": "string" },
+            "count": { "type": "integer", "minimum": 1, "default": 2 }
+          }
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "description": "file 与 folder 二选一",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "file": { "type": "string", "description": "单个视频文件的相对路径" },
+        "folder": { "type": "string", "description": "整个文件夹的相对路径，递归 3 层" },
+        "cover": { "type": "string", "description": "封面图相对路径；省略时自动找同名 jpg/png" },
+        "id": { "type": "string", "description": "进度记录用的稳定 id；省略时用 file/folder 路径" }
+      },
+      "anyOf": [
+        { "required": ["file"] },
+        { "required": ["folder"] }
+      ]
+    }
+  }
+}

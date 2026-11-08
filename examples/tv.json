@@ -1,0 +1,89 @@
+{
+  "$schema": "../docs/tv.schema.json",
+  "_说明": [
+    "这是给别人的配置模板：复制本文件、改名 tv.json、把里面的示例值换成你自己的，再放到 NAS 的 data/curated/tv.json。",
+    "所有 NAS 地址 / 账号 / 密码 / 目录都是示例，此文件可以安全提交到 Git。",
+    "file / folder / cover 路径都相对 nas.share 这个共享的根目录，用 / 分隔，中文直接写，不要百分号编码。",
+    "_ 开头的字段只是注释，App 会忽略，可以删掉。"
+  ],
+  "nas": {
+    "host": "192.168.1.10",
+    "port": 445,
+    "user": "YOUR_NAS_USER",
+    "password": "YOUR_NAS_PASSWORD",
+    "share": "儿童资源"
+  },
+  "_nas说明": "这段是 App 连 SMB 用的凭据。不写也行，App 会用编译时 LocalSecrets.kt 里的账号；用现成 APK 又不重编译时必须写。密码是明文，填好真实密码的 tv.json 千万别传 Git。",
+  "playlistShare": "data",
+  "_playlistShare说明": "tv.json 自己所在的共享名。儿童资源常常只读，所以单独放一个可写共享；App 找不到时会依次试 data / nas.share / 普通数据 / 迅雷下载。",
+  "pin": "1234",
+  "passRatio": 0.92,
+  "schedule": {
+    "_说明": "enabled=false 或整段删掉 = 不限制时段；dailyLimitMinutes=0 = 不限总时长；不写 weekend 就沿用 weekday；写 [] = 周末全天可用；跨零点写 22:00-01:00。",
+    "enabled": true,
+    "weekday": [["17:30", "20:30"]],
+    "weekend": [["09:00", "11:30"], ["16:00", "21:30"]],
+    "dailyLimitMinutes": 60,
+    "lockMessage": "电视休息时间，先去玩会儿别的吧"
+  },
+  "sections": [
+    {
+      "_说明": "gate=true 是「每日必看」：这里每一项都看完，后面 requires=daily 的分区才解锁。每天固定看什么就写 file；想每天自动换一批，删掉 items 换成 auto。",
+      "key": "daily",
+      "title": "今天要看的",
+      "gate": true,
+      "columns": 5,
+      "items": [
+        {
+          "title": "字母歌 A",
+          "subtitle": "3 分钟",
+          "file": "学习/字母歌/01-A.mp4",
+          "cover": "学习/字母歌/封面/01-A.jpg"
+        },
+        {
+          "title": "识字 第3课",
+          "file": "学习/识字/03.mp4"
+        }
+      ]
+    },
+    {
+      "_说明": "folder 类型 = 点进去看整个文件夹，App 会递归 3 层子目录，多层「第N季」结构也能读到。",
+      "key": "fun",
+      "title": "动画片",
+      "requires": "daily",
+      "columns": 5,
+      "items": [
+        {
+          "title": "汪汪队立大功",
+          "subtitle": "全 8 季",
+          "folder": "动画/汪汪队立大功"
+        },
+        {
+          "title": "小鼠波波",
+          "folder": "动画/Maisy"
+        }
+      ]
+    },
+    {
+      "_说明": "auto 写法：每天从 folder 里取 count 集，按天自动往后轮换。用了 auto 就不要写 items。",
+      "key": "lesson",
+      "title": "每日一课",
+      "requires": "daily",
+      "auto": {
+        "folder": "学习/ABC Book",
+        "count": 2
+      }
+    },
+    {
+      "_说明": "不写 requires 的分区不受门禁限制，任何时候都能看（适合放科普、儿歌）。",
+      "key": "free",
+      "title": "随便看看",
+      "items": [
+        {
+          "title": "海底世界",
+          "folder": "纪录片/海洋"
+        }
+      ]
+    }
+  ]
+}

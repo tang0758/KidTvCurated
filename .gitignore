@@ -14,15 +14,19 @@ captures/
 # 本机私有配置（绝不上传）
 nas.local.json
 app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
+.console_token
 
-# 运行时生成的片单（含真实账号密码）
-tv.json
-.tv_backup.json
+# 运行时生成的片单（含真实账号密码 + 家庭片库路径）
+# 只忽略仓库根目录这份；examples/tv.json 是要公开的模板，必须能提交
+/tv.json
+/.tv_backup.json
+*.backup.json
 
 # Python
 __pycache__/
 *.pyc
 .venv/
+tools/*.log
 
 # 系统
 .DS_Store
