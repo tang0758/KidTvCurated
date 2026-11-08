@@ -11,6 +11,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.R
+import com.family.curated.data.AppCatalog
 import com.family.curated.data.Covers
 import com.family.curated.data.Item
 import com.family.curated.data.NasConfig
@@ -58,11 +59,26 @@ class PosterAdapter(
         // 没封面时中央只放首字做占位，完整标题留在底部，避免重复
         holder.fallback.text = item.title.trim().take(2)
 
+        // 复用卡片时先还原成海报状态，否则应用图标的居中/内边距会串到视频卡上
         holder.cover.setImageDrawable(null)
+        holder.cover.scaleType = ImageView.ScaleType.CENTER_CROP
+        holder.cover.setPadding(0, 0, 0, 0)
         holder.cover.visibility = View.INVISIBLE
         holder.fallback.visibility = View.VISIBLE
 
-        if (cfg != null) {
+        val appSpec = item.app
+        if (!appSpec.isNullOrBlank()) {
+            // 应用入口直接用系统图标，不去 NAS 找同名封面
+            val icon = AppCatalog.icon(ctx.packageManager, appSpec)
+            if (icon != null) {
+                val pad = (46 * density).roundToInt()
+                holder.cover.scaleType = ImageView.ScaleType.FIT_CENTER
+                holder.cover.setPadding(pad, pad, pad, pad)
+                holder.cover.setImageDrawable(icon)
+                holder.cover.visibility = View.VISIBLE
+                holder.fallback.visibility = View.GONE
+            }
+        } else if (cfg != null) {
             Covers.load(holder.cover, cfg, item, coverW, coverH) { bmp ->
                 if (bmp != null) {
                     holder.cover.setImageBitmap(bmp)

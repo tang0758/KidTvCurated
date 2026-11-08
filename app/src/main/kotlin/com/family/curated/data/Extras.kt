@@ -152,6 +152,43 @@ object Extras {
 
     fun clearKioskExit() = p().edit().remove("kioskExitUntil").apply()
 
+    // ---------- 家长允许的应用入口 ----------
+
+    fun apps(): AppsConfig = AppsConfig.fromJson(p().getString("apps", null))
+
+    fun saveApps(v: AppsConfig) = p().edit().putString("apps", v.toJson()).apply()
+
+    /** 家长在电视上勾选过没？没勾选过就用清单 apps.entries 作为初始显示列表 */
+    private fun selectedApps(): Set<String>? =
+        if (p().contains("appsSelected")) p().getStringSet("appsSelected", emptySet()) ?: emptySet()
+        else null
+
+    fun visibleApps(cfg: AppsConfig = apps()): Set<String> =
+        selectedApps() ?: cfg.entries.map { it.spec }.toSet()
+
+    fun saveSelectedApps(v: Set<String>) =
+        p().edit().putStringSet("appsSelected", HashSet(v)).apply()
+
+    fun clearSelectedApps() = p().edit().remove("appsSelected").apply()
+
+    /** 孩子点开一个允许的应用后的临时放行窗口 */
+    fun grantAppLaunch(pkg: String, minutes: Int) = p().edit()
+        .putString("appLaunchPkg", pkg)
+        .putLong(
+            "appLaunchUntil",
+            System.currentTimeMillis() + minutes.coerceIn(1, 240) * 60_000L
+        ).apply()
+
+    fun appLaunchPackage(): String = p().getString("appLaunchPkg", "") ?: ""
+
+    fun appLaunchUntil(): Long = p().getLong("appLaunchUntil", 0L)
+
+    fun appLaunchActive(): Boolean =
+        appLaunchPackage().isNotBlank() && System.currentTimeMillis() < appLaunchUntil()
+
+    fun clearAppLaunch() = p().edit()
+        .remove("appLaunchUntil").remove("appLaunchPkg").apply()
+
     // ---------- 锁屏学习角 ----------
 
     /** 没同步过清单时用内置题库，保证第一次装好就能显示 */

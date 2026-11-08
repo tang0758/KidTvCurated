@@ -311,6 +311,17 @@ function normalize(d){
   K.reentryMs = Number(K.reentryMs) || 1000;
   if (K.blockBack === undefined) K.blockBack = true;
   if (K.blockSystemKeys === undefined) K.blockSystemKeys = true;
+  if (!d.apps || typeof d.apps !== "object") d.apps = {};
+  const A = d.apps;
+  if (A.enabled === undefined) A.enabled = false;
+  if (!A.title) A.title = "应用";
+  if (A.showAfterDaily === undefined) A.showAfterDaily = true;
+  A.maxMinutes = Number(A.maxMinutes) || 30;
+  if (!Array.isArray(A.entries)) A.entries = [];
+  // 文本域用这个虚拟字段；以 _ 开头，保存时会被 cleanKeys 自动剔除
+  A._entriesText = A.entries.map(e => typeof e === "string" ? e :
+    ((e && e.package ? e.package : "") + (e && e.label ? " | " + e.label : "")))
+    .filter(Boolean).join("\n");
   return d;
 }
 function cleanKeys(o){
@@ -331,11 +342,12 @@ function payload(){
   }
   (d.sections || []).forEach(s=>{
     if (s.auto && !s.auto.folder) delete s.auto;
-    s.items = (s.items || []).filter(it => it.file || it.folder);
+    s.items = (s.items || []).filter(it => it.file || it.folder || it.app);
     s.items.forEach(it => {
       if (!it.title) delete it.title;
       if (!it.subtitle) delete it.subtitle;
       if (!it.cover) delete it.cover;
+      if (!it.app) delete it.app;
     });
     if (!s.requires) delete s.requires;
     if (!s.gate) delete s.gate;
@@ -349,6 +361,22 @@ function payload(){
     K.exitMinutes = Math.max(1, Math.min(1440, Number(K.exitMinutes) || 30));
     K.reentryMs = Math.max(300, Math.min(10000, Number(K.reentryMs) || 1000));
     if (!K.exitComponent) delete K.exitComponent;
+  }
+  if (d.apps){
+    const A = d.apps;
+    A.enabled = !!A.enabled;
+    A.showAfterDaily = !!A.showAfterDaily;
+    A.maxMinutes = Math.max(1, Math.min(240, Number(A.maxMinutes) || 30));
+    if (!A.title) A.title = "应用";
+    A.entries = String(A._entriesText || "").split(/\r?\n/)
+      .map(x => x.trim()).filter(Boolean)
+      .map(line => {
+        const parts = line.split(/[|｜]/).map(x => x.trim());
+        const pkg = parts.shift() || "";
+        const label = parts.join(" ").trim();
+        return label ? {package: pkg, label: label} : pkg;
+      })
+      .filter(x => typeof x === "string" ? x : x.package);
   }
   if (d.learning){
     const L = d.learning;
@@ -600,6 +628,17 @@ function renderRules(){
     chk("kiosk.blockBack", "主界面拦截返回键", K.blockBack) +
     chk("kiosk.blockSystemKeys", "拦截设置 / 输入源 / 最近任务等功能键", K.blockSystemKeys) +
     '<p class="empty">Android 的 Home 键普通应用拦不住。要完全无缝，需把本应用设为默认桌面（见 README「开机自启与儿童锁」）；未设置时靠后台自动拉回兜底，约 1 秒闪回。输入源 / 直播 / 电源等硬件键应用层无解，需物理遮挡或系统级限制。家长出口：电视上按菜单键 → PIN → 「退出到桌面」。</p></div>';
+  const A = d.apps;
+  h += '<div class="card"><h3>应用入口 <span class="sub">家长勾选后才显示</span></h3>' +
+    chk("apps.enabled", "在主界面末尾显示应用入口", A.enabled) +
+    chk("apps.showAfterDaily", "今天必看全部完成后才解锁（关掉 = 一直可用）", A.showAfterDaily) +
+    '<div class="fields" style="margin-top:12px">' +
+    '<label>分区标题<input data-bind="apps.title" value="' + esc(A.title) + '"></label>' +
+    '<label>单次进入最长（分钟）<input type="number" data-type="number" data-bind="apps.maxMinutes" value="' + esc(A.maxMinutes) + '"></label>' +
+    '</div>' +
+    '<label style="display:block;margin-top:12px">初始应用列表（每行一个：包名 | 显示名）' +
+    '<textarea data-bind="apps._entriesText" style="min-height:90px" placeholder="com.example.kidsgame | 识字小游戏&#10;com.example.music">' + esc(A._entriesText || "") + '</textarea></label>' +
+    '<p class="empty">最终显示哪些由家长在电视上按「菜单 → PIN → 选择允许显示的应用」勾选，勾选结果存在电视本地，优先于这里的初始列表。改完这里想生效，在电视家长菜单点「恢复清单里的应用列表」。桌面 / 设置 / 安装器 / 应用商店不会出现在可勾选列表里；孩子点开后按 Home / 返回、超时或到时段都会回小剧场。</p></div>';
   body.innerHTML = h;
 }
 

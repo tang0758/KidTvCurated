@@ -15,6 +15,8 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.family.curated.data.AppCatalog
+import com.family.curated.data.AppsConfig
 import com.family.curated.data.Badges
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
@@ -101,16 +103,44 @@ class MainActivity : AppCompatActivity() {
                 Extras.savePassRatio(res.playlist.passRatio)
                 Extras.saveLearning(res.playlist.learning ?: com.family.curated.data.Learning())
                 Extras.saveKiosk(res.playlist.kiosk)
+                Extras.saveApps(res.playlist.apps)
                 render(res.error)
             }
         }.start()
     }
 
+    /** 把家长勾选的应用拼成一个额外的分区，追加在所有片单分区后面 */
+    private fun buildAppsSection(pl: Playlist): Section? {
+        val cfg: AppsConfig = pl.apps
+        if (!cfg.enabled) return null
+        val pm = packageManager
+        val visible = Extras.visibleApps(cfg)
+
+        val items = visible.mapNotNull { spec ->
+            if (AppCatalog.launchIntent(pm, spec) == null) return@mapNotNull null // 只留能启动的
+            val custom = cfg.entries.firstOrNull { it.spec == spec }?.label?.takeIf { it.isNotBlank() }
+            val label = custom ?: AppCatalog.label(pm, spec) ?: spec.substringBefore('/')
+            Item(id = "app:$spec", title = label, app = spec)
+        }.toMutableList()
+        // 一个都没勾时也留一行占位，家长知道去哪添加；孩子点它只会弹出 PIN
+        if (items.isEmpty()) {
+            items.add(
+                Item(id = "app:__parent__", title = "＋ 家长添加应用", app = AppCatalog.PARENT_ENTRY)
+            )
+        }
+
+        // 看完今天必看才解锁：复用现有 requires 门禁，卡片上会显示「还差 N 个才解锁」
+        val requires = if (cfg.showAfterDaily) pl.gateSections.firstOrNull()?.key else null
+        return Section(key = "__apps", title = cfg.title, requires = requires, items = items)
+    }
+
     private fun render(error: String?) {
         val pl = playlist ?: return
         val cfg = pl.nas
+        val appSection = buildAppsSection(pl)
+        val shown = if (appSection != null) pl.copy(sections = pl.sections + appSection) else pl
 
-        if (pl.sections.isEmpty()) {
+        if (shown.sections.isEmpty()) {
             b.tvEmpty.visibility = View.VISIBLE
             b.tvEmpty.text = buildString {
                 append(error ?: "清单是空的")
@@ -130,7 +160,7 @@ class MainActivity : AppCompatActivity() {
             b.tvEmpty.postDelayed({ b.tvEmpty.visibility = View.GONE }, 6000)
         }
 
-        val a = SectionsAdapter(this, pl, cfg, skipGateOnce) { section, item -> onItemClick(section, item) }
+        val a = SectionsAdapter(this, shown, cfg, skipGateOnce) { section, item -> onItemClick(section, item) }
         adapter = a
         b.rvSections.adapter = a
         updateHeader()
@@ -191,11 +221,36 @@ class MainActivity : AppCompatActivity() {
         startActivity(Intent(this, RewardsActivity::class.java))
     }
 
+    /** 打开家长允许的应用，同时开一段「不自动拉回」的窗口 */
+    private fun launchAllowedApp(spec: String, title: String) {
+        val intent = AppCatalog.launchIntent(packageManager, spec)
+        if (intent == null) {
+            Toast.makeText(this, "$title 打不开了，可能已经卸载", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val minutes = Extras.apps().maxMinutes
+        Extras.grantAppLaunch(spec.substringBefore('/'), minutes)
+        try {
+            startActivity(intent)
+            Toast.makeText(this, "$title · 最多 $minutes 分钟后自动回小剧场", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Extras.clearAppLaunch()
+            Toast.makeText(this, "打不开 $title：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun onItemClick(section: Section, item: Item) {
         val unlocked = skipGateOnce || (adapter?.isUnlocked(section) ?: true)
         if (!unlocked) {
             val left = adapter?.gateRemaining() ?: 0
             Toast.makeText(this, "先做完上面那 $left 个，就能看了", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val appSpec = item.app
+        if (!appSpec.isNullOrBlank()) {
+            if (appSpec == AppCatalog.PARENT_ENTRY) askPin { showAppPicker() }
+            else launchAllowedApp(appSpec, item.title)
             return
         }
 
@@ -337,62 +392,91 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showParentMenu() {
-        val items = arrayOf(
-            "重新读取清单",
-            "今天全部重来（清掉完成记录）",
-            if (skipGateOnce) "恢复必看限制" else "这次先跳过必看",
-            "清空所有播放进度",
-            "打卡墙 · 勋章墙",
-            "临时放行 15 分钟",
-            if (Extras.kioskExitActive()) "结束家长放行（恢复儿童锁）" else "退出到桌面（家长维护）"
+        val actions: List<Pair<String, () -> Unit>> = listOf(
+            "重新读取清单" to {
+                com.family.curated.data.Smb.reset()
+                loadPlaylist()
+            },
+            "选择允许显示的应用" to { showAppPicker() },
+            "恢复清单里的应用列表" to {
+                Extras.clearSelectedApps()
+                render(null)
+                Toast.makeText(this, "已恢复清单默认的应用列表", Toast.LENGTH_SHORT).show()
+            },
+            "今天全部重来（清掉完成记录）" to {
+                Store.clearTodayRecursive()
+                skipGateOnce = false
+                adapter?.setSkipGate(false)
+                updateHeader()
+                Toast.makeText(this, "已清空今天的记录", Toast.LENGTH_SHORT).show()
+            },
+            (if (skipGateOnce) "恢复必看限制" else "这次先跳过必看") to {
+                skipGateOnce = !skipGateOnce
+                adapter?.setSkipGate(skipGateOnce)
+                Toast.makeText(
+                    this,
+                    if (skipGateOnce) "本次已跳过必看" else "已恢复必看限制",
+                    Toast.LENGTH_SHORT
+                ).show()
+            },
+            "清空所有播放进度" to {
+                Store.resetAllProgress()
+                com.family.curated.data.Covers.clear()
+                adapter?.notifyDataSetChanged()
+                updateHeader()
+                Toast.makeText(this, "已清空全部进度", Toast.LENGTH_SHORT).show()
+            },
+            "打卡墙 · 勋章墙" to { openRewards() },
+            "临时放行 15 分钟" to {
+                Extras.grantTemp(15)
+                Toast.makeText(this, "已临时放行 15 分钟", Toast.LENGTH_SHORT).show()
+            },
+            (if (Extras.kioskExitActive()) "结束家长放行（恢复儿童锁）" else "退出到桌面（家长维护）") to {
+                if (Extras.kioskExitActive()) {
+                    Extras.clearKioskExit()
+                    Toast.makeText(this, "儿童锁已恢复", Toast.LENGTH_SHORT).show()
+                } else {
+                    exitToLauncher()
+                }
+            }
         )
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle("家长选项")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> {
-                        com.family.curated.data.Smb.reset()
-                        loadPlaylist()
-                    }
-                    1 -> {
-                        Store.clearTodayRecursive()
-                        skipGateOnce = false
-                        adapter?.setSkipGate(false)
-                        updateHeader()
-                        Toast.makeText(this, "已清空今天的记录", Toast.LENGTH_SHORT).show()
-                    }
-                    2 -> {
-                        skipGateOnce = !skipGateOnce
-                        adapter?.setSkipGate(skipGateOnce)
-                        Toast.makeText(
-                            this,
-                            if (skipGateOnce) "本次已跳过必看" else "已恢复必看限制",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    3 -> {
-                        Store.resetAllProgress()
-                        com.family.curated.data.Covers.clear()
-                        adapter?.notifyDataSetChanged()
-                        updateHeader()
-                        Toast.makeText(this, "已清空全部进度", Toast.LENGTH_SHORT).show()
-                    }
-                    4 -> openRewards()
-                    5 -> {
-                        Extras.grantTemp(15)
-                        Toast.makeText(this, "已临时放行 15 分钟", Toast.LENGTH_SHORT).show()
-                    }
-                    6 -> {
-                        if (Extras.kioskExitActive()) {
-                            Extras.clearKioskExit()
-                            Toast.makeText(this, "儿童锁已恢复", Toast.LENGTH_SHORT).show()
-                        } else {
-                            exitToLauncher()
-                        }
-                    }
-                }
+            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
+                actions.getOrNull(which)?.second?.invoke()
             }
             .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    /** 从电视上已安装的应用里勾选孩子能看到的入口（桌面 / 设置 / 安装器等已过滤） */
+    private fun showAppPicker() {
+        val catalog = AppCatalog.installed(this)
+        if (catalog.isEmpty()) {
+            Toast.makeText(this, "没找到可以启动的应用", Toast.LENGTH_LONG).show()
+            return
+        }
+        val selected = Extras.visibleApps()
+        val labels = catalog.map { "${it.label}  (${it.spec})" }.toTypedArray()
+        val checked = BooleanArray(catalog.size) { catalog[it].spec in selected }
+
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("选择孩子能看到的 App（OK 勾选）")
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton("保存") { _, _ ->
+                val set = catalog.filterIndexed { i, _ -> checked[i] }.map { it.spec }.toSet()
+                Extras.saveSelectedApps(set)
+                render(null)
+                Toast.makeText(this, "已显示 ${set.size} 个应用入口", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("全部隐藏") { _, _ ->
+                Extras.saveSelectedApps(emptySet())
+                render(null)
+                Toast.makeText(this, "已隐藏所有应用入口", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
             .show()
     }
 }

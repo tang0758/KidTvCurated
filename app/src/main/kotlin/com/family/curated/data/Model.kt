@@ -36,10 +36,12 @@ data class Item(
     val subtitle: String? = null,
     val file: String? = null,
     val folder: String? = null,
-    val cover: String? = null
+    val cover: String? = null,
+    /** 非空表示这是一个第三方应用入口，值为包名或「包名/Activity」 */
+    val app: String? = null
 ) {
     val isFolder: Boolean get() = folder != null
-    fun key(): String = id.ifEmpty { (file ?: folder ?: title) }
+    fun key(): String = id.ifEmpty { (file ?: folder ?: app ?: title) }
 }
 
 /**
@@ -63,8 +65,9 @@ data class Playlist(
     val pin: String = "1234",
     val passRatio: Float = 0.92f,  // 播放进度达到这个比例就算"看完"
     val schedule: Schedule? = null, // 可用时段 / 每日时长上限；不写就不限制
-    val learning: Learning? = null, // 锁屏右侧学习角；不写 = 启用内置题库
-    val kiosk: Kiosk = Kiosk()      // 儿童锁；不写 = 关闭，行为与旧版一致
+    val learning: Learning? = null,  // 锁屏右侧学习角；不写 = 启用内置题库
+    val kiosk: Kiosk = Kiosk(),      // 儿童锁；不写 = 关闭，行为与旧版一致
+    val apps: AppsConfig = AppsConfig() // 家长允许的应用入口；不写 = 不显示
 ) {
     val gateSections: List<Section> get() = sections.filter { it.gate }
 }
@@ -116,17 +119,20 @@ object PlaylistParser {
                 val o = itemsArr.getJSONObject(j)
                 val file = o.optString("file").ifBlank { null }
                 val folder = o.optString("folder").ifBlank { null }
-                if (file == null && folder == null) continue
+                val app = o.optString("app").ifBlank { o.optString("package").ifBlank { null } }
+                if (file == null && folder == null && app == null) continue
                 items.add(
                     Item(
                         id = o.optString("id", key + "_" + j),
                         title = o.optString("title").ifBlank {
-                            (file ?: folder ?: "").substringAfterLast('/')
+                            if (app != null) app.substringBefore('/')
+                            else (file ?: folder ?: "").substringAfterLast('/')
                         },
                         subtitle = o.optString("subtitle").ifBlank { null },
                         file = file,
                         folder = folder,
-                        cover = o.optString("cover").ifBlank { null }
+                        cover = o.optString("cover").ifBlank { null },
+                        app = app
                     )
                 )
             }
@@ -154,7 +160,8 @@ object PlaylistParser {
                 root.optJSONObject("schedule") ?: scheduleFromLegacy(root)
             ),
             learning = Learning.parse(root.optJSONObject("learning")),
-            kiosk = Kiosk.parse(root.optJSONObject("kiosk"))
+            kiosk = Kiosk.parse(root.optJSONObject("kiosk")),
+            apps = AppsConfig.parse(root.optJSONObject("apps"))
         )
     }
 }

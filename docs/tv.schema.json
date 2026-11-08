@@ -82,6 +82,33 @@
         "blockSystemKeys": { "type": "boolean", "default": true, "description": "是否拦截能收到的设置 / 输入源 / 最近任务 / 语音等功能键" }
       }
     },
+    "apps": {
+      "type": "object",
+      "description": "儿童锁下允许出现的第三方应用入口。整段省略或 enabled=false = 不显示。显示哪些应用最终以电视上「菜单 → PIN → 选择允许显示的应用」的勾选为准，entries 只是初始列表。",
+      "properties": {
+        "enabled": { "type": "boolean", "default": false, "description": "是否在主界面末尾追加一行应用入口" },
+        "title": { "type": "string", "default": "应用", "description": "这一行的标题" },
+        "showAfterDaily": { "type": "boolean", "default": true, "description": "true = 今天必看全部完成后才解锁应用入口；false = 一直可用" },
+        "maxMinutes": { "type": "integer", "minimum": 1, "maximum": 240, "default": 30, "description": "单次进入应用的最长放行分钟数，到点自动回小剧场" },
+        "entries": {
+          "type": "array",
+          "description": "初始应用列表。可写包名字符串，或 {\"package\":\"包名/Activity\",\"label\":\"显示名\"}；家长在电视上勾选后以本地勾选为准。",
+          "items": {
+            "oneOf": [
+              { "type": "string", "description": "应用包名，如 com.example.kids" },
+              {
+                "type": "object",
+                "required": ["package"],
+                "properties": {
+                  "package": { "type": "string", "description": "包名，或「包名/完整 Activity 类名」指定某个入口" },
+                  "label": { "type": "string", "description": "自定义显示名；留空用系统应用名" }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     "allowed": { "$ref": "#/definitions/windows", "description": "旧版简写：同时作用于工作日与周末" },
     "allowedHours": { "$ref": "#/definitions/windows", "description": "旧版简写" },
     "dailyLimitMinutes": { "type": "integer", "minimum": 0, "description": "旧版简写，有 schedule 段时以 schedule 为准" },
@@ -153,12 +180,13 @@
     },
     "item": {
       "type": "object",
-      "description": "file 与 folder 二选一",
+      "description": "file / folder / app 三选一；app 表示应用入口卡片",
       "properties": {
         "title": { "type": "string" },
         "subtitle": { "type": "string" },
         "file": { "type": "string", "description": "单个视频文件的相对路径" },
         "folder": { "type": "string", "description": "整个文件夹的相对路径，递归 3 层" },
+        "app": { "type": "string", "description": "应用包名或「包名/Activity」，点击直接启动这个应用（也可在 sections 里手工混排应用卡片）" },
         "cover": {
           "type": "string",
           "description": "封面图。可写相对视频共享的路径，或写「共享名:路径」（如 data:curated/covers/a.jpg）从另一个共享读取，适合视频共享只读的情况。省略时自动找同名 jpg/png / folder.jpg / poster.jpg / cover.jpg / 封面.jpg。"
@@ -167,7 +195,8 @@
       },
       "anyOf": [
         { "required": ["file"] },
-        { "required": ["folder"] }
+        { "required": ["folder"] },
+        { "required": ["app"] }
       ]
     }
   }

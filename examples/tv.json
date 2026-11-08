@@ -64,6 +64,19 @@
     "blockBack": true,
     "blockSystemKeys": true
   },
+  "apps": {
+    "_说明": "儿童锁下允许出现的其它应用入口。整段删掉或 enabled=false = 不显示。开启后主界面最后会多一行应用图标，点开后最多玩 maxMinutes 分钟，按 Home / 返回 / 超时都会回小剧场。",
+    "enabled": false,
+    "title": "应用",
+    "_显示时机说明": "showAfterDaily=true 表示今天必看全部完成后才解锁这一行（卡片上会提示还差几个）；改成 false 则一直可用。",
+    "showAfterDaily": true,
+    "maxMinutes": 30,
+    "_选择说明": "家长在电视上按 菜单 → PIN → 「选择允许显示的应用」勾选，结果存在电视本地。entries 是首次安装 / 家长点「恢复清单里的应用列表」时用的初始列表，也可以写进控制台给手机预置。桌面、设置、安装器、应用商店不会出现在可勾选列表里。",
+    "entries": [
+      { "package": "com.example.kidsgame", "label": "识字小游戏" },
+      "com.example.music"
+    ]
+  },
   "_封面说明": "App 不联网刮削海报、也不自己截帧：cover 留空时按「视频同名 jpg/png → -poster.jpg → folder.jpg → poster.jpg → cover.jpg → 封面.jpg」在视频共享里找现成图片，找不到就显示标题占位卡。视频共享只读、或目录里一张图都没有时，跑 python tools/make_covers.py --apply 从视频截帧生成，写成 data:curated/covers/xxx.jpg（冒号前是共享名，冒号后是路径）。",
   "sections": [
     {

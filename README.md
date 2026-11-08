@@ -143,6 +143,30 @@ adb reboot
 > 图省事也可以**不做第 ② 步**：只开 `kiosk.enabled`，孩子按 Home 会先看到别的桌面约 1 秒再被拉回。
 > 桌面加载通常就要好几秒，实际很难点进去，但会闪一下。
 
+### 允许出现其它应用入口（家长勾选）
+
+儿童锁不等于「除了视频什么都不能用」。在 `tv.json` 里打开 `apps` 段后，主界面最后会多一行应用图标，
+**显示哪几个由家长在电视上选**：菜单 → PIN → 「选择允许显示的应用」，OK 多选、保存立刻生效；
+桌面 / 设置 / 安装器 / 应用商店会自动从候选里排除。
+
+```json
+"apps": {
+  "enabled": true,
+  "title": "应用",
+  "showAfterDaily": true,
+  "maxMinutes": 30,
+  "entries": []
+}
+```
+
+`showAfterDaily: true` 表示**今天的必看全部看完之后**才解锁这一行（没做完时卡片显示「还差 N 个才解锁」）；
+想一直可用改成 `false`。孩子点开应用后临时放行 `maxMinutes` 分钟，按 Home / 返回、超时或到了不可用时段
+都会自动回小剧场，前台守卫不会被绕过。字段、优先级和「恢复清单默认」的说明见 [docs/CONFIG.md](docs/CONFIG.md#应用入口-apps)，
+网页控制台「时段与密码」页同样能改。
+
+> 想连「从允许的 App 跳到别的应用」也堵上，可选执行
+> `adb shell appops set com.family.curated GET_USAGE_STATS allow` 让守卫识别前台应用；不授权则降级为定时拉回。
+
 ### 附：为什么 Aerial 能做到「开机 / 主页键接管」
 
 研究 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv) 后结论很明确：**它靠的不是标准 Android 能力，而是 adb 授予的系统级权限 + 一整套对抗国产 ROM 的守护组件**。项目安装命令里就写着：

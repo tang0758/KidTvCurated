@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import com.family.curated.data.AppGuard
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.Store
@@ -29,6 +30,8 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         override fun run() {
             try {
                 val st = GateKeeper.status()
+                // 到了不可用时段，孩子即使正在家长允许的应用里也要收回来锁屏
+                if (!st.open && Extras.appLaunchActive()) Extras.clearAppLaunch()
                 val a = current
                 if (a is LockActivity) {
                     if (st.open) a.finish()
@@ -68,6 +71,16 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
             return
         }
         val now = System.currentTimeMillis()
+        if (Extras.appLaunchActive()) {
+            // 家长明确允许的应用：放行窗口内不拉回；跳到别的应用则立刻收回来
+            val fg = AppGuard.foregroundPackage(this)
+            val allowedPkg = Extras.appLaunchPackage()
+            if (fg.isNullOrBlank() || fg == allowedPkg || fg == packageName) {
+                backgroundSince = 0L
+                return
+            }
+            Extras.clearAppLaunch()
+        }
         if (backgroundSince == 0L) {
             backgroundSince = now
             return
@@ -97,7 +110,11 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         handler.postDelayed(tick, 1200)
     }
 
-    override fun onActivityResumed(a: Activity) { current = a }
+    override fun onActivityResumed(a: Activity) {
+        current = a
+        // 只要自己的界面回到前台，外部应用的放行就结束了（按 Home / 返回都会走到这里）
+        if (Extras.appLaunchActive()) Extras.clearAppLaunch()
+    }
     override fun onActivityPaused(a: Activity) { if (current === a) current = null }
     override fun onActivityCreated(a: Activity, s: Bundle?) {}
     override fun onActivityStarted(a: Activity) {}
