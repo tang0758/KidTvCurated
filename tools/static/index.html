@@ -296,6 +296,8 @@ function normalize(d){
   if (!L.artShare) L.artShare = "";
   if (!Array.isArray(L.custom)) L.custom = Array.isArray(L.items) ? L.items : [];
   delete L.items;
+  L.stage = Number(L.stage) || 0;
+  L.stageSize = Number(L.stageSize) || 0;
   return d;
 }
 function cleanKeys(o){
@@ -340,6 +342,10 @@ function payload(){
       ["sub","note","image"].forEach(k => { if (!c[k]) delete c[k]; });
     });
     if (!L.custom.length) delete L.custom;
+    L.stage = Math.max(0, Math.min(99, Number(L.stage) || 0));
+    L.stageSize = Math.max(0, Math.min(500, Number(L.stageSize) || 0));
+    if (!L.stage) delete L.stage;
+    if (!L.stageSize) delete L.stageSize;
   }
   cleanKeys(d);
   return d;
@@ -550,11 +556,14 @@ function renderLearning(){
       '<label class="chk"><input type="checkbox" data-bind="learning.enabled"' + (L.enabled ? " checked" : "") + '> 启用学习角</label>' +
       '<label>每张停留（秒）<input type="number" min="6" max="600" data-type="number" data-bind="learning.intervalSeconds" value="' + esc(L.intervalSeconds) + '"></label>' +
       '<label class="chk"><input type="checkbox" data-bind="learning.useBuiltin"' + (L.useBuiltin ? " checked" : "") + '> 使用内置题库</label>' +
+      '<label>第几阶段<input type="number" min="0" max="99" data-type="number" data-bind="learning.stage" value="' + esc(L.stage) + '"></label>' +
+      '<label>每阶段每类张数<input type="number" min="0" max="500" data-type="number" data-bind="learning.stageSize" value="' + esc(L.stageSize) + '"></label>' +
     '</div>' +
     '<div class="fields" style="margin-top:10px"><label>类别顺序（逗号分隔）<input data-bind="learning.order" value="' +
       esc(Array.isArray(L.order) ? L.order.join(",") : L.order) + '" placeholder="poem,word,art,text"></label></div>' +
-    '<p class="empty">内置题库：15 首唐诗 · 24 个 A–Z 单词 · 10 幅名画 · 识字 / 成语 / 短句，共 70 多张，全部离线打包在 APK 里。<br>' +
-    '关掉「使用内置题库」则只显示下面的自定义卡片。类别顺序可写 poem,word,art,text 的任意子集，电视会按这个顺序交错出题；遥控器 ◀ ▶ 手动翻页、播放键暂停。</p></div>';
+    '<p class="empty">内置题库：<b>57 首唐诗</b> · <b>78 个 A–Z 单词</b>（每字母 3 个）· <b>50 幅名画</b> · <b>70 张识字 / 成语 / 短句</b>，共 255 张，全部离线打包在 APK 里。<br>' +
+    '分阶段：填「第几阶段 1 + 每阶段每类 50」就是第一阶段，每类只出前 50 张（唐诗正好 50 首）；想进入下一阶段把阶段号改成 2。两项都留 0 = 255 张全部轮播。<br>' +
+    '关掉「使用内置题库」则只显示下面的自定义卡片。类别顺序可写 poem,word,art,text 的任意子集：写几类就只出这几类（自定义卡片的类型会自动补进来），电视按这个顺序交错出题；遥控器 ◀ ▶ 手动翻页、播放键暂停。</p></div>';
 
   h += '<div class="card"><h3>名画图片 <span class="sub">可选：换成自己 NAS 上的图</span></h3>' +
     '<div class="fields">' +
@@ -563,7 +572,7 @@ function renderLearning(){
     '</div>' +
     '<div class="rowbtn"><button class="tiny" data-act="useCurrentPath">用「资源浏览」当前目录</button>' +
     '<button class="tiny" data-act="clearArtFolder">清空，用内置名画</button></div>' +
-    '<p class="empty">不填就用 APK 内置的 10 幅公共领域名画（断网也能看）。填了目录后，电视按文件名顺序把目录里的 jpg / png 依次贴到名画卡片上；也可以在自定义卡片里给「名画」单独写 image 路径。</p></div>';
+    '<p class="empty">不填就用 APK 内置的 50 幅公共领域名画（含 5 幅中国画、2 幅浮世绘，断网也能看）。填了目录后，电视按文件名顺序把目录里的 jpg / png 依次贴到名画卡片上；也可以在自定义卡片里给「名画」单独写 image 路径。</p></div>';
 
   h += '<div class="card"><h3>自定义卡片 <span class="sub">追加在内置题库后面，一起轮播</span></h3>';
   const list = L.custom || [];

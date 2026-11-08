@@ -72,6 +72,9 @@ data class LearningCard(
  * enabled=false 时锁屏回到原来的纯倒计时全屏布局；
  * useBuiltin=false 时只显示 custom 里家长自己写的卡片；
  * artFolder 指向 NAS 上的图片目录时，名画卡片会依次用目录里的图片。
+ * stage + stageSize 可以分阶段：例如 stage=1、stageSize=50，
+ * 表示「第一阶段」每类只出前 50 张（唐诗 50 首、名画 50 张…），
+ * 想进入下一阶段把 stage 改成 2；两个都为 0 时全部内置卡片都参与轮播。
  */
 data class Learning(
     val enabled: Boolean = true,
@@ -80,20 +83,34 @@ data class Learning(
     val useBuiltin: Boolean = true,
     val artFolder: String = "",
     val artShare: String = "",
-    val custom: List<LearningCard> = emptyList()
+    val custom: List<LearningCard> = emptyList(),
+    /** 分阶段学习：stage=0 或 stageSize=0 表示全部内置卡片都上 */
+    val stage: Int = 0,
+    val stageSize: Int = 0
 ) {
     /** 每类先各来一张，再按比例平滑穿插，避免同类连着出现一大串 */
     fun deck(): List<LearningCard> {
         val pools = HashMap<CardType, MutableList<LearningCard>>()
         CardType.values().forEach { pools[it] = ArrayList() }
-        if (useBuiltin) LearningLibrary.all.forEach { pools[it.type]!!.add(it) }
+        if (useBuiltin) {
+            LearningLibrary.all.groupBy { it.type }.forEach { (type, cards) ->
+                val slice = if (stage > 0 && stageSize > 0) {
+                    val from = (stage - 1) * stageSize
+                    if (from < cards.size) cards.drop(from).take(stageSize)
+                    else cards.takeLast(stageSize)   // 阶段号写超了就停在本类最后一组
+                } else cards
+                pools[type]!!.addAll(slice)
+            }
+        }
+        // 家长自己写的卡片不受阶段限制，始终加入
         custom.forEach { pools[it.type]!!.add(it) }
 
+        // order 写子集就真的只出这几类；自定义卡片出现的类型自动补进来，避免被吞掉
+        val seq = (order.ifEmpty { DEFAULT_ORDER } + custom.map { it.type }).distinct()
         val initial = pools.mapValues { it.value.size }
-        val total = initial.values.sum()
+        val total = seq.sumOf { t -> initial[t] ?: 0 }
         if (total == 0) return emptyList()
 
-        val seq = (order.ifEmpty { DEFAULT_ORDER } + CardType.values().toList()).distinct()
         val out = ArrayList<LearningCard>(total)
         var last: CardType? = null
         while (out.size < total) {
@@ -119,6 +136,8 @@ data class Learning(
         if (custom.isNotEmpty()) {
             put("custom", JSONArray().also { a -> custom.forEach { a.put(it.toJson()) } })
         }
+        if (stage > 0) put("stage", stage)
+        if (stageSize > 0) put("stageSize", stageSize)
     }.toString()
 
     companion object {
@@ -151,7 +170,9 @@ data class Learning(
                 useBuiltin = o.optBoolean("useBuiltin", true),
                 artFolder = o.optString("artFolder").ifBlank { "" },
                 artShare = o.optString("artShare").ifBlank { "" },
-                custom = custom
+                custom = custom,
+                stage = o.optInt("stage", 0).coerceIn(0, 99),
+                stageSize = o.optInt("stageSize", 0).coerceIn(0, 500)
             )
         }
     }

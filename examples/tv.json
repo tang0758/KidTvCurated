@@ -31,8 +31,12 @@
     "enabled": true,
     "intervalSeconds": 20,
     "order": ["poem", "word", "art", "text"],
+    "_类别说明": "order 写几类就只出这几类；例如 [\"poem\"] 只背唐诗。自定义卡片的类型会自动补进来。",
     "useBuiltin": true,
-    "_名画说明": "不写 artFolder 就用 APK 内置的 10 幅公共领域名画（断网也能看）。想换成自己的图，写 artFolder: \"curated/art\" 和 artShare: \"data\"，电视会按文件名顺序取目录里的 jpg/png。",
+    "_分阶段说明": "内置 255 张卡：57 首唐诗、78 个 A–Z 单词、50 幅名画、70 张识字 / 成语 / 短句。想分阶段，写 stage: 1 和 stageSize: 50 = 每类只出前 50 张；改成 stage: 2 进入下一批。两项都留 0 或删掉 = 全部轮播。",
+    "stage": 0,
+    "stageSize": 0,
+    "_名画说明": "不写 artFolder 就用 APK 内置的 50 幅公共领域名画（含 5 幅中国画、2 幅浮世绘，断网也能看）。想换成自己的图，写 artFolder: \"curated/art\" 和 artShare: \"data\"，电视会按文件名顺序取目录里的 jpg/png。",
     "custom": [
       {
         "type": "text",

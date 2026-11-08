@@ -20,7 +20,7 @@
 | **勋章墙** | 10 枚成就勋章，按累计打卡 / 连击 / 观看时长 / 视频数解锁，新勋章有小红点 |
 | **每日播放时长** | 真实播放时长累计（暂停不计时），主界面与奖励中心显示；可设每日上限 |
 | **可用时段 + 大倒计时** | 工作日 / 周末分别设时间窗；不可用或时长用尽时锁屏，左 42% 显示大倒计时 |
-| **等待时间学习角** | 锁屏右 58% 自动轮播：15 首唐诗、24 个 A–Z 英语单词、10 幅内置名画、识字 / 成语 / 短句；可自定义卡片、换成 NAS 上的图片，遥控器翻页与暂停 |
+| **等待时间学习角** | 锁屏右 58% 自动轮播 **255 张离线卡片**：57 首唐诗、78 个 A–Z 英语单词（每字母 3 个）、50 幅内置名画、70 张识字 / 成语 / 短句；可分阶段出题、自定义卡片、换成 NAS 上的图片，遥控器翻页与暂停 |
 | **家长临时放行** | 锁屏按菜单键（或直接按遥控器数字键）输 PIN，放行 15 分钟 |
 | **防跳看** | 必看视频记录「真正看到过」的最远位置，只许回看已看部分，快进越界自动拉回并提示 |
 | **手机 / PC 编排** | 网页控制台浏览 SMB 目录、可视化编辑片单与时段，一键写回 NAS |
@@ -37,6 +37,10 @@
 ![锁屏：唐诗](docs/preview/lock-learning-poem.png)
 
 ![锁屏：名画](docs/preview/lock-learning-art.png)
+
+![锁屏：英语单词](docs/preview/lock-learning-word.png)
+
+![锁屏：识字卡](docs/preview/lock-learning-text.png)
 
 ### 遥控器
 
@@ -118,7 +122,7 @@ python tools/console.py --lan --port 9000 --token 我的访问码
 | **资源浏览** | 选共享、逐层进目录，看视频 / 图片和大小；「集数」递归统计（和电视端一致，含多层季目录）；单条或整层「加入」到指定分区；文件可直接下载到手机 |
 | **片单编排** | 增删改分区与顺序、改标题 / key / gate / requires / 列数，条目上下移，配置 `auto` 每日轮换，设「每日必看」 |
 | **时段与密码** | PIN、看完比例、工作日 / 周末时间窗、每日时长、锁屏提示语，带常用预设 |
-| **等待学习角** | 学习角开关、每张停留秒数、类别顺序、内置题库开关、名画目录与共享、自定义卡片（唐诗 / 单词 / 名画 / 识字）增删改排序 |
+| **等待学习角** | 学习角开关、每张停留秒数、类别顺序、内置题库开关、分阶段（第几阶段 × 每类张数）、名画目录与共享、自定义卡片（唐诗 / 单词 / 名画 / 识字）增删改排序 |
 | **JSON / 导入导出** | 看原文、手改后应用到编辑器、下载 tv.json、导入 JSON、载入公开模板、写到本地 tv.json |
 
 链接后可以加 `&tab=sections` / `&tab=rules` / `&tab=learning` / `&tab=json` 直接进某一页，手机上可以分别存书签。
@@ -168,7 +172,9 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
     "enabled": true,
     "intervalSeconds": 20,
     "order": ["poem", "word", "art", "text"],
-    "useBuiltin": true
+    "useBuiltin": true,
+    "stage": 0,
+    "stageSize": 0
   },
   "sections": [
     {
@@ -200,6 +206,7 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 | 不写 `weekend` | 周末沿用工作日；写 `[]` = 周末全天可用 |
 | `learning.enabled` | 锁屏右半边学习角；整段省略也会启用内置题库，`false` = 只留大倒计时 |
 | `learning.intervalSeconds` | 学习卡片每张停留秒数，默认 20 |
+| `learning.stage` / `stageSize` | 分阶段：`1` + `50` = 第一阶段每类只出前 50 张；改 `2` 进下一批；都为 `0`（默认）= 255 张全上 |
 | `learning.custom` | 自定义卡片数组，字段见 [docs/CONFIG.md](docs/CONFIG.md) |
 
 改完按遥控器**菜单 → 重新读取清单**生效，不用重装 App。
@@ -209,10 +216,18 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 
 ## 内置名画与离线题库
 
-锁屏右半边的内容全部离线：唐诗、单词、识字卡片是代码里的常量，
-10 幅名画是 `assets/art/` 里的缩略图，均为作者逝世逾百年的公共领域作品，出处见 [docs/ART_SOURCES.md](docs/ART_SOURCES.md)。
-换成自己 NAS 上的图或孩子画作，只需在 `learning.artFolder` 填目录，不用重编译；
-想换内置图，改 `tools/fetch_art.py` 里的清单，跑 `python tools/fetch_art.py --force` 后重编译即可。
+锁屏右半边的内容全部离线：**57 首唐诗、78 个 A–Z 单词（每字母 3 个）、50 幅名画、70 张识字 / 成语 / 短句**，共 255 张。
+文字卡片是 `data/builtin/` 里的代码常量，50 幅名画是 `assets/art/` 里的缩略图，
+均为作者逝世逾百年的公共领域作品，出处见 [docs/ART_SOURCES.md](docs/ART_SOURCES.md)。
+
+| 想做的事 | 怎么做 |
+|---|---|
+| 加减诗句 / 单词 / 名画 / 识字卡 | 改 `data/builtin/Poems.kt`、`Words.kt`、`Arts.kt`、`Texts.kt`，跑 `python tools/check_library.py` 自检 |
+| 换一张内置名画 | 改 `tools/fetch_art.py` 的清单，`python tools/fetch_art.py --force` 后重编译 |
+| 换成 NAS 上的图 / 孩子画作 | 只写 `learning.artFolder`，不用重编译 |
+| 只让孩子先学第一批 | `learning.stage = 1`、`stageSize = 50`；熟悉后改成 `2` |
+
+内置卡按四类**交错**出题，不会连着来十几个单词；遥控器 `◀ ▶` 手动翻页、播放键暂停。
 
 ---
 
@@ -246,13 +261,15 @@ app/src/main/kotlin/com/family/curated/
   data/  Model / Store / Repo / Smb / SmbDataSource / Covers
          Schedule / GateKeeper / Extras / Badges
          Learning / LearningLibrary / ArtImages
+  data/builtin/  Poems / Words / Arts / Texts（255 张内置卡片）
   ui/    SectionsAdapter / PosterAdapter
-app/src/main/assets/art/  10 幅公共领域名画缩略图，离线内置
+app/src/main/assets/art/  50 幅公共领域名画缩略图，离线内置
 make_playlist.py         扫 NAS 生成片单（命令行）
 set_schedule.py          命令行改时段 / 时长 / PIN
 tools/console.py         网页控制台：浏览 SMB + 编排片单（手机 / PC）
 tools/static/index.html  控制台前端（无外部依赖，离线可用）
 tools/fetch_art.py       重新下载 / 更换内置名画图片
+tools/check_library.py   内置题库自检（数量 / A–Z / 图片引用 / 重复）
 tools/requirements.txt   控制台依赖（pysmb / qrcode）
 tools/Dockerfile + docker-compose.yml   常驻 NAS，手机随时可改
 examples/tv.json         公开的配置模板，复制改名即可用
