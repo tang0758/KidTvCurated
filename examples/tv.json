@@ -57,7 +57,7 @@
   "kiosk": {
     "_说明": "儿童锁：不让遥控器退出应用去看别的内容。整段删掉或 enabled=false = 不启用。注意 Android 的 Home 键普通应用拦不住，必须先按 README 把本应用设为默认桌面；否则会靠「后台自动拉回」兜底，中间有约 1 秒闪现。",
     "enabled": false,
-    "_退出说明": "家长按菜单键输入 PIN → 「退出到桌面」即可临时放行。留空 exitComponent 会在电视上列出所有可选桌面（Aerial / 海信桌面）让家长选；也可以写死组件名，例如 app.orchard.tv/.MainActivity。",
+    "_退出说明": "家长按菜单键输入 PIN → 「退出到桌面」即可临时放行。留空 exitComponent 会在电视上列出所有可选桌面让家长选；也可以写死组件名，例如海信原生桌面 com.jamdeo.tv.vod/com.ju.main.launcher.LauncherActivity。注意要填当前仍启用的桌面：停用第三方桌面后记得同步改这里，否则点了没反应。",
     "exitComponent": "",
     "exitMinutes": 30,
     "reentryMs": 1000,

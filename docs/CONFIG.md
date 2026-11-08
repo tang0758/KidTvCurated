@@ -177,7 +177,7 @@ python tools/make_covers.py --force --from-nas     # 重新截帧（换构图 / 
 ```json
 "kiosk": {
   "enabled": true,
-  "exitComponent": "app.orchard.tv/.MainActivity",
+  "exitComponent": "com.jamdeo.tv.vod/com.ju.main.launcher.LauncherActivity",
   "exitMinutes": 30,
   "reentryMs": 1000,
   "blockBack": true,

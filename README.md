@@ -67,16 +67,17 @@
 | 防线 | 挡住什么 | 要不要动系统 |
 |---|---|---|
 | ① 应用内拦截 | 返回键、设置 / 输入源 / 最近任务等**能收到**的功能键 | 不用，改 `tv.json` |
-| ② 默认桌面 | **Home 键** | 要，一条 adb 命令 |
+| ② 默认桌面 | **Home 键** | 要，adb 写死首选桌面 |
 | ③ 前台守卫 | 被切到后台、最近任务切走 | 不用，App 自带 |
-| ④ 物理 / 系统 | 输入源、直播、电源等硬件快捷键 | 要，遮挡按键或 Device Owner |
+| ④ 开机自启 | 开机后厂商桌面 / 其它应用抢跑的几秒 | 不用，App 自带（仅儿童锁开启时；VIDAA 上受限，见下） |
+| ⑤ 物理 / 系统 | 输入源、直播、电源等硬件快捷键 | 要，遮挡按键或 Device Owner |
 
-### ① + ③：App 内已实现，改清单即可
+### ① + ③ + ④：App 内已实现，改清单即可
 
 ```json
 "kiosk": {
   "enabled": true,
-  "exitComponent": "app.orchard.tv/.MainActivity",
+  "exitComponent": "com.jamdeo.tv.vod/com.ju.main.launcher.LauncherActivity",
   "exitMinutes": 30,
   "reentryMs": 1000,
   "blockBack": true,
@@ -88,38 +89,87 @@
 
 - 主界面吞掉返回键；剧集 / 播放 / 奖励页的返回键仍可回上一级（还在 App 内，安全）。
 - 应用被切到后台约 1 秒后，前台守卫自动把主界面拉回；**关屏待机、家长放行期间不会打扰**。
-- 家长出口：菜单 → PIN → 「退出到桌面」，会临时放行 `exitMinutes` 分钟再启动 Aerial / 海信桌面；回来后可在同一菜单「结束家长放行」。
+- `BootReceiver` 监听 `BOOT_COMPLETED` / `HISENSE_BOOT_COMPLETED` / `QUICKBOOT_POWERON`，**只在 `kiosk.enabled` 时**开机把主界面带回前台；没开儿童锁的普通安装不会开机自启。
+  ⚠️ **本机（海信 55E3F-MAX / VIDAA / Android 9）实测不向第三方派发开机广播**：开机后 App 进程根本没起来，首启仍停在海信原生桌面，**按一次 Home 才进小剧场**。这是 ROM 的自启动管控，不是代码问题（Aerial 兼容表也写「海信 VIDAA 开机多数先进聚好看」）。标准 Android TV 上该接收器有效。
+- 家长出口：菜单 → PIN → 「退出到桌面」，会临时放行 `exitMinutes` 分钟再启动指定桌面；回来后可在同一菜单「结束家长放行」。`exitComponent` 要指向**当前仍启用**的桌面：Aerial 停用后请改成海信原生桌面（如上），否则点了没反应。
 
 ### ② 设为默认桌面（Home 键失效的关键一步）
 
-`AndroidManifest.xml` 已给 `MainActivity` 声明 `HOME` category。在这台海信 55E3F-MAX / Android 9 上：
+装了声明 `HOME` 的 APK 后，系统里有 3 个桌面候选（海信原生 / Aerial / 小剧场），原来的首选被清空，**按 Home 会弹「选择主屏幕应用」**。别在弹窗里只点一次 —— 那只会写一条 `mAlways=false` 的记录，下次照样问。直接写死首选：
 
 ```bash
-# 先看当前默认桌面和所有 HOME 候选
-adb shell getprop persist.vt.use_home_pkg
+adb shell cmd package set-home-activity --user 0 com.family.curated/.MainActivity
 adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
-adb shell cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME
-
-# 设为小剧场
-adb shell setprop persist.vt.use_home_pkg com.family.curated
-adb shell am force-stop app.orchard.tv
-adb shell am start -n com.family.curated/.MainActivity
-
-# 撤销：回到 Aerial
-adb shell setprop persist.vt.use_home_pkg app.orchard.tv
+# 应直接返回 com.family.curated/.MainActivity，不再是 com.android.internal.app.ResolverActivity
+adb shell dumpsys package | grep -A6 'Preferred Activities User 0'   # mAlways=true 才算稳
+adb shell setprop persist.vt.use_home_pkg com.family.curated           # 海信开机桌面属性，保持一致
 ```
 
-本机实测当前默认桌面是 `app.orchard.tv`（Aerial），正是由 `persist.vt.use_home_pkg` 指定，且该属性 adb 可写。
-Android 9 没有 `cmd package set-home-activity`（更高版本才有），所以走这条海信私有属性。
+> 这台 Android 9 上 `cmd package set-home-activity` **确实存在**（早期文档写「没有」是漏看了 help）。
 
-设完之后 **开机直接进小剧场**，Aerial 的「开机自动调起」就不再需要了；按 Home 也只会回到小剧场主界面
-（`singleTask` 会收掉上面的播放页），Aerial 退居为家长维护用的桌面。
-万一清单读不到、电视停在空清单界面，PIN 出口仍可用，或用上面的撤销命令恢复。
+**Aerial 会抢桌面，必须一起处理。** 它自带 `HomeGuardService`（无障碍「Aerial 桌面守护」）和 `RevivalListener`（通知监听，负责开机复活），日志里是：
 
-> 图省事也可以**不做第 ② 步**：只开 `kiosk.enabled`，孩子按 Home 会先看到 Aerial 约 1 秒再被拉回。
-> 电视桌面加载通常就要好几秒，实际很难点进去，但会闪一下。
+```
+AerialGuard: stock home com.family.curated came to the front; bringing Aerial back
+```
 
-### ④ 硬件键：软件真的管不了
+只要它活着，任何首选桌面都会被覆盖，而且**每次开机都会把自己重新写回** `enabled_accessibility_services` / `enabled_notification_listeners`。实测有效、完全可逆的做法：
+
+```bash
+# 1) 从两个服务列表里摘掉含 orchard 的项（其余海信系统服务保留），再写回
+adb shell settings get secure enabled_accessibility_services
+adb shell settings get secure enabled_notification_listeners
+adb shell settings put secure enabled_accessibility_services '<过滤后的值>'
+adb shell settings put secure enabled_notification_listeners '<过滤后的值>'
+adb shell am force-stop app.orchard.tv
+
+# 2) 组件级 disable 会被海信 shell 权限拒绝；包级 disable-user 可以，且完全可逆
+adb shell cmd package disable-user --user 0 app.orchard.tv
+```
+
+Aerial 停用后，**按 Home 直接回小剧场主界面**（`singleTask` 收掉上面的播放页），返回键被吞、切到后台约 1 秒拉回；开机首启受上面 VIDAA 限制仍先停在原生桌面，**按一次 Home 即可进入，此后再也出不去**。Aerial 原先的「开机自动调起」不再需要。万一清单读不到、停在空清单界面，PIN 出口仍在，或用下面的撤销命令恢复。
+
+**撤销（回到原样）**
+
+```bash
+adb shell cmd package enable --user 0 app.orchard.tv
+adb shell cmd package set-home-activity --user 0 app.orchard.tv/.MainActivity
+adb shell setprop persist.vt.use_home_pkg app.orchard.tv
+adb reboot
+```
+
+想连 Aerial 的桌面守护一起恢复，把上面备份的两个 settings 原值写回即可。
+
+> 图省事也可以**不做第 ② 步**：只开 `kiosk.enabled`，孩子按 Home 会先看到别的桌面约 1 秒再被拉回。
+> 桌面加载通常就要好几秒，实际很难点进去，但会闪一下。
+
+### 附：为什么 Aerial 能做到「开机 / 主页键接管」
+
+研究 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv) 后结论很明确：**它靠的不是标准 Android 能力，而是 adb 授予的系统级权限 + 一整套对抗国产 ROM 的守护组件**。项目安装命令里就写着：
+
+```bash
+adb shell pm grant app.orchard.tv android.permission.WRITE_SECURE_SETTINGS
+adb shell cmd notification allow_listener app.orchard.tv/app.orchard.tv.guard.RevivalListener
+adb shell appops set app.orchard.tv SYSTEM_ALERT_WINDOW allow
+```
+
+本机把电视上的 APK pull 下来解析 + `dumpsys package` 核对，这几个权限**全部 `granted=true`**。README 原话：
+
+> 国产电视大多只认自家桌面，待机时还会清理第三方 App。所以 Aerial 用一个无障碍服务，原桌面一出现就切回来（只看哪个窗口在前台，不读屏幕内容）；被清理后再靠通知监听让系统把它拉起来（不读通知）。
+
+| Aerial 组件 / 权限 | 作用 | 本机抓到的证据 |
+|---|---|---|
+| `guard.HomeGuardService`（无障碍） | 监听窗口切换，别的桌面一出现就抢回前台 | 日志 `AerialGuard: stock home com.family.curated came to the front; bringing Aerial back` |
+| `guard.RevivalListener` + `Revival{Account,Sync}Service` | 进程被清后由系统重新拉起 | 重启后 `enabled_notification_listeners` 又出现 `app.orchard.tv/...RevivalListener` |
+| `guard.BootReceiver`（`BOOT_COMPLETED` + `LOCKED_BOOT_COMPLETED`） | 开机尝试自启 | README 也承认部分 ROM「开机广播全被拦」 |
+| `WRITE_SECURE_SETTINGS` | 开机把守护重新写回系统设置 | 每次重启后两个服务列表都被重新写回 orchard 条目 |
+| `SYSTEM_ALERT_WINDOW` + `PACKAGE_USAGE_STATS` | 后台起 Activity、监测前台应用 | 守护能在别的桌面之上把自己拉到前台 |
+
+**它的「开机直达」其实是「开机先落原生桌面，十几秒后由守护抢回来」**：兼容表直说海信 VIDAA「开机多数先进聚好看」，大眼橙「按主页键先落优酷桌面，约 13 秒后由守护切回」。所以单靠 `BOOT_COMPLETED` 复刻不了这个效果。
+
+本项目没有照抄：给儿童应用授予 `WRITE_SECURE_SETTINGS` + 无障碍 + 悬浮窗权限面太大，两套守护还会互相抢前台。取舍是**停用 Aerial、把小剧场写死为首选桌面、用 App 内前台守卫兜底**，代价就是开机后需按一次 Home。真要「开机零操作直达」，只能照 Aerial 那套给小剧场授权并写一个只做前台切换的无障碍服务；本项目实测 `boot_app_componentname`、`settings_startup_source_custom_pkg_key` 在这台机器上都不生效，已撤销。
+
+### ⑤ 硬件键：软件真的管不了
 
 输入源 / 直播 / 电源 / 语音快捷键由系统或红外固件直接处理，应用连按键事件都收不到。可选：
 
