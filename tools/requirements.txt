@@ -1,2 +1,8 @@
 pysmb>=1.2.13
 qrcode>=7.4
+
+# tools/make_covers.py 额外需要系统里的 ffmpeg / ffprobe（不在 pip 里）：
+#   Windows: https://www.gyan.dev/ffmpeg/builds/ 下载后把 bin 加入 PATH
+#   macOS:   brew install ffmpeg
+#   Linux:   sudo apt install ffmpeg
+

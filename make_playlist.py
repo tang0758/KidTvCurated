@@ -141,6 +141,23 @@ def build(c, old=None):
     print("学习:")
     sections.append(folder_sections(c, LEARN, "学习", "learning"))
 
+    # 重建 sections 时，把家长后来配的封面按路径继承下来，别让缩略图一夜回到灰卡
+    covers = {}
+    for sec in old.get("sections", []):
+        for it in sec.get("items", []):
+            key = it.get("file") or it.get("folder")
+            if key and it.get("cover"):
+                covers[key] = it["cover"]
+    inherited = 0
+    for sec in sections:
+        for it in sec.get("items", []):
+            key = it.get("file") or it.get("folder")
+            if key in covers:
+                it["cover"] = covers[key]
+                inherited += 1
+    if inherited:
+        print(f"沿用已有封面: {inherited} 张")
+
     data = {
         "nas": {"host": HOST, "user": USER, "password": PASSWORD, "share": SHARE},
         "playlistShare": CONFIG_SHARE,
@@ -151,6 +168,8 @@ def build(c, old=None):
     }
     if "schedule" in old:
         data["schedule"] = old["schedule"]
+    if "learning" in old:
+        data["learning"] = old["learning"]
     return data
 
 

@@ -173,26 +173,33 @@ object Repo {
         return pl.copy(sections = expanded)
     }
 
-    /** 清单里每个条目对应的封面候选路径（按优先级） */
-    fun coverCandidates(item: Item): List<String> {
-        item.cover?.let { return listOf(it) }
-        val out = ArrayList<String>(3)
+    /** 清单里每个条目对应的封面候选（按优先级） */
+    fun coverCandidates(item: Item): List<CoverRef> {
+        item.cover?.let { c ->
+            // "data:curated/covers/x.jpg" = 显式指定共享（视频共享只读时很有用）
+            val i = c.indexOf(':')
+            if (i > 1 && c.substring(0, i).none { it == '/' || it == '\\' }) {
+                return listOf(CoverRef(c.substring(i + 1).trimStart('/'), c.substring(0, i)))
+            }
+            return listOf(CoverRef(c))
+        }
+        val out = ArrayList<CoverRef>(5)
         if (item.file != null) {
             val base = item.file.substringBeforeLast('.', item.file)
-            out.add("$base.jpg")
-            out.add("$base.png")
+            out.add(CoverRef("$base.jpg"))
+            out.add(CoverRef("$base.png"))
             val dir = item.file.substringBeforeLast('/', "")
             val name = item.file.substringAfterLast('/')
             if (dir.isNotEmpty()) {
-                out.add("$dir/${name.substringBeforeLast('.', name)}-poster.jpg")
+                out.add(CoverRef("$dir/${name.substringBeforeLast('.', name)}-poster.jpg"))
             }
         }
         if (item.folder != null) {
             val f = item.folder.trimEnd('/')
-            out.add("$f/folder.jpg")
-            out.add("$f/poster.jpg")
-            out.add("$f/cover.jpg")
-            out.add("$f/封面.jpg")
+            out.add(CoverRef("$f/folder.jpg"))
+            out.add(CoverRef("$f/poster.jpg"))
+            out.add(CoverRef("$f/cover.jpg"))
+            out.add(CoverRef("$f/封面.jpg"))
         }
         return out
     }

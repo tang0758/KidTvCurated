@@ -49,7 +49,7 @@ object Covers {
             var bmp: Bitmap? = null
             for (candidate in Repo.coverCandidates(item)) {
                 try {
-                    val bytes = Smb.readAll(cfg, candidate, 12 * 1024 * 1024)
+                    val bytes = Smb.readAll(cfg, candidate.path, 12 * 1024 * 1024, candidate.share)
                     if (bytes.isEmpty()) continue
                     bmp = decode(bytes, targetW, targetH)
                     if (bmp != null) break

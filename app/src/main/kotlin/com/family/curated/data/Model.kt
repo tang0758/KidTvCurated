@@ -21,9 +21,15 @@ data class NasConfig(
  *  - file   : 直接指向一个视频文件
  *  - folder : 指向一个文件夹，点进去后列出里面所有视频（适合整季动画）
  *
- * cover 可选：指向一张封面图（相对 share 的路径）。
- * 不写的话会自动在视频同目录找同名 .jpg / .png，再找不到就显示标题卡片。
+ * cover 可选：指向一张封面图。
+ *  - "xxx.jpg"                相对视频共享的路径
+ *  - "data:curated/covers/x.jpg"  带共享名前缀，用于视频共享只读、封面放在可写共享的情况
+ *  - 不写则自动在视频同目录找同名 .jpg / .png / folder.jpg / poster.jpg / cover.jpg / 封面.jpg
+ *  - 都找不到就显示标题文字占位卡
  */
+/** 封面候选。share 为 null 表示用清单默认的视频共享 */
+data class CoverRef(val path: String, val share: String? = null)
+
 data class Item(
     val id: String,
     val title: String,

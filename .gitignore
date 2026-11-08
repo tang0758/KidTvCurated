@@ -19,8 +19,12 @@ app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
 # 运行时生成的片单（含真实账号密码 + 家庭片库路径）
 # 只忽略仓库根目录这份；examples/tv.json 是要公开的模板，必须能提交
 /tv.json
+/tv.covers.json
 /.tv_backup.json
 *.backup.json
+
+# 本地调试截图 / 下载的图片
+/.tmp/
 
 # 本地测试产物（ADB 截图 / 设备配置备份，可能含明文密码）
 /aerial/

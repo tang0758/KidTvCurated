@@ -63,6 +63,10 @@ a{color:var(--brand)}
 .item{display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px dashed var(--line)}
 .item input{flex:1;min-width:80px}
 .item .p{font-size:11px;color:var(--muted);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-cover{display:flex;align-items:center;gap:6px;padding:0 0 8px 6px}
+.item-cover input{flex:1;min-width:0;font-size:11px}
+.thumb{width:34px;height:46px;object-fit:cover;border-radius:4px;flex:0 0 auto;background:#1b2333}
+.thumb.none{font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2}
 .sec-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .sec-head .idx{font-size:12px;color:var(--muted)}
 .badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--brand-soft);color:var(--brand)}
@@ -119,6 +123,7 @@ a{color:var(--brand)}
   .item{flex-wrap:wrap}
   .item input{flex:1 1 55%}
   .item .p{flex:1 1 100%;order:9;max-width:100%}
+  .item-cover{padding-left:0}
   .bottom{padding-left:10px;padding-right:10px;gap:6px}
   .bottom button{flex:1;min-width:0;font-size:13px;padding:8px 6px}
   .bottom .hint{display:none}
@@ -319,7 +324,11 @@ function payload(){
   (d.sections || []).forEach(s=>{
     if (s.auto && !s.auto.folder) delete s.auto;
     s.items = (s.items || []).filter(it => it.file || it.folder);
-    s.items.forEach(it => { if (!it.title) delete it.title; if (!it.subtitle) delete it.subtitle; });
+    s.items.forEach(it => {
+      if (!it.title) delete it.title;
+      if (!it.subtitle) delete it.subtitle;
+      if (!it.cover) delete it.cover;
+    });
     if (!s.requires) delete s.requires;
     if (!s.gate) delete s.gate;
     if (s.auto) delete s.items;
@@ -482,14 +491,29 @@ function renderSections(){
     h += '<div class="items">';
     (s.items || []).forEach((it,j)=>{
       const p = it.file || it.folder || "";
-      h += '<div class="item">' +
+      const cv = it.cover || "";
+      let thumb;
+      if (cv){
+        const ci = cv.indexOf(":");
+        const sh = ci > 1 ? cv.slice(0,ci) : ((S.cfg && S.cfg.share) || "");
+        const cp = ci > 1 ? cv.slice(ci+1).replace(/^\/+/,"") : cv;
+        const src = "/api/download?k=" + encodeURIComponent(TOKEN) +
+                    "&share=" + encodeURIComponent(sh) + "&path=" + encodeURIComponent(cp);
+        thumb = '<img class="thumb" src="' + esc(src) +
+                '" alt="" onerror="this.style.visibility=\'hidden\'">';
+      } else {
+        thumb = '<span class="thumb none">无封面</span>';
+      }
+      h += '<div class="item">' + thumb +
         '<span class="tag' + (it.file ? " v" : "") + '">' + (it.file ? "单集" : "整目录") + "</span>" +
         '<input data-bind="sections.' + i + ".items." + j + '.title" value="' + esc(it.title || p.split("/").pop()) + '">' +
         '<span class="p" title="' + esc(p) + '">' + esc(p) + "</span>" +
         '<button class="ghost tiny" data-act="itemUp" data-i="' + i + '" data-j="' + j + '">↑</button>' +
         '<button class="ghost tiny" data-act="itemDown" data-i="' + i + '" data-j="' + j + '">↓</button>' +
         '<button class="ghost tiny danger" data-act="itemDel" data-i="' + i + '" data-j="' + j + '">×</button>' +
-        "</div>";
+        "</div>" +
+        '<div class="item-cover"><input data-bind="sections.' + i + ".items." + j + '.cover" value="' +
+          esc(cv) + '" placeholder="封面：留空自动找同名 jpg，或填 data:curated/covers/xxx.jpg"></div>';
     });
     h += "</div>";
     if (!s.auto) h += '<div class="rowbtn"><button class="tiny" data-act="addAuto" data-i="' + i + '">＋ 每日自动轮换</button></div>';
@@ -501,6 +525,9 @@ function renderSections(){
       "</div>";
   });
   if (!secs.length) h = '<p class="empty">还没有分区，点下面「新建分区」，或到「资源浏览」勾选目录。</p>';
+  if (secs.length) h += '<p class="empty">封面缩略图：留空时电视会在视频同目录找同名 jpg / folder.jpg / poster.jpg / cover.jpg。' +
+    '资源目录里没图片、或视频共享只读时，用 <span class="kbd">python tools/make_covers.py --apply</span> ' +
+    '从视频截帧生成，工具会自动写成 <span class="kbd">data:curated/covers/xxx.jpg</span> 这种跨共享路径。</p>';
   body.innerHTML = h;
 }
 

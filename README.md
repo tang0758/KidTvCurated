@@ -14,6 +14,7 @@
 | 功能 | 说明 |
 |---|---|
 | 编排片单 | 只显示 `tv.json` 里写的条目；`file` 单集、`folder` 整季（递归 3 层子目录） |
+| **海报缩略图** | 从 NAS 读现成封面图；支持 `data:xxx.jpg` 跨共享读取（视频共享只读也能用）。附 `tools/make_covers.py` 一键从视频截帧生成竖版海报 |
 | 每日必看门禁 | `gate: true` 分区全部看完，才解锁 `requires: "daily"` 的分区 |
 | 每日自动轮换 | `auto: {"folder": "...", "count": 2}` 每天自动换一批 |
 | **打卡墙** | 当天必看全部完成自动盖章；月历可翻页，连续天数实时统计 |
@@ -120,7 +121,7 @@ python tools/console.py --lan --port 9000 --token 我的访问码
 | 页签 | 能做什么 |
 |---|---|
 | **资源浏览** | 选共享、逐层进目录，看视频 / 图片和大小；「集数」递归统计（和电视端一致，含多层季目录）；单条或整层「加入」到指定分区；文件可直接下载到手机 |
-| **片单编排** | 增删改分区与顺序、改标题 / key / gate / requires / 列数，条目上下移，配置 `auto` 每日轮换，设「每日必看」 |
+| **片单编排** | 增删改分区与顺序、改标题 / key / gate / requires / 列数，条目上下移，配置 `auto` 每日轮换，设「每日必看」；每个条目显示封面缩略图预览、可直接改 `cover` 路径 |
 | **时段与密码** | PIN、看完比例、工作日 / 周末时间窗、每日时长、锁屏提示语，带常用预设 |
 | **等待学习角** | 学习角开关、每张停留秒数、类别顺序、内置题库开关、分阶段（第几阶段 × 每类张数）、名画目录与共享、自定义卡片（唐诗 / 单词 / 名画 / 识字）增删改排序 |
 | **JSON / 导入导出** | 看原文、手改后应用到编辑器、下载 tv.json、导入 JSON、载入公开模板、写到本地 tv.json |
@@ -180,7 +181,8 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
     {
       "key": "daily", "title": "今天要看的", "gate": true,
       "items": [
-        { "title": "识字 第3课", "file": "儿童视频/01.学习类视频/识字/03.mp4" }
+        { "title": "识字 第3课", "file": "儿童视频/01.学习类视频/识字/03.mp4",
+          "cover": "data:curated/covers/a1b2c3d4e5.jpg" }
       ]
     },
     {
@@ -199,6 +201,7 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 | `requires` | 被哪个 `key` 分区锁住；那个分区全看完才解锁 |
 | `auto` | `{ "folder": "...", "count": 2 }`，每天自动从文件夹取 N 个并按天轮换 |
 | `passRatio` | 播放进度达到多少算「看完」，默认 0.92 |
+| `cover` | 封面图；`data:curated/covers/x.jpg` 表示去 `data` 共享读（视频共享只读时用）。留空自动找同名 jpg，详见 [封面章节](#海报缩略图为什么一开始是灰的) |
 | `pin` | 家长密码，4 位数字 |
 | `schedule.enabled` | `false` 或整段删掉 = 不限制时段 |
 | `schedule.weekday/weekend` | 时间窗，支持 `["18:00","20:00"]`、`"18:00-20:00"`、`{"start":"18:00","end":"20:00"}`；跨零点写 `23:00-01:00` 也可以 |
@@ -211,6 +214,36 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 
 改完按遥控器**菜单 → 重新读取清单**生效，不用重装 App。
 `python set_schedule.py --weekday 18:00-20:30 --weekend 09:00-11:30,16:00-20:30 --limit 45` 可以命令行改时段。
+
+---
+
+## 海报缩略图：为什么一开始是灰的
+
+**App 不联网刮削海报，也不会从视频里截帧。** 它只会按固定命名去 NAS 找「现成的图片文件」：
+视频同名 `.jpg/.png`、`-poster.jpg`，或目录里的 `folder.jpg` / `poster.jpg` / `cover.jpg` / `封面.jpg`。
+找不到就退回标题文字卡。Kodi / Nova 那种自动出海报，是靠联网刮削 TMDB，这个 App 为了「离线、只显示家长编排的内容」特意没做。
+
+所以资源目录里一张图片都没有时，所有卡片都是灰的 —— 不是加载失败。而且视频共享常是只读的，连同名 jpg 也没法放进去。
+
+解决办法：用 `cover` 把封面指向可写的 `data` 共享，并让本机批量生成。
+
+```bash
+python -m pip install -r tools/requirements.txt
+# 另需本机 ffmpeg / ffprobe 在 PATH 里
+
+python tools/make_covers.py --dry-run     # 看看每个条目会拿哪个视频截帧
+python tools/make_covers.py --apply       # 截帧 → 上传 data/curated/covers/ → 写回 NAS 清单
+```
+
+- `file` 条目直接截该视频；`folder` 条目递归找第一个视频。
+- 在视频 20% / 45% 处各截一帧挑信息量大的，避开黑屏片头；拼成 480×682 竖版海报（完整画面居中、上下模糊背景），不会被竖版卡片裁掉主体。
+- 文件名按路径 hash 固定，重复跑不会堆垃圾；已有 `cover` 的条目跳过，`--force` 可重做；`--plain` 输出原始 16:9 画面。
+- `--apply` 写清单前自动备份 `tv.backup.json`，且只把 `cover` 合并进 NAS 上的最新清单，不会覆盖家长在控制台的其它改动。
+- 网页控制台「片单编排」里每个条目都有封面预览和路径输入框，手机上也能改。
+
+改完在电视按**菜单 → 重新读取清单**（或重启 App）刷新封面缓存。字段细节见 [docs/CONFIG.md](docs/CONFIG.md)。
+
+![海报墙：视频截帧封面](docs/preview/poster-wall.jpg)
 
 ---
 
@@ -269,6 +302,7 @@ set_schedule.py          命令行改时段 / 时长 / PIN
 tools/console.py         网页控制台：浏览 SMB + 编排片单（手机 / PC）
 tools/static/index.html  控制台前端（无外部依赖，离线可用）
 tools/fetch_art.py       重新下载 / 更换内置名画图片
+tools/make_covers.py     从 NAS 视频截帧，批量生成海报缩略图并写回 cover 字段
 tools/check_library.py   内置题库自检（数量 / A–Z / 图片引用 / 重复）
 tools/requirements.txt   控制台依赖（pysmb / qrcode）
 tools/Dockerfile + docker-compose.yml   常驻 NAS，手机随时可改

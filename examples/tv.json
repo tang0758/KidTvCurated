@@ -54,6 +54,7 @@
       }
     ]
   },
+  "_封面说明": "App 不联网刮削海报、也不自己截帧：cover 留空时按「视频同名 jpg/png → -poster.jpg → folder.jpg → poster.jpg → cover.jpg → 封面.jpg」在视频共享里找现成图片，找不到就显示标题占位卡。视频共享只读、或目录里一张图都没有时，跑 python tools/make_covers.py --apply 从视频截帧生成，写成 data:curated/covers/xxx.jpg（冒号前是共享名，冒号后是路径）。",
   "sections": [
     {
       "_说明": "gate=true 是「每日必看」：这里每一项都看完，后面 requires=daily 的分区才解锁。每天固定看什么就写 file；想每天自动换一批，删掉 items 换成 auto。",
@@ -66,7 +67,7 @@
           "title": "字母歌 A",
           "subtitle": "3 分钟",
           "file": "学习/字母歌/01-A.mp4",
-          "cover": "学习/字母歌/封面/01-A.jpg"
+          "cover": "data:curated/covers/01-A.jpg"
         },
         {
           "title": "识字 第3课",

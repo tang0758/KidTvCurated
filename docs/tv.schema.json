@@ -144,7 +144,10 @@
         "subtitle": { "type": "string" },
         "file": { "type": "string", "description": "单个视频文件的相对路径" },
         "folder": { "type": "string", "description": "整个文件夹的相对路径，递归 3 层" },
-        "cover": { "type": "string", "description": "封面图相对路径；省略时自动找同名 jpg/png" },
+        "cover": {
+          "type": "string",
+          "description": "封面图。可写相对视频共享的路径，或写「共享名:路径」（如 data:curated/covers/a.jpg）从另一个共享读取，适合视频共享只读的情况。省略时自动找同名 jpg/png / folder.jpg / poster.jpg / cover.jpg / 封面.jpg。"
+        },
         "id": { "type": "string", "description": "进度记录用的稳定 id；省略时用 file/folder 路径" }
       },
       "anyOf": [

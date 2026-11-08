@@ -49,8 +49,44 @@
 ```
 
 - `folder` 会递归 3 层子目录，所以「剧名 / 第N季 / 单集.mp4」这种结构能正常读到。
-- `cover` 可指定封面图相对路径；不写会自动找视频同名 `.jpg/.png`、文件夹里的 `folder.jpg` / `poster.jpg` / `cover.jpg` / `封面.jpg`。
 - `id` 可省略，默认用路径做进度记录的 key；**改路径会让播放进度归零**。
+
+### 封面缩略图 `cover`
+
+**App 不联网刮削海报、也不会从视频里截帧**——它只会去 NAS 上找「现成的图片文件」。这是为了保证电视完全离线、只显示家长编排的内容。所以如果 NAS 目录里一张图片都没有，海报卡片就只会显示标题首字，属于正常现象，不是加载失败。
+
+查找顺序（`cover` 留空时）：
+
+| 条目类型 | 依次尝试 |
+|---|---|
+| `file` | 同名 `.jpg` → 同名 `.png` → `<名字>-poster.jpg` |
+| `folder` | `folder.jpg` → `poster.jpg` → `cover.jpg` → `封面.jpg` |
+
+`cover` 可以显式指定，两种写法：
+
+```json
+{ "title": "识字 第3课", "file": "学习/识字/03.mp4", "cover": "学习/识字/03.jpg" }
+{ "title": "汪汪队", "folder": "动画/汪汪队", "cover": "data:curated/covers/abc123.jpg" }
+```
+
+第二种是**「共享名:路径」**：视频共享常被设成只读，没法往旁边塞同名 jpg，这时把封面统一放到可写的清单共享（`data`），用冒号前缀告诉 App 去哪个共享读。
+
+#### 一键生成（推荐）
+
+```bash
+python -m pip install -r tools/requirements.txt   # pysmb
+# 还需要本机有 ffmpeg / ffprobe，并加入 PATH
+
+python tools/make_covers.py --dry-run              # 先看会挑哪些视频截帧
+python tools/make_covers.py --apply                # 生成 + 上传 + 把 cover 写回 NAS 清单
+python tools/make_covers.py --force --from-nas     # 重新截帧（换构图 / 换片头）
+```
+
+工具会：对每个 `file` 直接用该视频、对每个 `folder` 递归找第一个视频 → ffprobe 取时长 → 在 20% / 45% 两个时间点各截一帧，挑信息量大的 → 拼成 480×682 竖版海报（完整画面居中 + 上下模糊背景，不会被电视的竖版卡片裁掉主体）→ 上传到 `data/curated/covers/<hash>.jpg` → 把 `cover` 合并进 NAS 上的 `tv.json`（写前自动备份 `tv.backup.json`）。
+
+已有 `cover` 的条目会被跳过（想重做加 `--force`）；文件名由路径 hash 决定，重复运行不会堆垃圾；`--plain` 可输出原始 16:9 截帧。网页控制台「片单编排」里每个条目都能看到封面预览并直接改路径。
+
+> 改完清单后，在电视按「菜单 → 重新读取清单」，或直接重启 App，才会刷新封面缓存。
 
 ## 时段 schedule
 
@@ -158,6 +194,8 @@
 |---|---|
 | 电视显示「连不上 NAS」 | 445 端口、账号密码、`nas.share` 名、清单是否真在 `data/curated/` |
 | 海报墙空 | `file` / `folder` 路径是否相对**视频共享**根目录；中文路径不要 URL 编码 |
+| 海报卡片全灰、只有标题首字 | 正常现象：App 不刮削、不截帧，NAS 上没现成封面图。跑 `python tools/make_covers.py --apply`，或按上面「封面缩略图」一节手填 `cover`；改完在电视重读清单 |
+| 控制台封面预览是破图 | `cover` 里的共享名 / 路径写错，或图片还没上传到 NAS；`data:xxx.jpg` 的冒号前必须是共享名 |
 | 点文件夹没集数 | 目录层数是否超过 3 层；文件扩展名是否在支持列表内 |
 | 改了没生效 | 电视上按菜单 → 重新读取清单；或检查是不是改到了另一份 tv.json |
 | 锁屏右半边是空的 | `learning.enabled` 是否为 false；或 `useBuiltin: false` 但 `custom` 一张都没写 |
