@@ -25,6 +25,7 @@
 | **家长临时放行** | 锁屏按菜单键（或直接按遥控器数字键）输 PIN，放行 15 分钟 |
 | **防跳看** | 必看视频记录「真正看到过」的最远位置，只许回看已看部分，快进越界自动拉回并提示 |
 | **手机 / PC 编排** | 网页控制台浏览 SMB 目录、可视化编辑片单与时段，一键写回 NAS |
+| **PC 桌面配置助手** | 双击启动独立窗口，连 NAS、编排片单、开手机二维码、看日志、一键退出；可打包成单个 exe |
 | 家长选项 | 菜单键 + PIN：重读清单 / 今天重来 / 跳过必看 / 清进度 / 奖励中心 / 临时放行 |
 | 续播 | 记住每个文件看到哪儿；进度过 92%（可在清单改）自动标记完成 |
 | 断网兜底 | 读不到 NAS 时用上次缓存的清单照常显示 |
@@ -231,7 +232,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. 生成片单 / 编排内容
 
-**推荐用网页控制台**（下一节）：手机、电脑浏览器直接浏览 NAS 目录、勾文件夹、改时段、一键写回。
+**推荐用 PC 桌面配置助手**（下两节，双击即用）或网页控制台：浏览 NAS 目录、勾文件夹、改时段、一键写回。
 命令行方式：
 
 ```bash
@@ -293,6 +294,79 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 
 > 安全：默认只监听 `127.0.0.1`；`--lan` / Docker 会监听局域网，所有 API 都要求访问码。
 > 页面不回显 NAS 密码，但局域网是明文 HTTP，只建议在家里 WiFi 用，别做公网端口映射。
+
+---
+
+## PC 桌面版配置助手
+
+网页控制台已经能在浏览器里用；这一节是**独立的桌面程序**：双击就开一个没有地址栏的窗口，
+不用敲命令、不用记端口。它复用同一个后端 `tools/console.py` 和同一个编辑器 `tools/static/index.html`，
+所以上面的五个页签、保存备份、连接设置全部原样可用，配置也和网页版通用。
+
+![PC 配置助手 · 概览](docs/preview/pc-desktop-home.png)
+
+![PC 配置助手 · 片单编辑器](docs/preview/pc-desktop-editor.png)
+
+### 启动
+
+| 方式 | 怎么做 | 适合 |
+|---|---|---|
+| **双击 bat（推荐）** | 双击项目根目录 `KidTvConfig-PC.bat` | 有 `dist/KidTvConfig-PC.exe` 时直接开它；没有就用 Python 源码跑并自动装依赖 |
+| **独立 exe** | 双击 `dist/KidTvConfig-PC.exe` | 拷到任何一台 Windows 电脑都能用，不用装 Python，约 10 MB |
+| 命令行 | `python tools/desktop.py [--lan] [--port 9000]` | 调试 / 换端口 / 指定 `--window browser` |
+
+首次打包 exe：双击 `tools/build_pc_exe.bat`（需要 Python + pip，约 20 秒），产物在 `dist/`。
+
+窗口优先用 `pywebview` 原生窗口（装了 `pip install pywebview` 才用），否则自动用 Edge / Chrome 的
+`--app` 无地址栏窗口，最后回退默认浏览器。**重复双击不会起第二个服务**：检测到已有助手在跑，
+会直接把它的窗口打开。关掉应用窗口（Windows 上会自动检测）或点左下角「退出程序」即停止服务。
+
+### 窗口里能做什么
+
+| 页签 | 功能 |
+|---|---|
+| **概览** | NAS 地址 / 账号 / 清单路径，一键「检测连接」看清单来源；「连接设置」填账号密码并测试；四个快捷入口直达资源浏览 / 片单编排 / 时段与密码 / JSON |
+| **片单编辑器** | 内嵌完整网页控制台，改完点右下角「保存到 NAS」，电视上按菜单「重新读取清单」 |
+| **手机访问** | 一键开 / 关局域网访问（无需重启程序），显示手机链接、二维码和本机所有 IP，可切换正确的网段 |
+| **运行日志** | 最近 120 条请求与错误，连不上 NAS / 保存失败时先看这里 |
+
+![PC 配置助手 · 手机访问二维码](docs/preview/pc-desktop-phone.png)
+
+### 数据放在哪
+
+凭据、访问码、上次端口和是否开启手机访问，都存在**助手所在目录**：
+
+```
+nas.local.json          NAS 地址 / 账号 / 密码（不进 Git）
+.console_token          访问码，第一次自动生成，手机书签长期有效
+.console_desktop.json   端口 / 手机访问开关 / 上次窗口模式
+tv.json                 离线编辑时「写到本地 tv.json」的产物
+.pc_profile/            Edge / Chrome 应用窗口的独立浏览器配置
+```
+
+exe 放在 `dist/` 时会自动继承项目根目录已有的 `nas.local.json` 和访问码；
+把 exe 单独拷到别处，则在那台机器的 exe 同目录新建一套，不会写进 exe 内部。
+可用 `KIDTV_CONFIG` 环境变量指定别的配置文件路径。
+
+### 自检与排错
+
+```bash
+python tools/desktop.py --self-test          # 不开窗口，逐个测接口，退出码 0 = 全部通过
+dist\KidTvConfig-PC.exe --self-test          # 打包版同样能自检
+python tools/desktop.py --no-window          # 只跑服务，用浏览器自己开页面
+```
+
+自检覆盖桌面页、编辑器页、状态 / 日志 / 二维码接口、读取 NAS 上的 tv.json 和 SMB 连接检测。
+端口被占用时换一个：`--port 8799`；想看真实报错：`--window browser` 或看「运行日志」页。
+
+### 手机 / 安卓版
+
+**安卓原生编辑器还没做**。手机现在用浏览器打开网页控制台即可：PC 版「手机访问」页一键开局域网 +
+扫二维码，或者按上一节把 `docker-compose.yml` 常驻到 NAS，不开电脑也能随时改。
+在手机浏览器里选「添加到主屏幕」，图标和体验接近原生 App；功能与 PC 完全一致（窄屏自动改整行排布）。
+
+> 安全：默认只监听 `127.0.0.1`；开启手机访问后监听局域网，所有 API 都要求访问码，
+> 「退出程序」只允许从电脑本机调用，页面不回显 NAS 密码。别把端口映射到公网。
 
 ---
 
@@ -437,7 +511,7 @@ adb shell logcat -d -s PlayerActivity:W SmbDataSource:W Smb:W
 
 ## 后续玩法规划（还没做，按性价比排序）
 
-「家长远程改单」已由上面的网页控制台实现，下面这些还没做：
+「家长远程改单」已由网页控制台和 PC 桌面配置助手实现，下面这些还没做：
 
 1. **每周任务卡**：一周给 3~5 个小目标（看一集纪录片 / 学一首字母歌），完成翻卡，比每日打卡更有惊喜感
 2. **片尾小问答**：必看视频播完弹一道 2 选 1 的题，答对才算真正完成，防止挂着不看
@@ -449,6 +523,7 @@ adb shell logcat -d -s PlayerActivity:W SmbDataSource:W Smb:W
 8. **观影笔记**：看完让孩子用遥控器给这集打分，慢慢形成口味档案
 9. **软关机提醒**：还剩 5 分钟时画面边缘渐变暖色，提前预告，减少硬切断带来的哭闹
 10. **配置文件版本管理**：控制台里一键对比 / 回滚历史版本，改错了不用去 NAS 翻备份
+11. **安卓原生配置 App**：手机浏览器 + 「添加到主屏幕」已经够用；真要离线编辑、系统文件选择器或推送提醒，再做一个原生 APK（PC 版已先行完成）
 
 ---
 
@@ -470,7 +545,11 @@ app/src/main/kotlin/com/family/curated/
 app/src/main/assets/art/  50 幅公共领域名画缩略图，离线内置
 make_playlist.py         扫 NAS 生成片单（命令行）
 set_schedule.py          命令行改时段 / 时长 / PIN
-tools/console.py         网页控制台：浏览 SMB + 编排片单（手机 / PC）
+KidTvConfig-PC.bat       双击启动 PC 桌面版（优先用 dist 里的 exe）
+tools/desktop.py         PC 桌面启动器：后台服务 + 独立窗口 + 单实例 + 自检
+tools/static/desktop.html  桌面外壳：概览 / 手机二维码 / 日志 / 退出
+tools/pc.spec + build_pc_exe.bat   打包成 dist/KidTvConfig-PC.exe
+tools/console.py         网页控制台后端：浏览 SMB + 编排片单（手机 / PC / 桌面版共用）
 tools/static/index.html  控制台前端（无外部依赖，离线可用）
 tools/fetch_art.py       重新下载 / 更换内置名画图片
 tools/make_covers.py     从 NAS 视频截帧，批量生成海报缩略图并写回 cover 字段

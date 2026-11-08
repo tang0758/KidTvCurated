@@ -1,5 +1,7 @@
 pysmb>=1.2.13
-qrcode>=7.4
+qrcode>=7.4          # PC 桌面版的手机访问二维码（SVG，不需要 Pillow）
+
+# PC 桌面版可选：pip install pywebview 后改用原生窗口，不装则自动用 Edge/Chrome 应用窗口
 
 # tools/make_covers.py 额外需要系统里的 ffmpeg / ffprobe（不在 pip 里）：
 #   Windows: https://www.gyan.dev/ffmpeg/builds/ 下载后把 bin 加入 PATH

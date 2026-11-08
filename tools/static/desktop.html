@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#4f6bed">
+<title>小剧场 · 配置助手</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+  --brand:#4f6bed; --brand-soft:#eef1ff; --ok:#16a34a; --warn:#e07b00; --err:#dc2626;
+  --shadow:0 2px 10px rgba(30,41,90,.07);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}
+button,input,select{font-family:inherit;font-size:13px;color:var(--ink)}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 12px;min-height:36px;transition:.12s}
+button:hover{border-color:var(--brand);color:var(--brand)}
+button:active{transform:scale(.98)}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
+button.primary:hover{background:#3f58d6;color:#fff}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{background:var(--brand-soft)}
+button.danger:hover{border-color:var(--err);color:var(--err)}
+button.tiny{padding:5px 10px;min-height:30px;font-size:12px}
+input,select{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;width:100%;min-height:36px}
+input:focus,select:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+input[type=checkbox]{width:17px;height:17px;min-height:0;accent-color:var(--brand);flex:none}
+a{color:var(--brand);word-break:break-all}
+.hidden{display:none!important}
+
+.app{display:flex;height:100vh}
+.side{width:216px;flex:none;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px 12px}
+.logo{display:flex;align-items:center;gap:10px;padding:0 8px 20px}
+.logo .mark{width:36px;height:36px;border-radius:10px;background:var(--brand);color:#fff;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,107,237,.28)}
+.logo b{display:block;font-size:15px}
+.logo small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.nav{display:grid;gap:4px}
+.nav button{text-align:left;border-color:transparent;background:transparent;color:var(--muted);font-weight:600;padding:9px 12px}
+.nav button:hover{background:var(--brand-soft)}
+.nav button.on{background:var(--brand-soft);color:var(--brand)}
+.side-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px}
+.conn{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);padding:0 6px}
+.dot{width:8px;height:8px;border-radius:50%;background:#cbd5e1;flex:none}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--err)} .dot.wait{background:var(--warn)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{height:56px;flex:none;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 20px}
+.topbar h2{margin:0;font-size:15px;font-weight:700}
+.topbar .sub{color:var(--muted);font-size:12px;margin-left:6px;font-weight:400}
+.topbar .spacer{flex:1}
+.content{flex:1;overflow:auto;padding:18px 20px 30px}
+.view{max-width:980px;margin:0 auto}
+iframe.view{width:100%;height:100%;border:0;background:#fff;display:block}
+#view-editor{height:100%;padding:0;max-width:none}
+.wrap-editor{height:100%;display:flex;flex-direction:column}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.card h3{margin:0 0 4px;font-size:15px}
+.card .hint{color:var(--muted);font-size:12px;margin:0 0 12px}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:8px 10px;font-size:13px;margin:12px 0}
+.kv .k{color:var(--muted)}
+.kv .v{word-break:break-all;font-weight:500}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.shortcuts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.shortcut{display:block;text-align:left;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fff;min-height:88px}
+.shortcut b{display:block;font-size:14px;color:var(--ink);margin-bottom:4px}
+.shortcut span{font-size:12px;color:var(--muted);line-height:1.5}
+.shortcut:hover{border-color:var(--brand);background:#fafbff}
+.shortcut:hover b{color:var(--brand)}
+.notice{background:#fff8e8;border:1px solid #f6dfae;color:#8a5a00;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:14px}
+.linkbox{display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap}
+.linkbox code{flex:1;min-width:200px;background:#f6f7fb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;word-break:break-all}
+.qrbox{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:8px}
+.qrbox img{width:168px;height:168px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:6px}
+.qrbox .txt{color:var(--muted);font-size:12px;max-width:320px}
+.switch{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;margin:6px 0 10px}
+.iprow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.iprow:last-child{border-bottom:0}
+.iprow code{flex:1;word-break:break-all}
+.iprow button{min-height:28px;padding:3px 9px;font-size:12px}
+pre.logs{background:#111827;color:#d1fae5;border-radius:12px;padding:14px;font:12px/1.6 ui-monospace,Consolas,monospace;min-height:340px;max-height:62vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fields label{display:block;font-size:12px;color:var(--muted)}
+.fields label input{margin-top:4px}
+.fields .full{grid-column:1/-1}
+.modal{position:fixed;inset:0;background:rgba(20,26,45,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.sheet{background:#fff;border-radius:16px;padding:20px;width:min(520px,100%);max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.sheet h3{margin:0 0 4px}
+.sheet p{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+.toast{position:fixed;left:50%;transform:translate(-50%,16px);bottom:26px;background:#1f2937;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;max-width:88vw;opacity:0;pointer-events:none;transition:.2s;z-index:60;box-shadow:0 6px 22px rgba(0,0,0,.2)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--err)}
+@media(max-width:820px){
+  .app{flex-direction:column}
+  .side{width:100%;flex:none;border-right:0;border-bottom:1px solid var(--line);padding:8px 10px}
+  .logo{padding:0 2px 8px} .logo small{display:none}
+  .nav{display:flex;overflow-x:auto;gap:4px}
+  .nav button{white-space:nowrap;padding:6px 10px}
+  .side-foot{display:none}
+  .content{padding:12px}
+  .fields{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="logo">
+      <div class="mark">小</div>
+      <div><b>小剧场</b><small>配置助手 · PC 版</small></div>
+    </div>
+    <nav class="nav">
+      <button data-view="home" class="on">概览</button>
+      <button data-view="editor">片单编辑器</button>
+      <button data-view="phone">手机访问</button>
+      <button data-view="logs">运行日志</button>
+    </nav>
+    <div class="side-foot">
+      <div class="conn"><span class="dot" id="connDot"></span><span id="connText">正在读取状态…</span></div>
+      <button id="btnQuit" class="danger">退出程序</button>
+      <div style="font-size:11px;color:var(--muted);padding:0 6px">关掉窗口后服务会自动停止</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h2 id="pageTitle">概览</h2><span class="sub" id="pageSub"></span>
+      <div class="spacer"></div>
+      <button class="tiny" id="btnRefresh">刷新状态</button>
+      <button class="tiny" id="btnExternal">在浏览器打开</button>
+    </div>
+    <div class="content" id="content">
+
+      <!-- 概览 -->
+      <section class="view" id="view-home">
+        <div id="homeNotice" class="notice hidden"></div>
+        <div class="card">
+          <h3>连接状态</h3>
+          <p class="hint">助手直接连绿联 NAS 读写 tv.json，不依赖电视开机。</p>
+          <div class="kv">
+            <div class="k">NAS 地址</div><div class="v" id="kHost">—</div>
+            <div class="k">账号</div><div class="v" id="kUser">—</div>
+            <div class="k">清单位置</div><div class="v" id="kPath">—</div>
+            <div class="k">清单来源</div><div class="v" id="kSource">未检测</div>
+          </div>
+          <div class="btns">
+            <button class="primary" id="btnCheck">检测连接</button>
+            <button id="btnSettings">连接设置</button>
+            <button id="btnOpenEditor">打开片单编辑器</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>常用入口</h3>
+          <p class="hint">编辑器里的分区、必看、时段、学习角、JSON 全部可用，改完点「保存到 NAS」。</p>
+          <div class="shortcuts">
+            <button class="shortcut" data-tab="browse"><b>浏览 NAS 资源</b><span>选共享、进目录、整层加入</span></button>
+            <button class="shortcut" data-tab="sections"><b>片单编排</b><span>分区顺序、每日必看、封面</span></button>
+            <button class="shortcut" data-tab="rules"><b>时段与密码</b><span>PIN、时长、时段、儿童锁</span></button>
+            <button class="shortcut" data-tab="json"><b>JSON / 导入导出</b><span>手改原文、导入导出、本地保存</span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>本机文件</h3>
+          <p class="hint">凭据和备份都放在助手所在目录，不会上传。</p>
+          <div class="kv">
+            <div class="k">连接配置</div><div class="v" id="kCfg">—</div>
+            <div class="k">本地片单</div><div class="v" id="kLocal">—</div>
+            <div class="k">访问码</div><div class="v" id="kToken">—</div>
+            <div class="k">端口</div><div class="v" id="kPort">—</div>
+          </div>
+          <p class="hint" style="margin:10px 0 0">改完清单后，到电视上按 <b>菜单 → 重新读取清单</b> 生效。</p>
+        </div>
+      </section>
+
+      <!-- 手机访问 -->
+      <section class="view hidden" id="view-phone">
+        <div class="card">
+          <h3>同一 WiFi 下用手机改片单</h3>
+          <p class="hint">开启后手机浏览器扫二维码或打开链接即可，不必开电脑上的编辑器。只在家里 WiFi 用，别做公网映射。</p>
+          <label class="switch"><input type="checkbox" id="lanSwitch"> 允许局域网（手机）访问</label>
+          <div id="phoneBox" class="hidden">
+            <div class="linkbox"><code id="phoneLink">—</code><button class="tiny" id="btnCopyPhone">复制链接</button></div>
+            <div class="qrbox">
+              <img id="qrImg" alt="手机访问二维码">
+              <div class="txt" id="qrText">手机连同一个 WiFi，用相机或浏览器扫一扫。<br>访问码已在链接里，存成书签以后不用再输。</div>
+            </div>
+            <h3 style="margin-top:18px">这台电脑的 IP</h3>
+            <p class="hint">如果手机打不开，试下面其它地址（虚拟网卡地址通常不能用）。</p>
+            <div id="ipList"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>想不开电脑随时改？</h3>
+          <p class="hint">把网页控制台常驻到 NAS（仓库里的 docker-compose.yml），手机任何时间都能打开，PC 版就不用一直开着。</p>
+          <div class="linkbox"><code>docker compose up -d --build</code></div>
+        </div>
+      </section>
+
+      <!-- 日志 -->
+      <section class="view hidden" id="view-logs">
+        <div class="card">
+          <h3>运行日志</h3>
+          <p class="hint">连不上 NAS、保存失败时先看这里。最近 120 条。</p>
+          <div class="btns" style="margin:0 0 10px"><button class="tiny" id="btnLogRefresh">刷新日志</button></div>
+          <pre class="logs" id="logText">读取中…</pre>
+        </div>
+      </section>
+
+      <!-- 编辑器 iframe 容器：铺满剩余高度 -->
+      <section class="view hidden" id="view-editor" style="height:100%;padding:0;max-width:none">
+        <iframe id="editorFrame" title="片单编辑器" style="width:100%;height:100%;border:0;background:#fff"></iframe>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- 连接设置 -->
+<div class="modal hidden" id="settingsModal">
+  <div class="sheet">
+    <h3>连接设置</h3>
+    <p>和网页控制台共用同一份 nas.local.json；密码不会回显，留空表示沿用已保存的密码。</p>
+    <div class="fields">
+      <label>NAS 地址<input id="fHost" placeholder="192.168.31.72"></label>
+      <label>SMB 端口<input id="fPort" type="number" placeholder="445"></label>
+      <label>账号<input id="fUser" autocomplete="off"></label>
+      <label>密码<input id="fPassword" type="password" placeholder="留空 = 不修改" autocomplete="new-password"></label>
+      <label>视频共享名<input id="fShare" placeholder="如：固态存储"></label>
+      <label>清单共享名<input id="fPlaylistShare" placeholder="data"></label>
+      <label class="full">清单路径<input id="fPlaylistPath" placeholder="curated/tv.json"></label>
+    </div>
+    <div class="btns" style="justify-content:flex-end">
+      <button id="btnSettingsCancel">取消</button>
+      <button class="primary" id="btnSettingsSave">测试并保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const Q = new URLSearchParams(location.search);
+const K = Q.get("k") || "";
+let S = null, phoneUrl = "", editorLoaded = false, currentView = "home";
+
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({
+    headers: {"X-Console-Token": K, "Content-Type": "application/json"}
+  }, opts || {}));
+  let j = {};
+  try { j = await r.json(); } catch(e) { throw new Error("返回不是 JSON（HTTP " + r.status + "）"); }
+  if(!r.ok || j.ok === false) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+function $(id){ return document.getElementById(id); }
+function toast(msg, bad){
+  const t = $("toast");
+  t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.className = "toast", 3200);
+}
+function copy(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(() => toast("已复制"), () => fallbackCopy(text));
+  } else fallbackCopy(text);
+}
+function fallbackCopy(text){
+  const a = document.createElement("textarea");
+  a.value = text; document.body.appendChild(a); a.select();
+  try { document.execCommand("copy"); toast("已复制"); } catch(e){ toast("复制失败，请手动选中", true); }
+  a.remove();
+}
+function setConn(text, kind){
+  $("connText").textContent = text;
+  $("connDot").className = "dot" + (kind ? " " + kind : "");
+}
+
+async function refresh(){
+  try {
+    S = await api("/api/desktop/state");
+    const s = S.settings, u = S.urls;
+    $("kHost").textContent = s.host || "未配置";
+    $("kUser").textContent = s.user || "未配置";
+    const plPath = String(s.playlistPath || "").replace(/\//g, "\\");
+    $("kPath").textContent = "\\\\" + (s.host || "?") + "\\" + s.playlistShare + "\\" + plPath;
+    $("kCfg").textContent = S.configFile;
+    $("kLocal").textContent = S.localTvFile + (S.hasLocalTv ? "" : "（还没有）");
+    $("kToken").textContent = u.token;
+    $("kPort").textContent = u.port;
+    $("lanSwitch").checked = !!S.lan;
+    $("phoneBox").classList.toggle("hidden", !S.lan);
+    $("homeNotice").classList.toggle("hidden", !!s.host && !!s.hasPassword);
+    $("homeNotice").textContent = "还没填 NAS 地址或密码，先点「连接设置」；也可以直接编辑本地 tv.json。";
+    setConn(s.host ? "NAS 已配置" : "未配置 NAS", s.host ? "ok" : "wait");
+    renderPhone();
+    return S;
+  } catch(e){
+    setConn("读取状态失败", "bad");
+    toast(e.message, true);
+    return null;
+  }
+}
+
+function basePhone(){
+  if(!S) return "";
+  return "http://" + phoneHost() + ":" + S.urls.port + "/?k=" + encodeURIComponent(K);
+}
+function phoneHost(){ return window._phoneHost || (S ? S.urls.host : "127.0.0.1"); }
+function renderPhone(){
+  if(!S) return;
+  phoneUrl = basePhone();
+  $("phoneLink").textContent = phoneUrl;
+  const qr = $("qrImg");
+  if(S.qrAvailable){
+    qr.src = "/api/desktop/qr?k=" + encodeURIComponent(K) + "&text=" + encodeURIComponent(phoneUrl);
+    qr.classList.remove("hidden");
+    $("qrText").innerHTML = "手机连同一个 WiFi，用相机或浏览器扫一扫。<br>访问码已在链接里，存成书签以后不用再输。";
+  } else {
+    qr.classList.add("hidden");
+    $("qrText").textContent = "想显示二维码：在电脑上执行一次 python -m pip install qrcode，然后重启助手。现在可以直接复制上面的链接。";
+  }
+  const list = $("ipList");
+  list.innerHTML = "";
+  (S.ips || []).forEach(ip => {
+    const url = "http://" + ip + ":" + S.urls.port + "/?k=" + encodeURIComponent(K);
+    const row = document.createElement("div");
+    row.className = "iprow";
+    const code = document.createElement("code");
+    code.textContent = url + (ip === S.urls.host ? "  （推荐）" : "");
+    const use = document.createElement("button");
+    use.className = "tiny"; use.textContent = "用这个";
+    use.onclick = () => { window._phoneHost = ip; renderPhone(); toast("已切换到 " + ip); };
+    const cp = document.createElement("button");
+    cp.className = "tiny"; cp.textContent = "复制";
+    cp.onclick = () => copy(url);
+    row.appendChild(code); row.appendChild(use); row.appendChild(cp);
+    list.appendChild(row);
+  });
+  if(!(S.ips || []).length) list.textContent = "没检测到局域网 IP，检查电脑的网络连接。";
+}
+
+function switchView(v, tab){
+  currentView = v;
+  document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  ["home","phone","logs","editor"].forEach(x => $("view-" + x).classList.toggle("hidden", x !== v));
+  $("content").style.overflow = v === "editor" ? "hidden" : "auto";
+  $("content").style.padding = v === "editor" ? "0" : "";
+  const titles = {home:["概览",""], phone:["手机访问","同一 WiFi 下也能改片单"],
+                  logs:["运行日志",""], editor:["片单编辑器","改完记得保存到 NAS"]};
+  $("pageTitle").textContent = titles[v][0];
+  $("pageSub").textContent = titles[v][1];
+  if(v === "editor") loadEditor(tab || "browse");
+  if(v === "logs") loadLogs();
+}
+function loadEditor(tab){
+  const u = S ? S.urls.editor : "/static/index.html";
+  const src = u + "&embedded=1&tab=" + encodeURIComponent(tab);
+  const f = $("editorFrame");
+  if(!editorLoaded || f.dataset.tab !== tab){ f.src = src; f.dataset.tab = tab; editorLoaded = true; }
+}
+async function loadLogs(){
+  try {
+    const r = await api("/api/desktop/logs");
+    $("logText").textContent = (r.lines || []).join("\n") || "（还没有日志）";
+  } catch(e){ $("logText").textContent = "读取日志失败：" + e.message; }
+}
+function openSettings(){
+  const s = S ? S.settings : {};
+  $("fHost").value = s.host || "";
+  $("fPort").value = s.port || 445;
+  $("fUser").value = s.user || "";
+  $("fPassword").value = "";
+  $("fShare").value = s.share || "";
+  $("fPlaylistShare").value = s.playlistShare || "data";
+  $("fPlaylistPath").value = s.playlistPath || "curated/tv.json";
+  $("settingsModal").classList.remove("hidden");
+}
+async function saveSettings(){
+  const payload = {
+    host: $("fHost").value.trim(), port: $("fPort").value.trim(),
+    user: $("fUser").value.trim(), password: $("fPassword").value,
+    share: $("fShare").value.trim(),
+    playlistShare: $("fPlaylistShare").value.trim(),
+    playlistPath: $("fPlaylistPath").value.trim(), save: true
+  };
+  const btn = $("btnSettingsSave");
+  btn.disabled = true; btn.textContent = "连接中…";
+  try {
+    const r = await api("/api/settings", {method:"POST", body: JSON.stringify(payload)});
+    $("settingsModal").classList.add("hidden");
+    toast(r.message || "已保存");
+    setConn("NAS 已连接", "ok");
+    await refresh();
+    if(editorLoaded) loadEditor($("editorFrame").dataset.tab || "browse");
+  } catch(e){ toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = "测试并保存"; }
+}
+async function check(){
+  const btn = $("btnCheck");
+  btn.disabled = true; btn.textContent = "检测中…";
+  setConn("正在连接 NAS…", "wait");
+  try {
+    const r = await api("/api/desktop/check", {method:"POST", body:"{}"});
+    const names = {nas:"NAS 上的 tv.json", local:"本地 tv.json（离线）", template:"公开模板（NAS 未就绪）"};
+    $("kSource").textContent = names[r.playlist.source] || r.playlist.source;
+    setConn("已连接 · " + r.shares.length + " 个共享", "ok");
+    toast("连接正常，清单来源：" + (names[r.playlist.source] || r.playlist.source));
+  } catch(e){
+    $("kSource").textContent = "连接失败";
+    setConn("NAS 连不上", "bad");
+    toast(e.message, true);
+  } finally { btn.disabled = false; btn.textContent = "检测连接"; }
+}
+async function toggleLan(){
+  const on = $("lanSwitch").checked;
+  try {
+    const r = await api("/api/desktop/lan", {method:"POST", body: JSON.stringify({enabled:on})});
+    toast(r.message);
+    $("phoneBox").classList.toggle("hidden", !on);
+    setTimeout(refresh, 1600);
+  } catch(e){
+    $("lanSwitch").checked = !on;
+    toast(e.message, true);
+  }
+}
+async function quit(){
+  if(!confirm("退出配置助手？服务会停止，手机端也会暂时打不开。")) return;
+  try {
+    await api("/api/desktop/quit", {method:"POST", body:"{}"});
+    document.body.innerHTML = '<div style="padding:60px;text-align:center;font:16px/2 sans-serif;color:#1f2937">配置助手已退出，可以关闭这个窗口了。<br><span style="color:#6b7280;font-size:13px">下次双击「KidTvConfig-PC.bat」或桌面快捷方式即可重新启动。</span></div>';
+  } catch(e){ toast(e.message, true); }
+}
+
+document.querySelectorAll(".nav button").forEach(b => b.onclick = () => switchView(b.dataset.view));
+document.querySelectorAll(".shortcut").forEach(b => b.onclick = () => switchView("editor", b.dataset.tab));
+$("btnOpenEditor").onclick = () => switchView("editor", "browse");
+$("btnRefresh").onclick = refresh;
+$("btnExternal").onclick = () => window.open(S ? S.urls.editor : "/", "_blank");
+$("btnSettings").onclick = openSettings;
+$("btnSettingsCancel").onclick = () => $("settingsModal").classList.add("hidden");
+$("btnSettingsSave").onclick = saveSettings;
+$("btnCheck").onclick = check;
+$("lanSwitch").onchange = toggleLan;
+$("btnCopyPhone").onclick = () => copy(phoneUrl);
+$("btnLogRefresh").onclick = loadLogs;
+$("btnQuit").onclick = quit;
+setInterval(() => { if(currentView === "logs") loadLogs(); }, 6000);
+// 支持 ?view=editor&tab=rules 直接进某一页，方便存快捷方式 / 书签
+const VIEWS = ["home","phone","logs","editor"];
+const initialView = VIEWS.includes(Q.get("view")) ? Q.get("view") : "home";
+refresh().then(() => switchView(initialView, Q.get("tab") || "browse"));
+</script>
+</body>
+</html>

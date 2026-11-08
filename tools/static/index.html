@@ -239,6 +239,12 @@ const S = {
   target:0, showCount:false, counts:{}, tab:START_TAB, source:""
 };
 
+// PC 桌面助手把控制台嵌进 iframe 时，外壳已有标题和连接设置，这里隐藏重复头部
+if (urlParams.get("embedded") === "1") {
+  const h = Q("header"); if (h) h.style.display = "none";
+  const t = Q(".tabs"); if (t) t.style.marginTop = "14px";
+}
+
 async function api(path, opts){
   opts = opts || {};
   const r = await fetch(path, Object.assign({}, opts, {

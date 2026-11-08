@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import argparse
+import collections
 import io
 import json
 import mimetypes
@@ -46,15 +47,33 @@ try:
 except Exception:
     pass
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-TOOLS = pathlib.Path(__file__).resolve().parent
+# 源码运行：资源和数据都在仓库；PyInstaller 打包后：资源在临时解包目录，
+# 配置和访问码必须放在 exe 同目录，否则每次启动都会丢。
+FROZEN = bool(getattr(sys, "frozen", False))
+BUNDLE = pathlib.Path(getattr(sys, "_MEIPASS", "")) if FROZEN else pathlib.Path(__file__).resolve().parent.parent
+DATA_DIR = pathlib.Path(sys.executable).resolve().parent if FROZEN else BUNDLE
+TOOLS = BUNDLE / "tools"
 STATIC = TOOLS / "static"
-CONFIG_FILE = pathlib.Path(os.environ.get("KIDTV_CONFIG") or (ROOT / "nas.local.json"))
-EXAMPLE_FILE = ROOT / "nas.example.json"
-TEMPLATE_FILE = pathlib.Path(os.environ.get("KIDTV_TEMPLATE") or (ROOT / "examples" / "tv.json"))
-LOCAL_TV_FILE = ROOT / "tv.json"
+EXAMPLE_FILE = BUNDLE / "nas.example.json"
+TEMPLATE_FILE = pathlib.Path(os.environ.get("KIDTV_TEMPLATE") or (BUNDLE / "examples" / "tv.json"))
+
+
+def _default_config() -> pathlib.Path:
+    """打包 exe 放在 dist/ 时，自动继承项目根已有的 nas.local.json。"""
+    if os.environ.get("KIDTV_CONFIG"):
+        return pathlib.Path(os.environ["KIDTV_CONFIG"])
+    mine = DATA_DIR / "nas.local.json"
+    if mine.exists() or not FROZEN:
+        return mine
+    parent = DATA_DIR.parent / "nas.local.json"
+    return parent if parent.exists() else mine
+
+
+CONFIG_FILE = _default_config()
+LOCAL_TV_FILE = CONFIG_FILE.parent / "tv.json"
 # 访问码和凭据放一起：Docker 里把配置目录做成卷，重建容器后手机书签仍有效
 TOKEN_FILE = CONFIG_FILE.parent / ".console_token"
+DESKTOP_FILE = CONFIG_FILE.parent / ".console_desktop.json"
 
 VIDEO_EXT = {
     ".mp4", ".mkv", ".avi", ".ts", ".m2ts", ".mov", ".wmv", ".flv",
@@ -62,10 +81,23 @@ VIDEO_EXT = {
 }
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
-STATE = {"cfg": {}, "token": "", "lan": False}
+STATE = {"cfg": {}, "token": "", "lan": False, "port": 8765}
 LOCK = threading.Lock()
 CACHE: dict[tuple, tuple[float, object]] = {}
 CACHE_TTL = 300.0
+# 桌面版控制面板要显示最近日志；windowed 打包时 stdout 可能为 None，所有输出走 say()
+LOG_LINES: collections.deque[str] = collections.deque(maxlen=200)
+# 桌面启动器注入：切换监听地址、退出程序、打开编辑器窗口
+DESKTOP = {"restart": None, "quit": None, "open": None}
+
+
+def say(*args) -> None:
+    text = " ".join(str(a) for a in args)
+    LOG_LINES.append(time.strftime("%H:%M:%S ") + text)
+    try:
+        print(text, flush=True)
+    except Exception:
+        pass
 
 
 class SmbError(Exception):
@@ -90,7 +122,7 @@ def load_cfg() -> dict:
             if k in raw and raw[k] not in (None, ""):
                 cfg[k] = raw[k]
     except Exception as e:
-        print(f"读取配置 {src.name} 失败：{e}")
+        say(f"读取配置 {src.name} 失败：{e}")
     # 示例文件里的占位符不能当成真密码
     if str(cfg["password"]).startswith("YOUR_"):
         cfg["password"] = ""
@@ -343,6 +375,116 @@ def lan_ips() -> list[str]:
     return sorted(ips)
 
 
+# --------------------------------------------------------------------------- 桌面版
+# PC 桌面助手通过下列接口管理本地服务；网页控制台（CLI / Docker）不受影响。
+
+def desktop_prefs() -> dict:
+    prefs = {"lan": False, "port": 8765}
+    try:
+        if DESKTOP_FILE.exists():
+            prefs.update(json.loads(DESKTOP_FILE.read_text(encoding="utf-8")))
+    except Exception:
+        pass
+    return prefs
+
+
+def save_desktop_prefs(patch: dict) -> dict:
+    prefs = desktop_prefs()
+    for k in ("lan", "port"):
+        if k in patch:
+            prefs[k] = bool(patch[k]) if k == "lan" else int(patch[k])
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        DESKTOP_FILE.write_text(json.dumps(prefs, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        raise SmbError(f"保存桌面偏好失败：{e}")
+    return prefs
+
+
+def desktop_urls() -> dict:
+    port = int(STATE["port"])
+    token = STATE["token"]
+    k = urllib.parse.quote(token)
+    ips = lan_ips()
+    # 优先和 NAS 同一个网段，其次家用路由器网段；别把虚拟网卡地址当成手机访问地址
+    nas = str(current_cfg().get("host") or "")
+    prefix = ".".join(nas.split(".")[:3]) + "." if nas.count(".") == 3 else ""
+    host = next((ip for ip in ips if prefix and ip.startswith(prefix)), None) \
+        or next((ip for ip in ips if ip.startswith("192.168.")), None) \
+        or (ips[0] if ips else "127.0.0.1")
+    return {
+        "local": f"http://127.0.0.1:{port}/?k={k}",
+        "desktop": f"http://127.0.0.1:{port}/static/desktop.html?k={k}",
+        "editor": f"http://127.0.0.1:{port}/static/index.html?k={k}",
+        "phone": f"http://{host}:{port}/?k={k}",
+        "host": host, "token": token, "port": port,
+    }
+
+
+def desktop_state() -> dict:
+    cfg = current_cfg()
+    hit = CACHE.get(("shares", cfg.get("host"), cfg.get("user")))
+    return {
+        "ok": True,
+        "running": True,
+        "frozen": FROZEN,
+        "lan": bool(STATE["lan"]),
+        "urls": desktop_urls(),
+        "ips": lan_ips(),
+        "dataDir": str(DATA_DIR),
+        "configFile": str(CONFIG_FILE),
+        "localTvFile": str(LOCAL_TV_FILE),
+        "hasLocalTv": LOCAL_TV_FILE.exists(),
+        "settings": {
+            "host": cfg.get("host", ""), "port": cfg.get("port", 445),
+            "user": cfg.get("user", ""), "share": cfg.get("share", ""),
+            "playlistShare": cfg.get("playlistShare", "data"),
+            "playlistPath": cfg.get("playlistPath", "curated/tv.json"),
+            "hasPassword": bool(cfg.get("password")),
+        },
+        "connection": "ok" if hit else "unknown",
+        "qrAvailable": _qr_available(),
+        "prefs": desktop_prefs(),
+        "canManage": DESKTOP["restart"] is not None and DESKTOP["quit"] is not None,
+    }
+
+
+def _qr_available() -> bool:
+    try:
+        import qrcode.image.svg  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def qr_svg(text: str) -> bytes:
+    import qrcode
+    import qrcode.image.svg
+    img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathImage,
+                      box_size=7, border=2)
+    buf = io.BytesIO()
+    img.save(buf)
+    return buf.getvalue()
+
+
+def desktop_check() -> dict:
+    """首页「检测连接」：真连一次 SMB，顺便看清单是从哪读的。"""
+    cfg = current_cfg()
+    shares = list_shares(cfg)
+    source, detail = "none", ""
+    try:
+        read_remote(cfg)
+        source = "nas"
+        detail = f"\\\\{cfg['host']}\\{cfg['playlistShare']}\\{cfg['playlistPath']}"
+    except Exception as e:
+        if LOCAL_TV_FILE.exists():
+            source, detail = "local", str(LOCAL_TV_FILE)
+        else:
+            source, detail = "template", str(e)
+    return {"ok": True, "connected": True, "shares": shares,
+            "playlist": {"source": source, "detail": detail}}
+
+
 # --------------------------------------------------------------------------- HTTP
 
 class Handler(BaseHTTPRequestHandler):
@@ -351,7 +493,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         msg = fmt % args
         if "/api/" in msg or msg.startswith("code "):
-            print(f"  {msg}", flush=True)
+            say(f"  {msg}")
 
     # ---- helpers ----
     def json_out(self, obj, code: int = 200):
@@ -363,7 +505,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             self.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
     def html_out(self, body: bytes, ctype: str = "text/html; charset=utf-8"):
@@ -374,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             self.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
     def query(self) -> dict:
@@ -403,6 +545,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         try:
+            # 无需访问码：桌面启动器用它判断「是不是已经有一个助手在跑」
+            if path == "/api/desktop/ping":
+                return self.json_out({"ok": True, "app": "kidtv-console",
+                                      "port": int(STATE["port"]),
+                                      "lan": bool(STATE["lan"])})
+            if path == "/desktop":
+                f = STATIC / "desktop.html"
+                return self.html_out(f.read_bytes() if f.exists()
+                                     else b"<h1>missing desktop.html</h1>")
             if path in ("/", "/index.html", "/static/index.html"):
                 f = STATIC / "index.html"
                 if not f.exists():
@@ -430,6 +581,15 @@ class Handler(BaseHTTPRequestHandler):
             cfg = current_cfg()
             q = self.query()
 
+            if path == "/api/desktop/state":
+                return self.json_out(desktop_state())
+            if path == "/api/desktop/logs":
+                return self.json_out({"ok": True, "lines": list(LOG_LINES)[-120:]})
+            if path == "/api/desktop/qr":
+                text = self.one(q, "text")
+                if not text:
+                    raise SmbError("二维码内容为空")
+                return self.html_out(qr_svg(text), "image/svg+xml; charset=utf-8")
             if path == "/api/state":
                 out = state_payload()
                 try:
@@ -502,7 +662,7 @@ class Handler(BaseHTTPRequestHandler):
                     pass
                 except Exception as e:
                     # 响应头已发出，不能再回 JSON；直接断连让浏览器提示下载失败
-                    print(f"  下载失败：{e}", flush=True)
+                    say(f"  下载失败：{e}")
                     self.close_connection = True
                 finally:
                     c.close()
@@ -511,10 +671,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.json_out({"ok": False, "error": "未知 API"}, 404)
         except SmbError as e:
             return self.json_out({"ok": False, "error": str(e)}, 400)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
         except Exception as e:
-            traceback.print_exc()
+            say(traceback.format_exc())
             return self.json_out({"ok": False, "error": str(e)}, 500)
 
     def do_POST(self):
@@ -523,6 +683,29 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorized():
                 return self.json_out({"ok": False, "error": "访问码不对，请用启动时的完整链接打开"}, 401)
             data = self.body()
+
+            if path == "/api/desktop/check":
+                return self.json_out(desktop_check())
+            if path == "/api/desktop/prefs":
+                return self.json_out({"ok": True, "prefs": save_desktop_prefs(data)})
+            if path == "/api/desktop/lan":
+                enabled = bool(data.get("enabled"))
+                cb = DESKTOP["restart"]
+                if not cb:
+                    raise SmbError("当前是命令行 / Docker 模式，请用桌面版启动才能一键切换")
+                save_desktop_prefs({"lan": enabled})
+                threading.Timer(0.4, _safe, args=(cb, enabled)).start()
+                return self.json_out({"ok": True,
+                                      "message": ("已开启" if enabled else "已关闭") +
+                                                 "手机访问，正在重新绑定服务…"})
+            if path == "/api/desktop/quit":
+                if self.client_address[0] not in ("127.0.0.1", "::1"):
+                    return self.json_out({"ok": False, "error": "只允许在电脑本机退出"}, 403)
+                cb = DESKTOP["quit"]
+                if not cb:
+                    raise SmbError("当前是命令行 / Docker 模式，请关掉终端窗口退出")
+                threading.Timer(0.4, _safe, args=(cb,)).start()
+                return self.json_out({"ok": True, "message": "正在退出"})
 
             if path == "/api/settings":
                 cfg = current_cfg()
@@ -577,8 +760,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.json_out({"ok": False, "error": "未知 API"}, 404)
         except SmbError as e:
             return self.json_out({"ok": False, "error": str(e)}, 400)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
         except Exception as e:
-            traceback.print_exc()
+            say(traceback.format_exc())
             return self.json_out({"ok": False, "error": str(e)}, 500)
 
 
@@ -599,6 +784,61 @@ def get_token(arg_token: str | None) -> str:
         return secrets.token_urlsafe(5)[:8]
 
 
+def _safe(cb, *args) -> None:
+    try:
+        cb(*args)
+    except Exception as e:
+        say(f"桌面操作失败：{e}")
+
+
+def init_state(config: str | None = None, token: str | None = None,
+               lan: bool = False, port: int = 8765) -> str:
+    """命令行和 PC 桌面启动器共用；返回访问码。"""
+    global CONFIG_FILE, TOKEN_FILE, DESKTOP_FILE
+    if config:
+        CONFIG_FILE = pathlib.Path(config)
+        TOKEN_FILE = CONFIG_FILE.parent / ".console_token"
+        DESKTOP_FILE = CONFIG_FILE.parent / ".console_desktop.json"
+    STATE["cfg"] = load_cfg()
+    STATE["token"] = get_token(token)
+    STATE["lan"] = bool(lan)
+    STATE["port"] = int(port)
+    return STATE["token"]
+
+
+def make_server(bind: str, port: int) -> ThreadingHTTPServer:
+    srv = ThreadingHTTPServer((bind, int(port)), Handler)
+    srv.daemon_threads = True
+    return srv
+
+
+def print_banner(lan: bool, port: int) -> str:
+    u = desktop_urls()
+    say("\n小剧场 · 片单控制台")
+    say("=" * 56)
+    say(f"  配置文件 : {CONFIG_FILE}")
+    say(f"  NAS      : {STATE['cfg']['host'] or '（未配置，进页面点连接设置）'}")
+    say(f"  访问码   : {STATE['token']}  （API 必须携带，链接里已带 k=）")
+    say(f"  本机打开 : {u['local']}")
+    if lan:
+        for ip in lan_ips():
+            say(f"  手机打开 : http://{ip}:{port}/?k={STATE['token']}")
+        say("  手机需和这台机器在同一个 WiFi / 局域网")
+    else:
+        say("  想让手机也能打开：加 --lan 重新启动")
+    say("=" * 56)
+    try:
+        import qrcode  # 可选：终端打印二维码，手机扫一下就进
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(u["phone"])
+        qr.make()
+        qr.print_ascii(invert=True)
+    except Exception:
+        pass
+    say("Ctrl+C 停止\n")
+    return u["local"]
+
+
 def main():
     ap = argparse.ArgumentParser(description="小剧场片单控制台")
     ap.add_argument("--lan", action="store_true", help="监听 0.0.0.0，允许手机等局域网设备访问")
@@ -608,40 +848,9 @@ def main():
     ap.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     args = ap.parse_args()
 
-    global CONFIG_FILE
-    if args.config:
-        CONFIG_FILE = pathlib.Path(args.config)
-    STATE["cfg"] = load_cfg()
-    STATE["token"] = get_token(args.token)
-    STATE["lan"] = args.lan
-
-    bind = "0.0.0.0" if args.lan else "127.0.0.1"
-    url_local = f"http://127.0.0.1:{args.port}/?k={STATE['token']}"
-    print("\n小剧场 · 片单控制台")
-    print("=" * 56)
-    print(f"  配置文件 : {CONFIG_FILE}")
-    print(f"  NAS      : {STATE['cfg']['host'] or '（未配置，进页面点连接设置）'}")
-    print(f"  访问码   : {STATE['token']}  （API 必须携带，链接里已带 k=）")
-    print(f"  本机打开 : {url_local}")
-    if args.lan:
-        for ip in lan_ips():
-            print(f"  手机打开 : http://{ip}:{args.port}/?k={STATE['token']}")
-        print("  手机需和这台机器在同一个 WiFi / 局域网")
-    else:
-        print("  想让手机也能打开：加 --lan 重新启动")
-    print("=" * 56)
-    try:
-        import qrcode  # 可选：终端打印二维码，手机扫一下就进
-        qr = qrcode.QRCode(border=1)
-        qr.add_data(f"http://{lan_ips()[0] if lan_ips() else '127.0.0.1'}:{args.port}/?k={STATE['token']}")
-        qr.make()
-        qr.print_ascii(invert=True)
-    except Exception:
-        pass
-    print("Ctrl+C 停止\n")
-
-    server = ThreadingHTTPServer((bind, args.port), Handler)
-    server.daemon_threads = True
+    init_state(args.config, args.token, args.lan, args.port)
+    url_local = print_banner(args.lan, args.port)
+    server = make_server("0.0.0.0" if args.lan else "127.0.0.1", args.port)
     if not args.no_browser:
         try:
             webbrowser.open(url_local)
@@ -650,7 +859,7 @@ def main():
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n已停止")
+        say("\n已停止")
     finally:
         server.server_close()
 
