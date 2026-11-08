@@ -26,6 +26,30 @@
     "dailyLimitMinutes": 60,
     "lockMessage": "电视休息时间，先去玩会儿别的吧"
   },
+  "learning": {
+    "_说明": "等待时间学习角：锁屏右半边轮播唐诗 / 英语单词 / 名画 / 识字。整段删掉也会启用默认（内置题库、20 秒一张、四类交错）；enabled=false 则回到原来的纯倒计时全屏。",
+    "enabled": true,
+    "intervalSeconds": 20,
+    "order": ["poem", "word", "art", "text"],
+    "useBuiltin": true,
+    "_名画说明": "不写 artFolder 就用 APK 内置的 10 幅公共领域名画（断网也能看）。想换成自己的图，写 artFolder: \"curated/art\" 和 artShare: \"data\"，电视会按文件名顺序取目录里的 jpg/png。",
+    "custom": [
+      {
+        "type": "text",
+        "title": "日",
+        "sub": "识字 · rì",
+        "lines": ["日出", "生日", "日记"],
+        "note": "太阳；一天也叫一日"
+      },
+      {
+        "type": "poem",
+        "title": "咏鹅",
+        "sub": "唐 · 骆宾王",
+        "lines": ["鹅，鹅，鹅，曲项向天歌。", "白毛浮绿水，红掌拨清波。"],
+        "note": "写这首诗的时候，作者才七岁。"
+      }
+    ]
+  },
   "sections": [
     {
       "_说明": "gate=true 是「每日必看」：这里每一项都看完，后面 requires=daily 的分区才解锁。每天固定看什么就写 file；想每天自动换一批，删掉 items 换成 auto。",

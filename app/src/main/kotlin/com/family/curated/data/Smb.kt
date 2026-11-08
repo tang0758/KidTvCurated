@@ -87,9 +87,10 @@ object Smb {
         return sh
     }
 
-    /** 列目录：返回 (文件名, 是否目录, 大小) */
-    fun list(cfg: NasConfig, dir: String): List<Triple<String, Boolean, Long>> {
-        val sh = ensureConnected(cfg)
+    /** 列目录：返回 (文件名, 是否目录, 大小)。shareName 可指定同一个 NAS 上的其它共享 */
+    fun list(cfg: NasConfig, dir: String, shareName: String? = null): List<Triple<String, Boolean, Long>> {
+        val sh = if (shareName.isNullOrBlank() || shareName == cfg.share)
+            ensureConnected(cfg) else shareNamed(cfg, shareName)
         val result = ArrayList<Triple<String, Boolean, Long>>()
         sh.list(path(dir)).forEach { f ->
             val name = f.fileName

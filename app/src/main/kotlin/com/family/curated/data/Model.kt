@@ -56,7 +56,8 @@ data class Playlist(
     val sections: List<Section>,
     val pin: String = "1234",
     val passRatio: Float = 0.92f,  // 播放进度达到这个比例就算"看完"
-    val schedule: Schedule? = null // 可用时段 / 每日时长上限；不写就不限制
+    val schedule: Schedule? = null, // 可用时段 / 每日时长上限；不写就不限制
+    val learning: Learning? = null  // 锁屏右侧学习角；不写 = 启用内置题库
 ) {
     val gateSections: List<Section> get() = sections.filter { it.gate }
 }
@@ -144,7 +145,8 @@ object PlaylistParser {
             passRatio = root.optDouble("passRatio", 0.92).toFloat(),
             schedule = Schedule.parse(
                 root.optJSONObject("schedule") ?: scheduleFromLegacy(root)
-            )
+            ),
+            learning = Learning.parse(root.optJSONObject("learning"))
         )
     }
 }

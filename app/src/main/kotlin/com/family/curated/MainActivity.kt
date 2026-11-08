@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity() {
                 Extras.saveSchedule(res.playlist.schedule)
                 Extras.savePin(res.playlist.pin)
                 Extras.savePassRatio(res.playlist.passRatio)
+                Extras.saveLearning(res.playlist.learning ?: com.family.curated.data.Learning())
                 render(res.error)
             }
         }.start()

@@ -133,6 +133,13 @@ object Extras {
 
     fun savePassRatio(v: Float) = p().edit().putFloat("passRatio", v).apply()
 
+    // ---------- 锁屏学习角 ----------
+
+    /** 没同步过清单时用内置题库，保证第一次装好就能显示 */
+    fun learning(): Learning = Learning.fromJson(p().getString("learning", null))
+
+    fun saveLearning(v: Learning) = p().edit().putString("learning", v.toJson()).apply()
+
     /** 家长临时放行的截止时间（毫秒） */
     fun tempUntil(): Long = p().getLong("tempUntil", 0L)
 

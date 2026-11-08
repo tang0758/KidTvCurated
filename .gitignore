@@ -22,6 +22,9 @@ app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
 /.tv_backup.json
 *.backup.json
 
+# 本地测试产物（ADB 截图 / 设备配置备份，可能含明文密码）
+/aerial/
+
 # Python
 __pycache__/
 *.pyc

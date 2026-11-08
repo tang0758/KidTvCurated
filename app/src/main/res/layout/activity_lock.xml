@@ -1,16 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  锁屏横屏左右分栏：
+  左 42% 可用时段 + 大倒计时（信息少、字号必须够大，孩子隔几米也能看清）
+  右 58% 等待时间学习角（名画需要画面宽度，唐诗/单词需要多行大字）
+  右侧整块可通过 learning.enabled=false 隐藏，隐藏后左侧自动铺满，回到旧版纯倒计时。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="horizontal"
     android:background="#0A0D14">
 
+    <!-- ============ 左：倒计时 ============ -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
+        android:layout_weight="42"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingStart="60dp"
-        android:paddingEnd="60dp">
+        android:paddingStart="34dp"
+        android:paddingEnd="26dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp">
 
         <TextView
             android:id="@+id/tvHeadline"
@@ -18,45 +29,46 @@
             android:layout_height="wrap_content"
             android:text="现在不是看片时间"
             android:textColor="#F2F4F8"
-            android:textSize="36sp"
+            android:textSize="30sp"
             android:letterSpacing="0.04" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="34dp"
+            android:layout_marginTop="22dp"
             android:text="距离可以看还有"
             android:textColor="#9AA3B2"
-            android:textSize="20sp" />
+            android:textSize="18sp" />
 
         <TextView
             android:id="@+id/tvCountdown"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:text="00:00:00"
             android:textColor="#FFC44D"
-            android:textSize="112sp"
+            android:textSize="66sp"
             android:textStyle="bold"
             android:fontFamily="monospace"
-            android:letterSpacing="0.02"
-            android:gravity="center" />
+            android:maxLines="1"
+            android:gravity="center"
+            android:includeFontPadding="false" />
 
         <TextView
             android:id="@+id/tvDetail"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="26dp"
+            android:layout_marginTop="18dp"
             android:gravity="center"
-            android:lineSpacingExtra="6dp"
+            android:lineSpacingExtra="5dp"
             android:text="到点啦，先去玩会儿别的吧"
             android:textColor="#C6CDD8"
-            android:textSize="22sp" />
+            android:textSize="19sp" />
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="26dp"
             android:orientation="horizontal">
 
             <TextView
@@ -65,14 +77,14 @@
                 android:layout_height="wrap_content"
                 android:text="今天已看 0 分钟"
                 android:textColor="#7C8797"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="    ·    "
                 android:textColor="#7C8797"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/tvNow"
@@ -80,15 +92,193 @@
                 android:layout_height="wrap_content"
                 android:text="现在 00:00"
                 android:textColor="#7C8797"
-                android:textSize="16sp" />
+                android:textSize="15sp" />
         </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="54dp"
+            android:layout_marginTop="34dp"
             android:text="按遥控器「菜单」键 · 家长临时放行"
             android:textColor="#5F6875"
-            android:textSize="15sp" />
+            android:textSize="13sp" />
     </LinearLayout>
-</FrameLayout>
+
+    <View
+        android:id="@+id/divider"
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginTop="46dp"
+        android:layout_marginBottom="46dp"
+        android:background="#232E44" />
+
+    <!-- ============ 右：学习角 ============ -->
+    <FrameLayout
+        android:id="@+id/learningPane"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="58"
+        android:padding="22dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:background="@drawable/learning_card_bg"
+            android:paddingStart="26dp"
+            android:paddingEnd="26dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="18dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tvCardType"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/learning_pill_bg"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"
+                    android:text="唐诗"
+                    android:textColor="#9FC2FF"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/tvCardIndex"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1 / 60"
+                    android:textColor="#7C8797"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvCardTimer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:text="20s"
+                    android:textColor="#FFC44D"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/cardProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="4dp"
+                android:layout_marginTop="14dp"
+                android:max="100"
+                android:progress="100"
+                android:indeterminate="false"
+                android:progressTint="#FFC44D"
+                android:progressBackgroundTint="#26314A" />
+
+            <FrameLayout
+                android:id="@+id/cardBody"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="10dp">
+
+                <!-- 唐诗 / 单词 / 识字：大字正文 -->
+                <LinearLayout
+                    android:id="@+id/textFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:gravity="center">
+
+                    <TextView
+                        android:id="@+id/tvCardTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:text="静夜思"
+                        android:textColor="#F2F4F8"
+                        android:textSize="40sp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false" />
+
+                    <TextView
+                        android:id="@+id/tvCardSub"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center"
+                        android:text="唐 · 李白"
+                        android:textColor="#9FC2FF"
+                        android:textSize="19sp" />
+
+                    <LinearLayout
+                        android:id="@+id/linesHost"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="vertical"
+                        android:gravity="center" />
+                </LinearLayout>
+
+                <!-- 名画：整幅画 + 加载失败占位 -->
+                <FrameLayout
+                    android:id="@+id/artFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone">
+
+                    <ImageView
+                        android:id="@+id/ivArt"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="fitCenter"
+                        android:adjustViewBounds="true"
+                        android:contentDescription="名画" />
+
+                    <TextView
+                        android:id="@+id/tvArtPlaceholder"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:gravity="center"
+                        android:text="名画图片加载中…"
+                        android:textColor="#7C8797"
+                        android:textSize="18sp" />
+                </FrameLayout>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/tvCardNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:maxLines="3"
+                android:lineSpacingExtra="3dp"
+                android:text="看点"
+                android:textColor="#C6CDD8"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/tvCardHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:text="遥控器 ◀ ▶ 换一张 · 播放键暂停"
+                android:textColor="#5F6875"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

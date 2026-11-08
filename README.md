@@ -19,7 +19,8 @@
 | **打卡墙** | 当天必看全部完成自动盖章；月历可翻页，连续天数实时统计 |
 | **勋章墙** | 10 枚成就勋章，按累计打卡 / 连击 / 观看时长 / 视频数解锁，新勋章有小红点 |
 | **每日播放时长** | 真实播放时长累计（暂停不计时），主界面与奖励中心显示；可设每日上限 |
-| **可用时段** | 工作日 / 周末分别设时间窗；不可用或时长用尽时全屏大倒计时锁屏 |
+| **可用时段 + 大倒计时** | 工作日 / 周末分别设时间窗；不可用或时长用尽时锁屏，左 42% 显示大倒计时 |
+| **等待时间学习角** | 锁屏右 58% 自动轮播：15 首唐诗、24 个 A–Z 英语单词、10 幅内置名画、识字 / 成语 / 短句；可自定义卡片、换成 NAS 上的图片，遥控器翻页与暂停 |
 | **家长临时放行** | 锁屏按菜单键（或直接按遥控器数字键）输 PIN，放行 15 分钟 |
 | **防跳看** | 必看视频记录「真正看到过」的最远位置，只许回看已看部分，快进越界自动拉回并提示 |
 | **手机 / PC 编排** | 网页控制台浏览 SMB 目录、可视化编辑片单与时段，一键写回 NAS |
@@ -27,6 +28,15 @@
 | 续播 | 记住每个文件看到哪儿；进度过 92%（可在清单改）自动标记完成 |
 | 断网兜底 | 读不到 NAS 时用上次缓存的清单照常显示 |
 | NAS 换 IP 自愈 | 445 连不上时扫本网段找 SMB 主机，找到自动切过去 |
+
+### 锁屏长什么样（电视实拍）
+
+不可用时段锁屏按 **左 42% / 右 58%** 分栏：左边是需要隔几米也看得清的大倒计时，
+右边留给名画和诗句这类需要画面宽度的学习内容，每 20 秒自动换一张。
+
+![锁屏：唐诗](docs/preview/lock-learning-poem.png)
+
+![锁屏：名画](docs/preview/lock-learning-art.png)
 
 ### 遥控器
 
@@ -38,7 +48,9 @@
 | 返回 | 回上一级 |
 | 菜单 | 家长选项（要 PIN） |
 | 信息 / 指南 | 打卡墙 · 勋章墙 |
-| 数字键 1-4（锁屏时） | 直接输 PIN 临时放行 |
+| 数字键（锁屏时） | 直接输 PIN 临时放行 |
+| ◀ ▶ / ▲▼ / OK（锁屏时） | 手动翻一张学习卡片 |
+| 播放 / 暂停（锁屏时） | 暂停 / 继续自动轮播 |
 
 ---
 
@@ -86,7 +98,7 @@ python set_schedule.py --show           # 查看当前时段设置
 
 ## 网页控制台：手机 / 电脑上编排片单
 
-不用敲命令行、不用记 JSON 字段。浏览器里直接浏览 NAS 目录、勾文件夹、改时段，一键写回 NAS。
+不用敲命令行、不用记 JSON 字段。浏览器里直接浏览 NAS 目录、勾文件夹、改时段、编排锁屏学习卡片，一键写回 NAS。
 
 ![控制台界面（电脑）](docs/preview/console-pc.png)
 
@@ -99,16 +111,17 @@ python tools/console.py --lan           # 同一 WiFi 的手机也能打开，�
 python tools/console.py --lan --port 9000 --token 我的访问码
 ```
 
-四个页签：
+五个页签：
 
 | 页签 | 能做什么 |
 |---|---|
 | **资源浏览** | 选共享、逐层进目录，看视频 / 图片和大小；「集数」递归统计（和电视端一致，含多层季目录）；单条或整层「加入」到指定分区；文件可直接下载到手机 |
 | **片单编排** | 增删改分区与顺序、改标题 / key / gate / requires / 列数，条目上下移，配置 `auto` 每日轮换，设「每日必看」 |
 | **时段与密码** | PIN、看完比例、工作日 / 周末时间窗、每日时长、锁屏提示语，带常用预设 |
+| **等待学习角** | 学习角开关、每张停留秒数、类别顺序、内置题库开关、名画目录与共享、自定义卡片（唐诗 / 单词 / 名画 / 识字）增删改排序 |
 | **JSON / 导入导出** | 看原文、手改后应用到编辑器、下载 tv.json、导入 JSON、载入公开模板、写到本地 tv.json |
 
-链接后可以加 `&tab=sections` / `&tab=rules` / `&tab=json` 直接进某一页，手机上可以分别存书签。
+链接后可以加 `&tab=sections` / `&tab=rules` / `&tab=learning` / `&tab=json` 直接进某一页，手机上可以分别存书签。
 
 常用流程：资源浏览 → 选好「添加到」哪个分区 → 点「＋ 加入」或「把本层子目录全部做成卡片」
 → 片单编排里调顺序 / 标必看 → 底部「保存到 NAS」→ 电视上按菜单「重新读取清单」。
@@ -151,6 +164,12 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
     "dailyLimitMinutes": 60,
     "lockMessage": "电视休息时间，先去玩会儿别的吧"
   },
+  "learning": {
+    "enabled": true,
+    "intervalSeconds": 20,
+    "order": ["poem", "word", "art", "text"],
+    "useBuiltin": true
+  },
   "sections": [
     {
       "key": "daily", "title": "今天要看的", "gate": true,
@@ -179,9 +198,21 @@ docker compose logs -f kidtv-console    # 看访问码和手机链接
 | `schedule.weekday/weekend` | 时间窗，支持 `["18:00","20:00"]`、`"18:00-20:00"`、`{"start":"18:00","end":"20:00"}`；跨零点写 `23:00-01:00` 也可以 |
 | `schedule.dailyLimitMinutes` | 每天最多播放分钟数，`0` = 不限 |
 | 不写 `weekend` | 周末沿用工作日；写 `[]` = 周末全天可用 |
+| `learning.enabled` | 锁屏右半边学习角；整段省略也会启用内置题库，`false` = 只留大倒计时 |
+| `learning.intervalSeconds` | 学习卡片每张停留秒数，默认 20 |
+| `learning.custom` | 自定义卡片数组，字段见 [docs/CONFIG.md](docs/CONFIG.md) |
 
 改完按遥控器**菜单 → 重新读取清单**生效，不用重装 App。
 `python set_schedule.py --weekday 18:00-20:30 --weekend 09:00-11:30,16:00-20:30 --limit 45` 可以命令行改时段。
+
+---
+
+## 内置名画与离线题库
+
+锁屏右半边的内容全部离线：唐诗、单词、识字卡片是代码里的常量，
+10 幅名画是 `assets/art/` 里的缩略图，均为作者逝世逾百年的公共领域作品，出处见 [docs/ART_SOURCES.md](docs/ART_SOURCES.md)。
+换成自己 NAS 上的图或孩子画作，只需在 `learning.artFolder` 填目录，不用重编译；
+想换内置图，改 `tools/fetch_art.py` 里的清单，跑 `python tools/fetch_art.py --force` 后重编译即可。
 
 ---
 
@@ -210,19 +241,23 @@ app/src/main/kotlin/com/family/curated/
   PlayerActivity.kt      ExoPlayer + 防跳看 + 时长累计
   EpisodesActivity.kt    剧集列表
   RewardsActivity.kt     打卡墙 + 勋章墙
-  LockActivity.kt        时段大倒计时锁屏
+  LockActivity.kt        锁屏：左 42% 大倒计时 / 右 58% 学习角轮播
   KidApp.kt              全局时间守卫
   data/  Model / Store / Repo / Smb / SmbDataSource / Covers
          Schedule / GateKeeper / Extras / Badges
+         Learning / LearningLibrary / ArtImages
   ui/    SectionsAdapter / PosterAdapter
+app/src/main/assets/art/  10 幅公共领域名画缩略图，离线内置
 make_playlist.py         扫 NAS 生成片单（命令行）
 set_schedule.py          命令行改时段 / 时长 / PIN
 tools/console.py         网页控制台：浏览 SMB + 编排片单（手机 / PC）
 tools/static/index.html  控制台前端（无外部依赖，离线可用）
+tools/fetch_art.py       重新下载 / 更换内置名画图片
 tools/requirements.txt   控制台依赖（pysmb / qrcode）
 tools/Dockerfile + docker-compose.yml   常驻 NAS，手机随时可改
 examples/tv.json         公开的配置模板，复制改名即可用
 docs/CONFIG.md           字段手册 / 常见配方 / 排错
+docs/ART_SOURCES.md      内置名画来源与许可
 docs/tv.schema.json      JSON Schema（编辑器补全与校验）
 docs/LocalSecrets.example.kt.txt   私有凭据模板
 ```
