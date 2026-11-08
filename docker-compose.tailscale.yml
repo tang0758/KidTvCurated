@@ -1,0 +1,56 @@
+# 外网访问 · 更安全的私有网络方案（控制台只在 Tailscale 网络里可见）
+#
+# 和默认 docker-compose.yml 的区别：控制台不发布任何宿主机端口，
+# 家庭局域网和公网都扫不到 8765，只有登录同一 Tailscale 账号的设备能打开。
+# 需要 NAS 的 Docker 支持 /dev/net/tun 和 NET_ADMIN（绿联 UGOS Pro 一般可以）。
+#
+#   cp .env.example .env
+#   # 在 Tailscale 后台 https://login.tailscale.com/admin/settings/keys 生成 auth key，填进 .env
+#   docker compose -f docker-compose.tailscale.yml up -d --build
+#   docker exec kidtv-tailscale tailscale ip -4      # 拿到形如 100.x.y.z 的地址
+#
+# 手机 / 笔记本装 Tailscale 并登录同一账号，浏览器打开 http://100.x.y.z:8765/
+# 首次在页面里输访问码（存浏览器本地，URL 不带密钥），之后存书签即可。
+#
+# 如果绿联图形化 Docker 不支持 network_mode: service:，改用标准 compose：
+# 在 NAS 系统里装 Tailscale 客户端（或子网路由容器），再访问 NAS 的 Tailscale IP:8765。
+
+services:
+  kidtv-tailscale:
+    image: tailscale/tailscale:latest
+    container_name: kidtv-tailscale
+    hostname: kidtv
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: "${TS_AUTHKEY:?请先在 .env 里填 Tailscale auth key}"
+      TS_AUTH_ONCE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_ACCEPT_DNS: "false"
+    volumes:
+      - kidtv-ts-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+
+  kidtv-console:
+    build:
+      context: .
+      dockerfile: tools/Dockerfile
+    container_name: kidtv-console
+    restart: unless-stopped
+    # 共享 Tailscale 容器的网络命名空间：控制台只监听这个私有网络
+    network_mode: "service:kidtv-tailscale"
+    depends_on:
+      - kidtv-tailscale
+    environment:
+      TZ: Asia/Shanghai
+      KIDTV_CONFIG: /app/config/nas.local.json
+      KIDTV_TOKEN: "${KIDTV_TOKEN:-}"
+    volumes:
+      - kidtv-config:/app/config
+
+volumes:
+  kidtv-config:
+  kidtv-ts-state:

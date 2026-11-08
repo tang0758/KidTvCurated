@@ -90,6 +90,42 @@ LOG_LINES: collections.deque[str] = collections.deque(maxlen=200)
 # 桌面启动器注入：切换监听地址、退出程序、打开编辑器窗口
 DESKTOP = {"restart": None, "quit": None, "open": None}
 
+# 控制台一旦放到外网，访问码就是唯一一道门：连续输错就临时锁定，挡住暴力猜码。
+# 经反向代理（UGREENlink / Cloudflare Tunnel）时用 X-Forwarded-For 区分真实客户端，
+# 需要显式设置 KIDTV_TRUST_PROXY=1 才信任该头，避免被伪造绕过。
+AUTH_FAILS: dict[str, list] = {}
+AUTH_MAX_FAILS = 5
+AUTH_LOCK_SEC = 300
+
+
+def client_key(handler) -> str:
+    if os.environ.get("KIDTV_TRUST_PROXY", "").lower() in ("1", "true", "yes"):
+        xff = handler.headers.get("X-Forwarded-For", "")
+        if xff:
+            return xff.split(",")[0].strip()
+    return handler.client_address[0]
+
+
+def auth_blocked(key: str) -> bool:
+    rec = AUTH_FAILS.get(key)
+    if not rec:
+        return False
+    if rec[1] > time.time():
+        return True
+    # rec[1] == 0 表示「还没锁，正在累计失败次数」，必须保留计数；
+    # 只有锁真的存在过且已过期，才清空重新开始。
+    if rec[1]:
+        AUTH_FAILS.pop(key, None)
+    return False
+
+
+def auth_failed(key: str) -> None:
+    rec = AUTH_FAILS.setdefault(key, [0, 0.0])
+    rec[0] += 1
+    if rec[0] >= AUTH_MAX_FAILS:
+        rec[1] = time.time() + AUTH_LOCK_SEC
+        say(f"访问码连续输错 {rec[0]} 次，{key} 临时锁定 5 分钟")
+
 
 def say(*args) -> None:
     text = " ".join(str(a) for a in args)
@@ -523,10 +559,25 @@ class Handler(BaseHTTPRequestHandler):
         return urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
 
     def authorized(self) -> bool:
-        k = self.headers.get("X-Console-Token")
+        k = self.headers.get("X-Console-Token") or self.query().get("k", [""])[0]
         if not k:
-            k = self.query().get("k", [""])[0]
-        return bool(k) and secrets.compare_digest(str(k), STATE["token"])
+            # 没带访问码 = 正常的「首次打开显示登录门」，不计失败；
+            # 否则登录页一次并发几个 API 就会把自己锁 5 分钟。
+            return False
+        ok = secrets.compare_digest(str(k), STATE["token"])
+        key = client_key(self)
+        if ok:
+            AUTH_FAILS.pop(key, None)
+        else:
+            auth_failed(key)
+        return ok
+
+    def deny_locked(self) -> bool:
+        if not auth_blocked(client_key(self)):
+            return False
+        self.json_out({"ok": False,
+                       "error": "访问码连续输错，已临时锁定 5 分钟，请稍后再试"}, 429)
+        return True
 
     def body(self) -> dict:
         n = int(self.headers.get("Content-Length", 0) or 0)
@@ -575,6 +626,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not path.startswith("/api/"):
                 return self.json_out({"ok": False, "error": "未知路径"}, 404)
+            if self.deny_locked():
+                return
             if not self.authorized():
                 return self.json_out({"ok": False, "error": "访问码不对，请用启动时的完整链接打开"}, 401)
 
@@ -680,6 +733,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
         try:
+            if self.deny_locked():
+                return
             if not self.authorized():
                 return self.json_out({"ok": False, "error": "访问码不对，请用启动时的完整链接打开"}, 401)
             data = self.body()
@@ -777,11 +832,12 @@ def get_token(arg_token: str | None) -> str:
             t = TOKEN_FILE.read_text(encoding="utf-8").strip()
             if t:
                 return t
-        t = secrets.token_urlsafe(5).replace("-", "a").replace("_", "b")[:8]
+        # 16 位十六进制：够强，又能手输 / 复制（旧的 8 位访问码继续沿用，不破坏书签）
+        t = secrets.token_hex(8)
         TOKEN_FILE.write_text(t, encoding="utf-8")
         return t
     except Exception:
-        return secrets.token_urlsafe(5)[:8]
+        return secrets.token_hex(8)
 
 
 def _safe(cb, *args) -> None:
@@ -824,6 +880,8 @@ def print_banner(lan: bool, port: int) -> str:
         for ip in lan_ips():
             say(f"  手机打开 : http://{ip}:{port}/?k={STATE['token']}")
         say("  手机需和这台机器在同一个 WiFi / 局域网")
+        if len(STATE["token"]) < 12:
+            say("  ! 当前访问码偏短；要放到外网，请先用 --token / KIDTV_TOKEN 换成 16 位以上强码")
     else:
         say("  想让手机也能打开：加 --lan 重新启动")
     say("=" * 56)

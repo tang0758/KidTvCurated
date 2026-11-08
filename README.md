@@ -282,7 +282,7 @@ python tools/console.py --lan --port 9000 --token 我的访问码
 
 **手机访问**：电脑跑 `--lan`，手机连同一个 WiFi，扫终端二维码或输入终端打印的 `http://192.168.x.x:8765/?k=...`。
 访问码首次自动生成并存在 `.console_token`，手机存书签后不用每次输。
-想不开电脑就随时改，把服务常驻到 NAS：
+想不开电脑就随时改、**人在外网也能改**，把服务常驻到 NAS（详见 [外网也能改片单](#外网也能改片单不用开家里电脑)）：
 
 ```bash
 docker compose up -d --build            # 在仓库根目录执行
@@ -367,6 +367,103 @@ python tools/desktop.py --no-window          # 只跑服务，用浏览器自己
 
 > 安全：默认只监听 `127.0.0.1`；开启手机访问后监听局域网，所有 API 都要求访问码，
 > 「退出程序」只允许从电脑本机调用，页面不回显 NAS 密码。别把端口映射到公网。
+
+---
+
+## 外网也能改片单（不用开家里电脑）
+
+**结论**：把控制台搬到 NAS 上常驻（电脑关不关机都无所谓），外网再用「私有网络」或「绿联官方远程访问」连回家。
+**不要在路由器上把 8765 映射到公网，也不要拿 DDNS 裸奔**——这个页面能读 NAS 明文账号密码、改家长 PIN 和整份片单。
+
+电视完全不用动：它依旧在内网读 `\\<NAS IP>\data\curated\tv.json`，外网只是把这份文件改了而已。
+
+### 方案怎么选
+
+| 方案 | 外网怎么打开 | 额外要装的东西 | 安全性 | 适合 |
+|---|---|---|---|---|
+| **A. Tailscale（推荐）** | 手机/笔记本连上 Tailscale，浏览器开 `http://100.x.y.z:8765/` | NAS 装 Tailscale（或直接用本项目的 `docker-compose.tailscale.yml`），手机装一次 App | 不对外开任何端口，只有你登录过的设备能连 | 主要用自己手机改、最在意安全 |
+| **B. 绿联 UGREENlink 容器快捷方式** | 外网浏览器登录绿联账号 → UGOS 桌面点「控制台」快捷方式 | 什么都不装，HTTPS 由绿联提供 | 网址在公网可达，靠绿联账号 + 强访问码 | 想最省事、偶尔用别人的设备改 |
+| **C. Cloudflare Tunnel + Access** | 任意浏览器打开自己的域名，先过邮箱验证码 | 一个域名 + Cloudflare 账号 | 有 HTTPS 和二次认证 | 想要固定网址、已有域名 |
+| **D. 应急：绿联云 App 直接改文件** | 手机绿联云 → 文件管理 → 编辑 `data/curated/tv.json` | 绿联云 App | 安全但要手写 JSON，容易写错 | 上面都没配好时的兜底 |
+| ✗ 路由器端口映射 / DDNS 直接暴露 8765 | — | — | 不要这么做 | — |
+
+绿联官方 2026 年的远程访问说明同样把 Tailscale 列为「不暴露端口」的路线；
+UGREENlink 打开容器页面的做法见[绿联官网教程](https://nas.ugreen.com/blogs/how-to/set-up-navidrome-on-nas)里的
+「Use a UGREENlink Container Shortcut for Browser Access」一节。
+
+### 第 1 步：控制台常驻到 NAS（所有方案都要做）
+
+```bash
+cp .env.example .env
+# 编辑 .env，把 KIDTV_TOKEN 填成 16 位以上强访问码：
+#   python -c "import secrets;print(secrets.token_hex(12))"
+docker compose up -d --build
+docker compose logs -f kidtv-console        # 看访问码和局域网链接
+```
+
+绿联 **UGOS Pro**：控制面板 → 容器 / Docker → 项目（Stack）→ 导入本仓库 `docker-compose.yml`，
+在环境变量里同样填 `KIDTV_TOKEN`；端口 8765。老 UGOS 没有 Docker 的话，用家里任意一台常开的小主机跑同样的 compose 即可。
+首次打开页面点「连接设置」填一次 NAS 地址 / 账号 / 密码 / 清单共享与路径，凭据存在命名卷 `kidtv-config` 里，重建容器不丢。
+之后在家里直接开 `http://<NAS 内网 IP>:8765/`。
+
+> 容器默认 `--lan` 监听 `0.0.0.0`，只在家庭局域网可达；**只要不做路由器端口映射，公网就进不来**。
+> 配置文件、访问码和 `tv.json` 都在 NAS 上，PC 桌面版和这个容器可以并存（在不同机器上，互不干扰）。
+
+### 第 2 步 A：Tailscale（推荐）
+
+- **简单版**：NAS 系统里装 Tailscale 客户端并登录（绿联可用 Docker 部署或系统包），手机 / 笔记本装 Tailscale 登录同一账号；
+  外网时浏览器打开 `http://<NAS 的 100.x.y.z>:8765/`。服务就在 NAS 上，不需要配子网路由。
+- **更封闭版**（控制台只存在于私有网络，家里局域网和公网都扫不到 8765）：
+
+  ```bash
+  # .env 里填 TS_AUTHKEY（https://login.tailscale.com/admin/settings/keys 生成）和 KIDTV_TOKEN
+  docker compose -f docker-compose.tailscale.yml up -d --build
+  docker exec kidtv-tailscale tailscale ip -4     # 拿到 100.x.y.z
+  ```
+
+  该 compose 让控制台共享 Tailscale 容器的网络命名空间，不发布任何宿主机端口。
+  需要 NAS 的 Docker 支持 `/dev/net/tun` + `NET_ADMIN`；图形化 Docker 不支持 `network_mode: service:` 时，退回「简单版」。
+  UGOS 会周期性改写 `resolv.conf`，如果 Tailscale 里出现 DNS 解析异常，在 Tailscale 后台
+  DNS → Global nameservers 填 `223.5.5.5` / `1.1.1.1` 并打开 Override。
+
+### 第 2 步 B：UGREENlink（最省事）
+
+1. 绿联 NAS：Docker → 容器 → 找到 `kidtv-console` → 三点菜单 → **桌面快捷方式 / 快速访问** → 端口填 `8765` → 保存。
+2. 外网手机/电脑浏览器登录绿联账号（UGREENlink），在 UGOS 桌面点这个快捷方式；
+   也可以直接用系统生成的 `https://app-8765-<你的ID>.xx.ugdocker.link`（以绿联实际给的地址为准）。
+3. 在 `.env` 里设 `KIDTV_TRUST_PROXY=1` 后重建容器——经反向代理时才能按真实客户端做访问码限速。
+4. 这个网址和配置入口**不要发到群里 / 不要外传**。
+
+### 第 2 步 C：Cloudflare Tunnel（有域名时）
+
+域名托管到 Cloudflare → Zero Trust → Tunnels 建隧道 → Public Hostname 指向 `http://<NAS 内网 IP>:8765`
+（cloudflared 与控制台同一 Docker 网络时可用容器名）→ 在 Access 里加一条只允许自己邮箱收验证码的策略；
+`.env` 设 `KIDTV_TRUST_PROXY=1`。这样公网只有过了 Cloudflare 登录的人才能看到控制台。
+
+### 首次在外网打开（三种方案通用）
+
+- **书签不要带 `?k=`**：直接打开根地址，页面会弹「输入访问码」，输一次就存在这台设备的浏览器里；
+  之后所有请求走请求头，URL、浏览器历史、反向代理日志里都不会出现访问码（登录门已改成这种写法，也兼容 UGREENlink 的子路径）。
+- 连续输错 5 次访问码会临时锁定 5 分钟，防止公网猜码；锁定只按客户端 IP 计，不会牵连其它设备。
+- 改完保存到 NAS → 电视上按菜单「重新读取清单」生效。人在外网时电视照常在内网播放，不受影响。
+
+### 安全清单
+
+- `KIDTV_TOKEN` 用 16 位以上随机串；家长 PIN 也别留默认 `1234`
+- `tv.json` 含 NAS 明文密码，控制台能读能改，只给家长自己用
+- 不做 8765 端口映射、不配公网 DDNS；用反向代理时设 `KIDTV_TRUST_PROXY=1`
+- 用方案 B/C 时，网址不外传；长期不用可以直接停容器
+- 电脑上的 PC 桌面版只监听 `127.0.0.1`，与 NAS 上的容器互不影响
+
+### 排错
+
+| 现象 | 检查 |
+|---|---|
+| 弹访问码，输入后没反应 | 码输错或触发 429 锁定，等 5 分钟；`docker compose logs` 里能看访问码 |
+| 页面能开但读不到清单 | 容器里「连接设置」没填 / SMB 445 不通 / 共享名和 `curated/tv.json` 路径不对 |
+| Tailscale 连上却打不开 8765 | 确认用的是 NAS 在 tailnet 里的 `100.x` 地址；用封闭版 compose 时看 `kidtv-tailscale` 的 IP；容器日志有无报错 |
+| UGREENlink 快捷方式 404 | 端口填 8765、容器健康；图形化 Docker 不支持就换 Tailscale |
+| 保存失败 | `data` 共享是否可写、磁盘空间、NAS 账号权限；保存前会自动备份 `tv.backup.json` |
 
 ---
 
@@ -556,6 +653,8 @@ tools/make_covers.py     从 NAS 视频截帧，批量生成海报缩略图并�
 tools/check_library.py   内置题库自检（数量 / A–Z / 图片引用 / 重复）
 tools/requirements.txt   控制台依赖（pysmb / qrcode）
 tools/Dockerfile + docker-compose.yml   常驻 NAS，手机随时可改
+docker-compose.tailscale.yml  外网方案 A：控制台只在 Tailscale 私有网络可见
+.env.example                 固定访问码 / 端口 / 反向代理开关模板（复制成 .env 用）
 examples/tv.json         公开的配置模板，复制改名即可用
 docs/CONFIG.md           字段手册 / 常见配方 / 排错
 docs/ART_SOURCES.md      内置名画来源与许可
@@ -577,5 +676,6 @@ docs/LocalSecrets.example.kt.txt   私有凭据模板
 
 - NAS 账号密码只存在于电视本机（APK + NAS 上的 tv.json）和上述本地文件；Git 历史里只有 `YOUR_NAS_USER`
 - 家长 PIN 明文写在 NAS 的 `tv.json` 里，仅用于防止孩子随手解锁，不是安全加密；装好请改掉默认 `1234`
-- 网页控制台默认只监听 `127.0.0.1`，开 `--lan` 后会强制带访问码；仍建议只在家庭 WiFi 内使用
+- 网页控制台默认只监听 `127.0.0.1`，开 `--lan` 后所有 API 都要求访问码；要放到外网先看「外网也能改片单」，别直接做端口映射
+- 访问码失败 5 次会锁定 5 分钟；登录门把访问码只存在浏览器本地，不写进 URL / 历史 / 代理日志
 - 提交前可以扫一眼：`git diff --cached | grep -i password`

@@ -137,7 +137,7 @@ a{color:var(--brand)}
 <div id="gate" class="login-gate hidden">
   <div class="sheet">
     <h3>输入访问码</h3>
-    <p>在运行控制台的电脑终端里能看到访问码，也可以直接用带 <span class="kbd">?k=</span> 的完整链接打开。手机保存书签后不用再输。</p>
+    <p>访问码在控制台启动日志 / 容器的 <span class="kbd">.env</span> 里。输一次就存在这台设备的浏览器里，网址不会带上访问码，外网书签更安全；以后打开不用再输。</p>
     <div class="stack"><input id="gateInput" placeholder="访问码" autocomplete="off"></div>
     <div class="rowbtn"><button class="primary" id="gateOk">进入</button></div>
   </div>
@@ -781,7 +781,13 @@ QA(".tabs button").forEach(b => b.addEventListener("click", ()=>switchTab(b.data
 Q("#btnSettings").addEventListener("click", openSettings);
 Q("#gateOk").addEventListener("click", ()=>{
   const v = Q("#gateInput").value.trim();
-  if (v) location.href = "/?k=" + encodeURIComponent(v);
+  if (!v) return;
+  // 访问码只存本机浏览器，不写进 URL：外网书签、反向代理日志、浏览器历史都不会泄露。
+  // 同时保留当前路径（UGREENlink 子路径部署）和 tab 参数，去掉旧链接里可能过期的 k。
+  localStorage.setItem("kidtv_token", v);
+  const u = new URL(location.href);
+  u.searchParams.delete("k");
+  location.href = u.toString();
 });
 Q("#gateInput").addEventListener("keydown", e => { if (e.key === "Enter") Q("#gateOk").click(); });
 Q("#browseFilter").addEventListener("input", renderBrowse);

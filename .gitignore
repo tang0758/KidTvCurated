@@ -12,6 +12,7 @@ captures/
 *.aab
 
 # 本机私有配置（绝不上传）
+.env
 nas.local.json
 app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
 .console_token

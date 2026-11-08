@@ -1,5 +1,8 @@
-# 在 NAS / 常开的小主机上运行：docker compose up -d --build
-# 起来后看日志拿访问码：docker compose logs -f kidtv-console
+# 控制台常驻在 NAS / 常开的小主机上：电脑关机也能随时改片单。
+#   cp .env.example .env      # 先填一个 16 位以上的强访问码
+#   docker compose up -d --build
+#   docker compose logs -f kidtv-console     # 看访问码和局域网链接
+# 外网访问请看 README「外网也能改片单」：不要在路由器上把 8765 映射到公网。
 services:
   kidtv-console:
     build:
@@ -8,14 +11,21 @@ services:
     container_name: kidtv-console
     restart: unless-stopped
     ports:
-      - "8765:8765"
+      - "${KIDTV_PORT:-8765}:8765"
     environment:
       TZ: Asia/Shanghai
-      # 想固定访问码（手机存书签）就取消注释并改掉：
-      # KIDTV_TOKEN: "换成你自己的一串字符"
       KIDTV_CONFIG: /app/config/nas.local.json
+      # 固定访问码：重建容器 / 换 NAS 后手机书签与外网登录仍然有效；留空则自动生成并打印在日志里
+      KIDTV_TOKEN: "${KIDTV_TOKEN:-}"
+      # 经 UGREENlink / Cloudflare Tunnel 等反向代理访问时设为 1，按真实客户端限速
+      KIDTV_TRUST_PROXY: "${KIDTV_TRUST_PROXY:-0}"
     volumes:
       - kidtv-config:/app/config
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/desktop/ping', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   kidtv-config:
