@@ -16,6 +16,7 @@ import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
 import com.hierynomus.smbj.share.File as SmbFile
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.EnumSet
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.ReentrantLock
@@ -154,6 +155,39 @@ object Smb {
             SMB2CreateDisposition.FILE_OPEN,
             null
         )
+    }
+
+    /**
+     * 带自愈地打开视频文件。
+     *
+     * 冷启动第一次播放最容易失败：NAS 把空闲的 TCP 会话断掉了、会话过期、
+     * 或者握手还没完全就绪。这时 openFile 会抛异常；如果只有一次机会，
+     * ExoPlayer 拿不到文件头，就会把它报成「格式不支持 / 容器解析失败」。
+     * 再点一次往往就好了，因为连接已经被重新建过。
+     *
+     * 所以这里自己做掉：先原样重试一次（ensureConnected 会处理已断开的 TCP），
+     * 仍失败才强制重建整条连接。整个过程在 lock 内串行，避免多个装载线程互相踩连接。
+     */
+    fun openRetrying(cfg: NasConfig, file: String, attempts: Int = 3): SmbFile = lock.withLock {
+        var last: Exception? = null
+        for (i in 0 until attempts) {
+            try {
+                return open(cfg, file)
+            } catch (e: Exception) {
+                last = e
+                Log.w(TAG, "open ${i + 1}/$attempts 失败: $file / ${e.javaClass.simpleName}: ${e.message}")
+                if (i == attempts - 1) break
+                // 第一次只重试；连续失败才丢弃可能已经半死的连接，强制重新握手
+                if (i >= 1) closeQuietly()
+                try {
+                    Thread.sleep(250L * (i + 1))
+                } catch (ie: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+        }
+        throw IOException("打开失败(已重试 $attempts 次): $file", last)
     }
 
     fun fileSize(cfg: NasConfig, file: String): Long {
