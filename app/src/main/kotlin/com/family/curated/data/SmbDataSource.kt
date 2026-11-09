@@ -8,7 +8,6 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import com.hierynomus.smbj.share.File as SmbFile
 import java.io.IOException
-import java.net.URLDecoder
 
 /** 播放时使用的 NAS 配置（由播放页设置） */
 object SmbPlaybackContext {
@@ -50,11 +49,13 @@ class SmbDataSource : BaseDataSource(false) {
         val cfg = SmbPlaybackContext.config ?: throw IOException("未配置 NAS")
 
         val raw = dataSpec.uri.path ?: throw IOException("路径为空")
-        val path = try {
-            URLDecoder.decode(raw.trimStart('/'), "UTF-8")
-        } catch (e: Exception) {
-            raw.trimStart('/')
-        }
+        // Uri 是用 Uri.parse("smb://nas/" + Uri.encode(file)) 造的，取 .path 时系统已经解过码，
+        // 这里不能再 URLDecoder：
+        //   1) 它是多余的，会二次解码；
+        //   2) 它按表单规则把「+」当空格，于是
+        //      99.娱乐动画/Numberblocks…（动画+音频+台词本+PPT课件）/…【视频+音频】/…
+        //      解码后整条路径都变了 → STATUS_OBJECT_PATH_NOT_FOUND，整个文件夹的视频全播不了。
+        val path = raw.trimStart('/')
         openedPath = path
 
         // 打开失败在这里就先自愈掉，别让 ExoPlayer 把一次 SMB 抖动误判成「格式不支持」
