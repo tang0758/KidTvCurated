@@ -108,6 +108,15 @@ object Store {
         get() = sp.getLong("auto_refresh_last_applied", 0L)
         set(v) = sp.edit().putLong("auto_refresh_last_applied", v).apply()
 
+    /**
+     * 最近一次本机（家长控制页）写 tv.json 的时间。
+     * 自动同步发现 apps 段变了时默认会清掉电视上的应用勾选（让网页的 entries 生效），
+     * 但如果是本机刚写的，就得留着家长刚刚勾好的结果。
+     */
+    var lastLocalPlaylistWrite: Long
+        get() = sp.getLong("local_playlist_write", 0L)
+        set(v) = sp.edit().putLong("local_playlist_write", v).apply()
+
     // ---------- 播放进度 ----------
     fun progress(key: String): Long = sp.getLong("pos_$key", 0L)
 

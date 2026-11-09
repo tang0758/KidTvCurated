@@ -163,10 +163,12 @@ object PlaylistSync {
 
         // 家长在网页里改了应用列表 → 清掉电视本地勾选，让 entries 生效。
         // 只改片单标题/条目时不动本地勾选，避免把家长在电视上的微调冲掉。
+        // 本机刚在「家长控制」里写过清单的，也不清：那正是家长自己刚勾好的结果。
         val oldAppsSig = Store.playlistAppsSignature
         val newAppsSig = appsSignature(fresh.apps)
         val follow = fresh.autoRefresh.followAppList
-        if (follow && oldAppsSig.isNotBlank() && oldAppsSig != newAppsSig) {
+        val justWrittenHere = System.currentTimeMillis() - Store.lastLocalPlaylistWrite < 60_000L
+        if (follow && !justWrittenHere && oldAppsSig.isNotBlank() && oldAppsSig != newAppsSig) {
             Extras.clearSelectedApps()
             Log.i(TAG, "清单 apps 段变化，已清除电视本地应用勾选")
         }

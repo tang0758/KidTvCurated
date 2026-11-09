@@ -1,17 +1,14 @@
 package com.family.curated
 
 import android.app.AlertDialog
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
-import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -47,6 +44,9 @@ class MainActivity : AppCompatActivity() {
     private var lastFocusSection: String? = null
     private var lastFocusItem: String? = null
 
+    /** 从「家长控制」回来时把焦点还给那个按钮，家长可能要连着调几项 */
+    private var focusParentOnResume = false
+
     private val ui = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
         override fun run() {
@@ -77,6 +77,15 @@ class MainActivity : AppCompatActivity() {
 
         b.btnRewards.setOnClickListener { openRewards() }
         b.btnRewards.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f)
+                .setDuration(120).start()
+        }
+
+        // 家长控制：先要 PIN，再进设置页（设置页里能改时段、上限、密码等）
+        b.btnParent.setOnClickListener {
+            ParentTools.askPin(this, "家长控制") { openSettings() }
+        }
+        b.btnParent.setOnFocusChangeListener { v, has ->
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f)
                 .setDuration(120).start()
         }
@@ -288,6 +297,11 @@ class MainActivity : AppCompatActivity() {
         startActivity(Intent(this, RewardsActivity::class.java))
     }
 
+    private fun openSettings() {
+        focusParentOnResume = true
+        startActivity(Intent(this, SettingsActivity::class.java))
+    }
+
     /** 打开家长允许的应用，同时开一段「不自动拉回」的窗口 */
     private fun launchAllowedApp(spec: String, title: String) {
         val intent = AppCatalog.launchIntent(packageManager, spec)
@@ -316,7 +330,7 @@ class MainActivity : AppCompatActivity() {
 
         val appSpec = item.app
         if (!appSpec.isNullOrBlank()) {
-            if (appSpec == AppCatalog.PARENT_ENTRY) askPin { showAppPicker() }
+            if (appSpec == AppCatalog.PARENT_ENTRY) ParentTools.askPin(this, "家长应用") { showAppPicker() }
             else launchAllowedApp(appSpec, item.title)
             return
         }
@@ -351,8 +365,13 @@ class MainActivity : AppCompatActivity() {
         }
         // 从播放页/剧集页回来时，重绘会让焦点掉到「我的奖励」按钮上，
         // 这里把它还给离开前那张卡，孩子不用重新找位置。
-        b.rvSections.post {
-            if (b.rvSections.findFocus() == null) restoreFocus()
+        if (focusParentOnResume) {
+            focusParentOnResume = false
+            b.btnParent.post { b.btnParent.requestFocus() }
+        } else {
+            b.rvSections.post {
+                if (b.rvSections.findFocus() == null) restoreFocus()
+            }
         }
         ui.removeCallbacks(clockTick)
         ui.postDelayed(clockTick, 5000)
@@ -376,7 +395,7 @@ class MainActivity : AppCompatActivity() {
         }
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> {
-                askPin { showParentMenu() }
+                ParentTools.askPin(this) { showParentMenu() }
                 return true
             }
             KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_GUIDE, KeyEvent.KEYCODE_TV,
@@ -397,80 +416,12 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "家长选项请按菜单键输入密码", Toast.LENGTH_SHORT).show()
     }
 
-    /**
-     * 家长出口：先开一段临时放行，再显式启动别的桌面。
-     * 不放行的话前台守卫会立刻把家长拉回来，等于把自己也锁在外面。
-     */
-    private fun exitToLauncher() {
-        val k = Extras.kiosk()
-        val configured = ComponentName.unflattenFromString(k.exitComponent)
-        if (configured != null) {
-            if (launchComponent(configured, k.exitMinutes)) return
-        }
-
-        val pm = packageManager
-        val candidates = pm.queryIntentActivities(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0
-        ).filter { it.activityInfo.packageName != packageName }
-            .distinctBy { it.activityInfo.packageName + "/" + it.activityInfo.name }
-
-        if (candidates.isEmpty()) {
-            Toast.makeText(this, "没找到其它桌面，请在 kiosk.exitComponent 里指定", Toast.LENGTH_LONG).show()
-            return
-        }
-        val labels = candidates.map {
-            it.loadLabel(pm).toString() + "  (" + it.activityInfo.packageName + ")"
-        }.toTypedArray()
-        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("退出到哪个桌面？")
-            .setItems(labels) { _, which ->
-                val ai = candidates[which].activityInfo
-                if (!launchComponent(ComponentName(ai.packageName, ai.name), k.exitMinutes)) {
-                    Toast.makeText(this, "启动失败，请把组件名写进 kiosk.exitComponent", Toast.LENGTH_LONG).show()
-                }
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
-
-    private fun launchComponent(cmp: ComponentName, minutes: Int): Boolean = try {
-        Extras.grantKioskExit(minutes)
-        startActivity(
-            Intent(Intent.ACTION_MAIN)
-                .addCategory(Intent.CATEGORY_LAUNCHER)
-                .setComponent(cmp)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        Toast.makeText(this, "已临时放行 $minutes 分钟，回来后可在家长菜单结束放行", Toast.LENGTH_LONG).show()
-        true
-    } catch (e: Exception) {
-        Extras.clearKioskExit()
-        false
-    }
-
-    /** 家长菜单要密码，防止孩子自己解锁 */
-    private fun askPin(onOk: () -> Unit) {
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = "家长密码（tv.json 的 pin）"
-            setTextColor(0xFFF2F4F8.toInt())
-            setHintTextColor(0xFF7C8797.toInt())
-            textSize = 20f
-            setPadding(40, 24, 40, 24)
-        }
-        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("家长选项")
-            .setView(input)
-            .setPositiveButton("确定") { _, _ ->
-                if (input.text.toString() == Extras.pin()) onOk()
-                else Toast.makeText(this, "密码不对", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
+    // 输密码 / 勾应用 / 退出到桌面 这几个动作和「家长控制」页共用 ParentTools，
+    // 免得两个入口各写一份、改了一边忘另一边。
 
     private fun showParentMenu() {
         val actions: List<Pair<String, () -> Unit>> = listOf(
+            "家长控制（时段 / 上限 / 密码）" to { openSettings() },
             "重新读取清单" to {
                 com.family.curated.data.Smb.reset()
                 loadPlaylist()
@@ -514,7 +465,7 @@ class MainActivity : AppCompatActivity() {
                     Extras.clearKioskExit()
                     Toast.makeText(this, "儿童锁已恢复", Toast.LENGTH_SHORT).show()
                 } else {
-                    exitToLauncher()
+                    ParentTools.exitToLauncher(this)
                 }
             }
         )
@@ -527,34 +478,8 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /** 从电视上已安装的应用里勾选孩子能看到的入口（桌面 / 设置 / 安装器等已过滤） */
+    /** 勾选孩子能看到的应用入口 */
     private fun showAppPicker() {
-        val catalog = AppCatalog.installed(this)
-        if (catalog.isEmpty()) {
-            Toast.makeText(this, "没找到可以启动的应用", Toast.LENGTH_LONG).show()
-            return
-        }
-        val selected = Extras.visibleApps()
-        val labels = catalog.map { "${it.label}  (${it.spec})" }.toTypedArray()
-        val checked = BooleanArray(catalog.size) { catalog[it].spec in selected }
-
-        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("选择孩子能看到的 App（OK 勾选）")
-            .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
-                checked[which] = isChecked
-            }
-            .setPositiveButton("保存") { _, _ ->
-                val set = catalog.filterIndexed { i, _ -> checked[i] }.map { it.spec }.toSet()
-                Extras.saveSelectedApps(set)
-                render(null)
-                Toast.makeText(this, "已显示 ${set.size} 个应用入口", Toast.LENGTH_SHORT).show()
-            }
-            .setNeutralButton("全部隐藏") { _, _ ->
-                Extras.saveSelectedApps(emptySet())
-                render(null)
-                Toast.makeText(this, "已隐藏所有应用入口", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        ParentTools.pickApps(this) { render(null) }
     }
 }

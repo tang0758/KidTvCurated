@@ -36,9 +36,11 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 val a = current
                 if (a is LockActivity) {
                     if (st.open) a.finish()
-                } else if (a != null && !st.open &&
+                } else if (a != null && a !is SettingsActivity && !st.open &&
                     System.currentTimeMillis() - lastLockLaunch > 1500
                 ) {
+                    // 「家长控制」页例外：家长多半正是在改时段/上限，
+                    // 锁屏盖上来会让人改不了（那一页本身已经要 PIN 才能进）
                     lastLockLaunch = System.currentTimeMillis()
                     a.startActivity(
                         Intent(a, LockActivity::class.java)

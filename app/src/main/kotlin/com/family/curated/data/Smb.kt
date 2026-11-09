@@ -402,6 +402,67 @@ object Smb {
         }
     }
 
+    /**
+     * 用一条独立的临时连接覆盖写一个小文件（清单 json 这类）。
+     *
+     * 和 readAllIsolated 同理：写文件和 PC 上的编辑器会争同一份文件的 oplock，
+     * 卡死时绝不能拖累正在播放的主连接。写完就断，卡住就掐自己这条。
+     */
+    fun writeIsolated(
+        cfg: NasConfig,
+        shareName: String,
+        file: String,
+        bytes: ByteArray,
+        timeoutMs: Long = 25_000
+    ) {
+        val holder = AtomicReference<SMBClient?>(null)
+        withDeadline("isolatedWrite($file)", timeoutMs, onTimeout = {
+            try {
+                holder.get()?.close()
+            } catch (e: Exception) {
+            }
+        }) {
+            val conf = SmbConfig.builder()
+                .withTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
+                .withSoTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
+                .withMultiProtocolNegotiate(true)
+                .build()
+            val c = SMBClient(conf)
+            holder.set(c)
+            val conn = c.connect(cfg.host, cfg.port)
+            try {
+                val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
+                val sess = conn.authenticate(ac)
+                val sh = sess.connectShare(shareName) as DiskShare
+                sh.openFile(
+                    path(cfg, file),
+                    EnumSet.of(AccessMask.GENERIC_WRITE, AccessMask.GENERIC_READ),
+                    null,
+                    SMB2ShareAccess.ALL,
+                    SMB2CreateDisposition.FILE_OVERWRITE_IF,
+                    null
+                ).use { f ->
+                    var pos = 0
+                    while (pos < bytes.size) {
+                        val n = minOf(64 * 1024, bytes.size - pos)
+                        f.write(bytes, pos.toLong(), pos, n)
+                        pos += n
+                    }
+                }
+                Log.i(TAG, "已写入 $shareName:$file (${bytes.size} 字节)")
+            } finally {
+                try {
+                    conn.close()
+                } catch (e: Exception) {
+                }
+                try {
+                    c.close()
+                } catch (e: Exception) {
+                }
+            }
+        }
+    }
+
     @Synchronized
     fun closeQuietly() {
         extraShares.values.forEach { try { it.close() } catch (e: Exception) { } }

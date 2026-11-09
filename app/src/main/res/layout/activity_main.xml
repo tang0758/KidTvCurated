@@ -49,6 +49,23 @@
                 android:textColor="@color/accent"
                 android:textSize="17sp" />
 
+            <!-- 家长入口：孩子可以按，但要 PIN 才进得去；颜色比「我的奖励」淡，不抢注意力 -->
+            <TextView
+                android:id="@+id/btnParent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="18dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp"
+                android:text="家长控制"
+                android:textColor="@color/text_secondary"
+                android:textSize="16sp" />
+
             <TextView
                 android:id="@+id/tvTime"
                 android:layout_width="wrap_content"
