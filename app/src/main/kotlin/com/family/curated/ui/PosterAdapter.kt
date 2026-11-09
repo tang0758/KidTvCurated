@@ -37,6 +37,7 @@ class PosterAdapter(
     private val locked: Boolean,
     private val showDone: Boolean,
     private val onRowFocus: ((Boolean) -> Unit)? = null,
+    private val onItemFocus: ((Item) -> Unit)? = null,
     private val onClick: (Item) -> Unit
 ) : RecyclerView.Adapter<PosterAdapter.VH>() {
 
@@ -116,6 +117,7 @@ class PosterAdapter(
         holder.card.setOnFocusChangeListener { v, hasFocus ->
             applyFocusLook(holder, hasFocus)
             onRowFocus?.invoke(hasFocus)
+            if (hasFocus) onItemFocus?.invoke(item)
         }
 
         holder.card.setOnClickListener { onClick(item) }

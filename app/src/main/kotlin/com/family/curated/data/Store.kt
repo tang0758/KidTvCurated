@@ -33,13 +33,25 @@ object Store {
 
     // ---------- NAS ----------
     fun saveNas(c: NasConfig) {
+        // 片单里的密码可能是占位符（空、全星号、编辑器的 __KEEP_...__）。
+        // 这种情况保留上一次能用的密码，否则一次误保存会让电视再也连不上 NAS，
+        // 而且因为连不上就读不到新片单，自己永远恢复不了。
+        val old = sp.getString("nas_pass", "") ?: ""
+        val pass = if (isPlaceholderPassword(c.password)) old else c.password
         sp.edit()
             .putString("nas_host", c.host)
             .putInt("nas_port", c.port)
             .putString("nas_user", c.user)
-            .putString("nas_pass", c.password)
+            .putString("nas_pass", pass)
             .putString("nas_share", c.share)
             .apply()
+    }
+
+    private fun isPlaceholderPassword(p: String?): Boolean {
+        val s = (p ?: "").trim()
+        if (s.isEmpty()) return true
+        if (s.uppercase().contains("KEEP_NAS_PASSWORD")) return true
+        return s.length >= 3 && s.all { it == '*' || it == '•' }
     }
 
     fun nas(): NasConfig? {

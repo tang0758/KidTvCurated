@@ -311,6 +311,20 @@ def autofix_playlist(cfg: dict, obj: dict, warnings: list[str]) -> None:
             warnings.append(f"  · 其余 {len(fixes) - 10} 处省略")
 
 
+def is_placeholder_password(v) -> bool:
+    """判断 nas.password 是不是占位符（空 / 本编辑器掩码 / 手打的星号）。
+
+    保存时遇到占位符一律"沿用原有密码"，绝不把占位符本身写进 NAS ——
+    否则电视端会拿一串星号去连 SMB，整个片单全部打不开。
+    """
+    s = str(v or "").strip()
+    if not s or s == MASK:
+        return True
+    if len(s) >= 3 and set(s) <= {"*", "•", "·"}:
+        return True
+    return "KEEP_NAS_PASSWORD" in s.upper()
+
+
 def prepare_payload(cfg: dict, text: str) -> tuple[bytes, list[str]]:
     """校验前端文本、补回 NAS 密码，返回待写入字节和警告列表。"""
     try:
@@ -322,12 +336,14 @@ def prepare_payload(cfg: dict, text: str) -> tuple[bytes, list[str]]:
     warnings: list[str] = []
     nas = obj.get("nas")
     if isinstance(nas, dict):
-        if not nas.get("password") or nas.get("password") == MASK:
+        if is_placeholder_password(nas.get("password")):
             real = cfg.get("password") or ""
             if not real:
                 try:
                     old = json.loads(read_remote(cfg).decode("utf-8-sig"))
                     real = (old.get("nas") or {}).get("password", "")
+                    if is_placeholder_password(real):
+                        real = ""
                 except Exception:
                     pass
             if real:
@@ -460,7 +476,7 @@ def browse_dir(cfg: dict, share: str, path: str) -> dict:
             items.append({
                 "name": f.filename,
                 "dir": bool(f.isDirectory),
-                "size": int(getattr(f, "filesize", 0) or 0),
+                "size": int(getattr(f, "file_size", 0) or getattr(f, "filesize", 0) or 0),
                 "video": f.filename.lower().endswith(VIDEO_EXT),
             })
         items.sort(key=lambda x: (not x["dir"], x["name"]))

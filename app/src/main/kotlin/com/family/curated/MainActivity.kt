@@ -39,6 +39,14 @@ class MainActivity : AppCompatActivity() {
     private var loading = false
     private var celebratedToday = false
 
+    /**
+     * 记住最后获得焦点的条目（分区 key + 条目 key）。
+     * 从播放页/剧集页回来时 onResume 会 notifyDataSetChanged，原来那张卡的 View 被回收，
+     * 焦点就会掉到「我的奖励」按钮上；有了这两个 key 就能准确复位。
+     */
+    private var lastFocusSection: String? = null
+    private var lastFocusItem: String? = null
+
     private val ui = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
         override fun run() {
@@ -177,7 +185,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val a = SectionsAdapter(this, shown, cfg, skipGateOnce) { section, item -> onItemClick(section, item) }
+        val a = SectionsAdapter(
+            this, shown, cfg, skipGateOnce,
+            onItemClick = { section, item -> onItemClick(section, item) },
+            onItemFocus = { section, item ->
+                lastFocusSection = section.key
+                lastFocusItem = item.key()
+            }
+        )
         adapter = a
         b.rvSections.adapter = a
         updateHeader()
@@ -193,6 +208,41 @@ class MainActivity : AppCompatActivity() {
             if (child != null && child.isFocusable) {
                 child.requestFocus()
                 return
+            }
+        }
+    }
+
+    /**
+     * 把焦点放回离开前那张卡（从播放页、剧集页回来时用）。
+     * 分区/条目已经不在清单里就退回第一张卡。
+     */
+    private fun restoreFocus() {
+        val a = adapter ?: return
+        val secKey = lastFocusSection
+        val itemKey = lastFocusItem
+        if (secKey == null || itemKey == null) {
+            focusFirstCard()
+            return
+        }
+        val si = a.indexOfSection(secKey)
+        val ii = if (si >= 0) a.indexOfItem(si, itemKey) else -1
+        if (si < 0 || ii < 0) {
+            focusFirstCard()
+            return
+        }
+        (b.rvSections.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(si, 0)
+        b.rvSections.post {
+            val vh = b.rvSections.findViewHolderForAdapterPosition(si) as? SectionsAdapter.SectionVH
+            val row = vh?.row
+            if (row == null) {
+                focusFirstCard()
+                return@post
+            }
+            (row.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(ii, 0)
+            row.post {
+                val target = row.findViewHolderForAdapterPosition(ii)?.itemView
+                val ok = target != null && target.isFocusable && target.requestFocus()
+                if (!ok) focusFirstCard()
             }
         }
     }
@@ -298,6 +348,11 @@ class MainActivity : AppCompatActivity() {
         adapter?.let {
             it.notifyDataSetChanged()
             updateHeader()
+        }
+        // 从播放页/剧集页回来时，重绘会让焦点掉到「我的奖励」按钮上，
+        // 这里把它还给离开前那张卡，孩子不用重新找位置。
+        b.rvSections.post {
+            if (b.rvSections.findFocus() == null) restoreFocus()
         }
         ui.removeCallbacks(clockTick)
         ui.postDelayed(clockTick, 5000)

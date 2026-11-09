@@ -19,10 +19,21 @@ class SectionsAdapter(
     private var playlist: Playlist,
     private var cfg: NasConfig?,
     private var skipGate: Boolean = false,
-    private val onItemClick: (Section, Item) -> Unit
+    private val onItemClick: (Section, Item) -> Unit,
+    private val onItemFocus: ((Section, Item) -> Unit)? = null
 ) : RecyclerView.Adapter<SectionsAdapter.SectionVH>() {
 
     private val scrollMemo = HashMap<String, Int>()
+
+    /** 分区在列表里的下标（焦点复位用），找不到返回 -1 */
+    fun indexOfSection(key: String): Int =
+        playlist.sections.indexOfFirst { it.key == key }
+
+    /** 条目在某个分区里的下标，找不到返回 -1 */
+    fun indexOfItem(sectionIndex: Int, itemKey: String): Int {
+        val sec = playlist.sections.getOrNull(sectionIndex) ?: return -1
+        return sec.items.indexOfFirst { it.key() == itemKey || it.id == itemKey }
+    }
 
     fun update(p: Playlist, newCfg: NasConfig? = cfg) {
         playlist = p
@@ -103,7 +114,8 @@ class SectionsAdapter(
                 holder.title.setTextColor(
                     ctx.getColor(if (has) R.color.accent else R.color.text_primary)
                 )
-            }
+            },
+            onItemFocus = { item -> onItemFocus?.invoke(section, item) }
         ) { item ->
             onItemClick(section, item)
         }

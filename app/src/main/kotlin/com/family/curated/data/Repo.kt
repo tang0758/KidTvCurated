@@ -240,7 +240,13 @@ object Repo {
 
         val ep = Regex("(?i)S\\d+E\\d+(?:E\\d+)?").find(n)?.value
         if (ep != null) {
-            val rest = n.replace(ep, "").replace(Regex("^[\\s\\-·:]+"), "").trim()
+            // 「Maisy - S01E01.mp4」这种，剧名在集号前面，去掉集号后会剩一个尾巴的「-」，
+            // 前后都要裁干净，否则列表里显示成「S01E01 · Maisy -」
+            val rest = n.replace(ep, "")
+                .replace(Regex("^[\\s\\-·:]+"), "")
+                .trim()
+                .trimEnd('-', '·', ':', '_', ' ')
+                .trim()
             return if (rest.isBlank()) ep else "$ep · ${rest.take(46)}"
         }
         return n.take(64).ifBlank { name }
