@@ -12,6 +12,7 @@ import java.util.Locale
 object Store {
 
     private const val PREF = "curated_prefs"
+    private const val KEY_MIGRATED = "migrated_path_keys_v1"
     private lateinit var sp: SharedPreferences
 
     const val DEFAULT_PLAYLIST_PATH = "curated/tv.json"
@@ -128,6 +129,40 @@ object Store {
             if (k.startsWith("done_") && v == t) e.remove(k)
         }
         e.apply()
+    }
+
+    /**
+     * 一次性迁移：老版本用「分区名_序号」当条目 id（位置型），家长在编辑器里调一次顺序，
+     * 封面缓存、观看进度、"今天看过"就全错位。现在改成按路径生成稳定 id，
+     * 这里把旧的 pos_/dur_/done_ 记录搬到新键上，免得升级当天"必修"清零。
+     */
+    fun migrateLegacyKeys(pl: Playlist) {
+        if (sp.getBoolean(KEY_MIGRATED, false)) return
+        val e = sp.edit()
+        var moved = 0
+        pl.sections.forEach { sec ->
+            sec.items.forEachIndexed { idx, it ->
+                val legacy = sec.key + "_" + idx
+                val now = it.key()
+                if (now == legacy) return@forEachIndexed
+                for (p in listOf("pos_", "dur_", "done_")) {
+                    val oldKey = p + legacy
+                    val newKey = p + now
+                    if (!sp.contains(oldKey) || sp.contains(newKey)) continue
+                    when (p) {
+                        "done_" -> {
+                            val v = sp.getString(oldKey, null) ?: continue
+                            e.putString(newKey, v)
+                        }
+                        else -> e.putLong(newKey, sp.getLong(oldKey, 0L))
+                    }
+                    moved++
+                }
+            }
+        }
+        e.putBoolean(KEY_MIGRATED, true)
+        e.apply()
+        if (moved > 0) android.util.Log.i("Store", "已迁移旧版位置型进度/完成记录 $moved 条")
     }
 
     /** 家长手动把某项标记为未完成（偶尔用来"重来一遍"） */

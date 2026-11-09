@@ -38,6 +38,7 @@ object Repo {
             usedShare = foundShare
             val text = bytes.toString(Charsets.UTF_8).trimStart('\uFEFF')
             val pl = PlaylistParser.parse(text)
+            Store.migrateLegacyKeys(pl)
             Store.cachedPlaylist = text
             Store.lastSync = System.currentTimeMillis()
             Store.saveNas(cfg)
@@ -68,8 +69,10 @@ object Repo {
             val detail = e.message ?: e.javaClass.simpleName
             val cached = Store.cachedPlaylist
             if (cached != null) {
+                val parsed = PlaylistParser.parse(cached)
+                Store.migrateLegacyKeys(parsed)
                 return LoadResult(
-                    expandAuto(PlaylistParser.parse(cached)), true,
+                    expandAuto(parsed), true,
                     "连不上 NAS，正在显示上次的清单\n$where\n$detail"
                 )
             }

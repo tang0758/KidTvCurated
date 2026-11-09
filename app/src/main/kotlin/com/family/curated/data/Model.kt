@@ -147,9 +147,15 @@ object PlaylistParser {
                 val folder = o.optString("folder").ifBlank { null }
                 val app = o.optString("app").ifBlank { o.optString("package").ifBlank { null } }
                 if (file == null && folder == null && app == null) continue
+                // 没写 id 时，用「路径」派生稳定 id，绝对不要用下标：
+                // key() 是封面缓存、观看进度、今日完成标记的键，用 key_j 的话
+                // 家长在编辑器里上下调一次顺序，所有封面和进度就整体错位了。
+                val autoId = (file ?: folder ?: app).orEmpty().trimEnd('/').let {
+                    if (it.isNotEmpty()) "p:" + it else key + "_" + j
+                }
                 items.add(
                     Item(
-                        id = o.optString("id", key + "_" + j),
+                        id = o.optString("id").ifBlank { autoId },
                         title = o.optString("title").ifBlank {
                             if (app != null) app.substringBefore('/')
                             else (file ?: folder ?: "").substringAfterLast('/')
