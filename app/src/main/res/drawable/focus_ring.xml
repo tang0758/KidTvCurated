@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  焦点边框：画在封面「上面」的一层。
+  以前把 3dp 金边写在 card_bg 上，被 match_parent 的封面图整块盖住，
+  电视上只剩 6% 缩放，等于没有高亮。这里用两层光晕 + 实线金边，
+  4~5 米距离也能一眼看出焦点在哪。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 外层柔光：宽一点的半透明金边，制造发光感 -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <corners android:radius="10dp" />
+            <stroke
+                android:width="7dp"
+                android:color="#59FFC44D" />
+        </shape>
+    </item>
+
+    <!-- 内层实线：亮金色 3dp，边缘清晰 -->
+    <item
+        android:bottom="4dp"
+        android:left="4dp"
+        android:right="4dp"
+        android:top="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <corners android:radius="7dp" />
+            <stroke
+                android:width="3dp"
+                android:color="@color/accent" />
+        </shape>
+    </item>
+</layer-list>

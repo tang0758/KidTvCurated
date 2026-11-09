@@ -1,6 +1,7 @@
 package com.family.curated
 
 import android.content.Intent
+import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -33,8 +34,10 @@ class EpisodesActivity : AppCompatActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (KioskKeys.systemBlocked(keyCode)) return true
-        // 读失败时列表是空的，遥控器没焦点可用，按 OK 直接重试
-        if (loadFailed && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+        // 读失败或读空时列表里没有焦点，遥控器没得按：按 OK 直接重试
+        if ((loadFailed || episodes.isEmpty()) &&
+            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)
+        ) {
             loadEpisodes()
             return true
         }
@@ -73,7 +76,7 @@ class EpisodesActivity : AppCompatActivity() {
                 loadFailed = failed
                 b.tvSub.text = when {
                     failed -> "读取超时，按遥控器 OK 重试"
-                    list.isEmpty() -> "这个文件夹里没有视频"
+                    list.isEmpty() -> "没找到视频（按 OK 重试）"
                     else -> "共 ${list.size} 个"
                 }
                 b.rvEpisodes.adapter = EpAdapter()
@@ -86,10 +89,15 @@ class EpisodesActivity : AppCompatActivity() {
     }
 
     private inner class EpAdapter : RecyclerView.Adapter<EpAdapter.VH>() {
+
+        /** 记住哪一行有焦点：onResume 重绘后要把高亮补回来，否则会「焦点还在但看不出在哪」 */
+        private var focusedPos = -1
+
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val index: TextView = v.findViewById(R.id.tvIndex)
             val name: TextView = v.findViewById(R.id.tvName)
             val mark: TextView = v.findViewById(R.id.tvMark)
+            val bar: View = v.findViewById(R.id.focusBar)
             val row: View = v
         }
 
@@ -105,6 +113,16 @@ class EpisodesActivity : AppCompatActivity() {
             holder.name.text = ep.title
             holder.mark.text = if (Store.isDoneToday(ep.key())) "✓ 看过" else ""
 
+            // 复用归位
+            holder.row.animate().cancel()
+            holder.row.scaleX = 1f
+            holder.row.scaleY = 1f
+            holder.row.elevation = 0f
+            holder.bar.visibility = View.GONE
+            holder.index.setTextColor(getColor(R.color.text_dim))
+            holder.name.setTextColor(getColor(R.color.text_primary))
+            holder.name.setTypeface(null, Typeface.NORMAL)
+
             holder.row.setOnClickListener {
                 startActivity(
                     Intent(this@EpisodesActivity, PlayerActivity::class.java)
@@ -115,9 +133,9 @@ class EpisodesActivity : AppCompatActivity() {
                 )
             }
 
-            holder.row.setOnFocusChangeListener { v, has ->
-                v.animate().scaleX(if (has) 1.01f else 1f).scaleY(if (has) 1.01f else 1f)
-                    .setDuration(120).start()
+            holder.row.setOnFocusChangeListener { _, has ->
+                focusedPos = if (has) holder.bindingAdapterPosition else -1
+                applyFocus(holder, has)
             }
 
             holder.row.setOnKeyListener { _, code, ev ->
@@ -125,6 +143,20 @@ class EpisodesActivity : AppCompatActivity() {
                     position == itemCount - 1
                 ) true else false
             }
+
+            if (position == focusedPos && holder.row.isFocused) applyFocus(holder, true)
+        }
+
+        private fun applyFocus(holder: VH, has: Boolean) {
+            holder.bar.visibility = if (has) View.VISIBLE else View.GONE
+            holder.row.animate()
+                .scaleX(if (has) 1.02f else 1f)
+                .scaleY(if (has) 1.02f else 1f)
+                .setDuration(if (has) 150 else 120)
+                .start()
+            holder.row.elevation = if (has) 14f * resources.displayMetrics.density else 0f
+            holder.index.setTextColor(getColor(if (has) R.color.accent else R.color.text_dim))
+            holder.name.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
         }
     }
 

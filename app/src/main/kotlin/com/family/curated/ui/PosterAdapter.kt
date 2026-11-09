@@ -2,10 +2,13 @@ package com.family.curated.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Typeface
+import android.os.Build
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.TextView
@@ -20,6 +23,12 @@ import kotlin.math.roundToInt
 
 /**
  * 横向海报行。遥控器左右移动，焦点卡片放大。
+ *
+ * 焦点表现（电视 4~5 米外要一眼看出来）：
+ *  - 放大到 1.10，同时卡片上浮（elevation）带金色投影
+ *  - 最上层画一圈金色发光边框（focus_ring），不再被封面图盖住
+ *  - 同一排其它卡片压暗到 72%，形成强烈的「选中/未选中」对比
+ *  - 标题在获得焦点时加粗，所在分区的标题也会变成金色
  */
 class PosterAdapter(
     private val ctx: Context,
@@ -27,12 +36,14 @@ class PosterAdapter(
     private val items: List<Item>,
     private val locked: Boolean,
     private val showDone: Boolean,
+    private val onRowFocus: ((Boolean) -> Unit)? = null,
     private val onClick: (Item) -> Unit
 ) : RecyclerView.Adapter<PosterAdapter.VH>() {
 
     private val density = ctx.resources.displayMetrics.density
     private val coverW = (200 * density).roundToInt()
     private val coverH = (284 * density).roundToInt()
+    private val accent = ctx.getColor(R.color.accent)
 
     inner class VH(v: View) : RecyclerView.ViewHolder(v) {
         val card: View = v.findViewById(R.id.card)
@@ -42,6 +53,7 @@ class PosterAdapter(
         val progress: TextView = v.findViewById(R.id.tvProgress)
         val lockOverlay: View = v.findViewById(R.id.lockOverlay)
         val lockText: TextView = v.findViewById(R.id.tvLock)
+        val ring: View = v.findViewById(R.id.focusRing)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -98,12 +110,12 @@ class PosterAdapter(
         holder.lockOverlay.visibility = if (locked) View.VISIBLE else View.GONE
         holder.lockText.visibility = if (locked) View.VISIBLE else View.GONE
 
+        // 复用时先把焦点样式归位；如果这一格仍持有焦点，下面立刻重新套上
+        resetFocusLook(holder)
+
         holder.card.setOnFocusChangeListener { v, hasFocus ->
-            val target = if (hasFocus) 1.06f else 1f
-            v.animate().scaleX(target).scaleY(target).setDuration(140)
-                .setInterpolator(DecelerateInterpolator()).start()
-            v.elevation = if (hasFocus) 18f * density else 0f
-            holder.title.alpha = if (hasFocus) 1f else 0.9f
+            applyFocusLook(holder, hasFocus)
+            onRowFocus?.invoke(hasFocus)
         }
 
         holder.card.setOnClickListener { onClick(item) }
@@ -116,6 +128,66 @@ class PosterAdapter(
                 }
             }
             false
+        }
+
+        if (holder.card.hasFocus()) applyFocusLook(holder, true)
+    }
+
+    private fun resetFocusLook(holder: VH) {
+        holder.card.animate().cancel()
+        holder.card.scaleX = 1f
+        holder.card.scaleY = 1f
+        holder.card.elevation = 0f
+        holder.card.alpha = 1f
+        holder.ring.visibility = View.GONE
+        holder.ring.alpha = 1f
+        holder.title.setTypeface(null, Typeface.NORMAL)
+        holder.title.alpha = 0.9f
+    }
+
+    /**
+     * 焦点样式。放大 + 上浮 + 金边 + 同排其它卡片压暗。
+     * 放大 1.10 会超出原来的行高，所以 item_section / RecyclerView 上必须 clipChildren=false，
+     * 否则放大的部分会被裁掉——这正是以前「焦点动画不明显」的原因之一。
+     */
+    private fun applyFocusLook(holder: VH, hasFocus: Boolean) {
+        val card = holder.card
+
+        if (hasFocus) {
+            holder.ring.visibility = View.VISIBLE
+            holder.ring.alpha = 0.25f
+            holder.ring.animate().alpha(1f).setDuration(120).start()
+        } else {
+            holder.ring.visibility = View.GONE
+        }
+
+        card.animate()
+            .scaleX(if (hasFocus) 1.10f else 1f)
+            .scaleY(if (hasFocus) 1.10f else 1f)
+            .setDuration(if (hasFocus) 170 else 130)
+            .setInterpolator(if (hasFocus) DecelerateInterpolator() else AccelerateInterpolator())
+            .start()
+
+        card.elevation = if (hasFocus) 20f * density else 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            // 金边配金色投影，暗背景上能看出「浮起来」
+            card.outlineSpotShadowColor = accent
+            card.outlineAmbientShadowColor = accent
+        }
+
+        holder.title.setTypeface(null, if (hasFocus) Typeface.BOLD else Typeface.NORMAL)
+        holder.title.alpha = 1f
+
+        dimSiblings(holder, hasFocus)
+    }
+
+    /** 有焦点时把同一排其它卡片压暗，焦点卡片的对比度立刻拉开 */
+    private fun dimSiblings(holder: VH, focused: Boolean) {
+        val row = holder.card.parent as? ViewGroup ?: return
+        for (i in 0 until row.childCount) {
+            val child = row.getChildAt(i) ?: continue
+            if (child === holder.card) continue
+            child.animate().alpha(if (focused) 0.72f else 1f).setDuration(150).start()
         }
     }
 }

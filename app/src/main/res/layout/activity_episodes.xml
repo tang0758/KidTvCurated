@@ -29,5 +29,6 @@
         android:layout_weight="1"
         android:layout_marginTop="22dp"
         android:clipToPadding="false"
+        android:paddingTop="8dp"
         android:paddingBottom="32dp" />
 </LinearLayout>

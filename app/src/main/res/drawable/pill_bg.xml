@@ -1,6 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#CC000000" />
-    <corners android:radius="20dp" />
-    <stroke android:width="1dp" android:color="#33FFFFFF" />
-</shape>
+<!-- 胶囊底：进度角标、分区徽章、顶部「我的奖励」共用。只有可聚焦的控件才会出现 focused 态。 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#4DFFC44D" />
+            <corners android:radius="20dp" />
+            <stroke android:width="2dp" android:color="@color/accent" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#CC000000" />
+            <corners android:radius="20dp" />
+            <stroke android:width="1dp" android:color="#33FFFFFF" />
+        </shape>
+    </item>
+</selector>

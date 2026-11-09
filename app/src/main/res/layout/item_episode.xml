@@ -4,19 +4,32 @@
     android:layout_width="match_parent"
     android:layout_height="76dp"
     android:layout_marginBottom="10dp"
-    android:background="@drawable/card_bg"
+    android:background="@drawable/ep_row_bg"
     android:clipToOutline="true"
     android:focusable="true"
     android:focusableInTouchMode="true"
     android:clickable="true"
-    android:paddingStart="24dp"
+    android:paddingStart="0dp"
     android:paddingEnd="24dp">
+
+    <!-- 焦点左侧亮条：比底色更直观地标出「当前选中这一行」。
+         放在行内左侧的留白区，文字由内部 LinearLayout 的 paddingStart 让开，不会压住序号 -->
+    <View
+        android:id="@+id/focusBar"
+        android:layout_width="5dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="14dp"
+        android:layout_marginBottom="14dp"
+        android:background="@color/accent"
+        android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingStart="28dp">
 
         <TextView
             android:id="@+id/tvIndex"

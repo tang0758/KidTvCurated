@@ -87,6 +87,32 @@ object Smb {
         }
     }
 
+    /**
+     * 别的线程刚好触发了 watchdog 重置（关闭整条连接），正在飞的这一读就会拿到
+     * 「DiskShare has already been closed」。这不是路径问题，重连一次就好 ——
+     * 以前不重试，表现就是剧集页突然显示「这个文件夹里没有视频」。
+     */
+    private fun isClosedShare(e: Throwable): Boolean {
+        var t: Throwable? = e
+        while (t != null) {
+            val m = t.message.orEmpty()
+            if (m.contains("already been closed") || m.contains("Bad file descriptor")) return true
+            t = t.cause
+        }
+        return false
+    }
+
+    private fun <T> retryAfterReconnect(label: String, block: () -> T): T {
+        try {
+            return block()
+        } catch (e: Exception) {
+            if (!isClosedShare(e)) throw e
+            Log.w(TAG, "$label 撞上已关闭的连接，重连后重试一次")
+            closeQuietly()
+            return block()
+        }
+    }
+
     @Synchronized
     fun ensureConnected(cfg: NasConfig): DiskShare = lock.withLock {
         val existing = share
@@ -165,7 +191,9 @@ object Smb {
 
     /** 列目录：返回 (文件名, 是否目录, 大小)。shareName 可指定同一个 NAS 上的其它共享 */
     fun list(cfg: NasConfig, dir: String, shareName: String? = null): List<Triple<String, Boolean, Long>> =
-        withDeadline("list($dir)", 25_000) { listRaw(cfg, dir, shareName) }
+        retryAfterReconnect("list($dir)") {
+            withDeadline("list($dir)", 25_000) { listRaw(cfg, dir, shareName) }
+        }
 
     private fun listRaw(cfg: NasConfig, dir: String, shareName: String?): List<Triple<String, Boolean, Long>> {
         val sh = if (shareName.isNullOrBlank() || shareName == cfg.share)
@@ -197,8 +225,10 @@ object Smb {
         file: String,
         maxBytes: Int = 8 * 1024 * 1024,
         shareName: String? = null
-    ): ByteArray = withDeadline("readAll($file)", 25_000) {
-        readAllRaw(cfg, file, maxBytes, shareName)
+    ): ByteArray = retryAfterReconnect("readAll($file)") {
+        withDeadline("readAll($file)", 25_000) {
+            readAllRaw(cfg, file, maxBytes, shareName)
+        }
     }
 
     private fun readAllRaw(

@@ -68,6 +68,7 @@ class SectionsAdapter(
     override fun onBindViewHolder(holder: SectionVH, position: Int) {
         val section = playlist.sections[position]
         holder.title.text = section.title
+        holder.title.setTextColor(ctx.getColor(R.color.text_primary))
 
         val unlocked = isUnlocked(section)
         val doneCount = section.items.count { Store.isDoneToday(it.key()) }
@@ -96,7 +97,13 @@ class SectionsAdapter(
         holder.row.layoutManager = LinearLayoutManager(ctx, RecyclerView.HORIZONTAL, false)
         holder.row.adapter = PosterAdapter(
             ctx, cfg, section.items, locked = !unlocked,
-            showDone = section.gate
+            showDone = section.gate,
+            // 焦点在这一排时把分区标题点亮，家长/孩子一眼知道自己在看哪一行
+            onRowFocus = { has ->
+                holder.title.setTextColor(
+                    ctx.getColor(if (has) R.color.accent else R.color.text_primary)
+                )
+            }
         ) { item ->
             onItemClick(section, item)
         }

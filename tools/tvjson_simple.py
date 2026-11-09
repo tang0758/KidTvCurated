@@ -176,6 +176,24 @@ def read_remote(cfg: dict) -> bytes:
         c.close()
 
 
+def read_share_file(cfg: dict, share: str, path: str, limit: int = 8 * 1024 * 1024) -> bytes:
+    """读任意共享里的一个文件（编辑器里给封面做缩略图预览用）。"""
+    share = share or cfg.get("share") or "儿童资源"
+    path = norm(path)
+    c = connect(cfg)
+    try:
+        buf = io.BytesIO()
+        c.retrieveFile(share, path, buf, timeout=25)
+        data = buf.getvalue()
+    except Exception as e:
+        raise SmbError(f"读不到 {share}:{path} —— {e}")
+    finally:
+        c.close()
+    if len(data) > limit:
+        raise SmbError(f"{path} 太大了（{len(data) // 1024} KB），不像封面图")
+    return data
+
+
 def remote_mtime(cfg: dict):
     path = remote_path(cfg)
     parent = path.rsplit("/", 1)[0] or "/"
@@ -259,14 +277,21 @@ def autofix_playlist(cfg: dict, obj: dict, warnings: list[str]) -> None:
                         it[k] = q
                 if it.get("cover"):
                     continue
+                # 单集条目找同名图；整季条目找 folder.jpg / poster.jpg / cover.jpg / 封面.jpg
                 f = it.get("file")
-                if not isinstance(f, str) or not f:
+                fd = it.get("folder")
+                if isinstance(f, str) and f:
+                    d, _, name = f.rpartition("/")
+                    base = name.rsplit(".", 1)[0]
+                    cands = (base + ".jpg", base + ".jpeg", base + ".png",
+                             "cover.jpg", "folder.jpg", "封面.jpg")
+                elif isinstance(fd, str) and fd:
+                    d = fd.replace("\\", "/").strip("/")
+                    cands = ("folder.jpg", "poster.jpg", "cover.jpg", "封面.jpg")
+                else:
                     continue
-                d, _, name = f.rpartition("/")
-                base = name.rsplit(".", 1)[0]
                 lower = {n.lower(): n for n in ls(d)}
-                for cand in (base + ".jpg", base + ".jpeg", base + ".png",
-                             "cover.jpg", "folder.jpg", "封面.jpg"):
+                for cand in cands:
                     real = lower.get(cand.lower())
                     if real:
                         it["cover"] = (d + "/" if d else "") + real
@@ -755,6 +780,13 @@ td.path{min-width:340px}
 td.path .pw{display:flex;gap:4px;align-items:center}
 td.path .pw input{flex:1;min-width:0;width:auto}
 td.path .pw button{flex:none;white-space:nowrap}
+td.cover{min-width:260px}
+td.cover .cw{display:flex;gap:5px;align-items:center}
+td.cover .cw input{flex:1;min-width:0;width:auto}
+td.cover .cw button{flex:none;white-space:nowrap}
+td.cover img.th{width:34px;height:48px;flex:none;object-fit:cover;border-radius:4px;border:1px solid var(--bd);background:var(--soft)}
+td.cover img.th.empty{opacity:.45}
+.modal .list img.thumb{width:40px;height:56px;object-fit:cover;border-radius:4px;border:1px solid var(--bd);background:var(--soft);flex:none}
 td.ops{white-space:nowrap;width:105px}
 .add{margin-top:10px}
 textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius:8px;padding:12px;font:12.5px/1.6 ui-monospace,Consolas,"Courier New",monospace;resize:vertical;background:#fff}
@@ -961,7 +993,11 @@ function renderSections(){
         '<td><select data-kind="1" data-s="'+si+'" data-i="'+ii+'"><option value="file" '+(kind==="file"?"selected":"")+'>单集 file</option><option value="folder" '+(kind==="folder"?"selected":"")+'>整季 folder</option><option value="app" '+(kind==="app"?"selected":"")+'>应用 app</option></select></td>'+
         '<td class="path"><div class="pw"><input data-path="'+p+'.'+kind+'" value="'+esc(val)+'" placeholder="'+(kind==="app"?"应用包名 或 包名/Activity":"相对视频共享根目录的路径")+'"><button class="mini" data-act="item-pick" data-s="'+si+'" data-i="'+ii+'">'+(kind==="app"?"选应用":"浏览")+'</button></div></td>'+
         '<td><input data-path="'+p+'.subtitle" value="'+esc(it.subtitle||"")+'" placeholder="副标题"></td>'+
-        '<td><input data-path="'+p+'.cover" value="'+esc(it.cover||"")+'" placeholder="封面"></td>'+
+        '<td class="cover"><div class="cw">'+
+          '<img class="th" data-thumb="'+si+','+ii+'" alt="" title="封面预览">'+
+          '<input data-path="'+p+'.cover" value="'+esc(it.cover||"")+'" placeholder="留空=自动找同名图">'+
+          '<button class="mini" data-act="cover-pick" data-s="'+si+'" data-i="'+ii+'">选图</button>'+
+        '</div></td>'+
         '<td class="ops"><button class="mini" data-act="item-up" data-s="'+si+'" data-i="'+ii+'">↑</button> '+
           '<button class="mini" data-act="item-down" data-s="'+si+'" data-i="'+ii+'">↓</button> '+
           '<button class="mini danger" data-act="item-del" data-s="'+si+'" data-i="'+ii+'">×</button></td>'+
@@ -986,6 +1022,7 @@ function renderSections(){
       (rows||'<tr><td colspan="7" class="hint">还没有条目</td></tr>')+'</tbody></table></div>'+
       '<button class="mini add" data-act="item-add" data-s="'+si+'">＋ 添加条目</button></div>';
   }).join("");
+  syncThumbs();
 }
 function entrySpec(e){ return (e&&typeof e==="object")?(e.package||e.pkg||""):String(e==null?"":e); }
 function appsCfg(create){
@@ -1032,6 +1069,34 @@ function renderAutoRefresh(){
 }
 function renderForm(){ renderGlobal(); renderAutoRefresh(); renderApps(); renderSections(); renderExtra(); }
 
+/* ---------- 封面缩略图预览 ---------- */
+const IMG_RE=/\.(jpe?g|png|webp|bmp|gif)$/i;
+// cover 字段两种写法都要认：
+//   "儿童视频/x/abc.jpg"        → 相对视频共享
+//   "data:curated/covers/x.jpg" → 共享名:路径
+function coverSrc(cov){
+  cov=(cov||"").trim();
+  if(!cov) return "";
+  let share=(cfg&&cfg.share)||"儿童资源", path=cov;
+  const i=cov.indexOf(":");
+  if(i>1){
+    const head=cov.slice(0,i);
+    if(head.indexOf("/")<0 && head.indexOf("\\")<0){ share=head; path=cov.slice(i+1); }
+  }
+  path=path.replace(/\\/g,"/").replace(/^\/+/,"");
+  if(!path) return "";
+  return "/api/img?share="+encodeURIComponent(share)+"&path="+encodeURIComponent(path);
+}
+function syncThumbs(){
+  document.querySelectorAll("#sections img[data-thumb]").forEach(img=>{
+    const p=img.dataset.thumb.split(","), si=+p[0], ii=+p[1];
+    const it=((obj.sections[si]||{}).items||[])[ii]||{};
+    const src=coverSrc(it.cover);
+    if(src){ if(img.getAttribute("src")!==src) img.src=src; img.classList.remove("empty"); img.title=it.cover; }
+    else { img.removeAttribute("src"); img.classList.add("empty"); img.title="还没有封面"; }
+  });
+}
+
 /* ---------- 表单事件（委托） ---------- */
 document.addEventListener("input", e=>{
   const t=e.target;
@@ -1049,6 +1114,8 @@ document.addEventListener("input", e=>{
     let v=t.value;
     if(t.type==="number") v = v===""?null:Number(v);
     setPath(obj,t.dataset.path,v); markDirty();
+    // 手改封面路径时预览图跟着变，省得保存后才发现写错
+    if(/\.cover$/.test(t.dataset.path)) syncThumbs();
   }
 });
 document.addEventListener("change", e=>{
@@ -1095,8 +1162,9 @@ document.addEventListener("click", e=>{
   else if(a==="item-pick"){
     const it=secs[s].items[i];
     if(it.app!==undefined && it.file===undefined && it.folder===undefined) openAppPicker("item",{s,i});
-    else openPicker(s,i);
+    else openPicker(s,i,"path");
   }
+  else if(a==="cover-pick"){ openPicker(s,i,"cover"); }
   else if(a==="app-add"){ appsCfg(true).entries.push({package:""}); renderApps(); markDirty(); }
   else if(a==="app-del"){ appsCfg(true).entries.splice(i,1); renderApps(); markDirty(); }
   else if(a==="app-up"&&i>0){ const es=appsCfg(true).entries; [es[i-1],es[i]]=[es[i],es[i-1]]; renderApps(); markDirty(); }
@@ -1155,24 +1223,48 @@ function applyExtra(){
 }
 
 /* ---------- NAS 路径选择器 ---------- */
-function openPicker(s,i){
-  pk.target={s,i}; pk.share=cfg.share||"儿童资源"; pk.path="/";
+// mode="path" 选视频/目录；mode="cover" 只为封面挑一张图片
+function openPicker(s,i,mode){
+  pk.target={s,i,mode:mode||"path"};
+  const it=(obj.sections[s].items||[])[i]||{};
+  pk.share=cfg.share||"儿童资源"; pk.path="/";
+  if(pk.target.mode==="cover"){
+    const cov=(it.cover||"").trim();
+    const ci=cov.indexOf(":");
+    let p=cov;
+    if(ci>1 && cov.slice(0,ci).indexOf("/")<0){ pk.share=cov.slice(0,ci); p=cov.slice(ci+1); }
+    p=p.replace(/\\/g,"/").replace(/^\/+/,"");
+    const dir=p?p.split("/").slice(0,-1).join("/"):"";
+    pk.path=dir?"/"+dir:"/";
+  }
+  const shares=[cfg.share||"儿童资源",cfg.playlistShare||"data"];
+  if(pk.share && shares.indexOf(pk.share)<0) shares.push(pk.share);
   const sel=$("#pk-share");
-  sel.innerHTML=[cfg.share||"儿童资源",cfg.playlistShare||"data"].filter((v,k,a)=>a.indexOf(v)===k).map(v=>'<option>'+esc(v)+'</option>').join("");
+  sel.innerHTML=shares.filter((v,k,a)=>a.indexOf(v)===k).map(v=>'<option>'+esc(v)+'</option>').join("");
   sel.value=pk.share;
-  $("#pk-target").textContent="目标：分区 "+s+" 第 "+(i+1)+" 条";
+  $("#pk-target").textContent = pk.target.mode==="cover"
+    ? "给分区 "+s+" 第 "+(i+1)+" 条选封面：点图片即选中（成片效果是竖版 200×284）"
+    : "目标：分区 "+s+" 第 "+(i+1)+" 条";
   $("#picker").classList.remove("hidden"); loadDir();
 }
 function loadDir(){
   $("#pk-path").textContent=pk.share+":"+pk.path;
   $("#pk-list").innerHTML='<div class="hint">读取中…</div>';
+  const coverMode = pk.target && pk.target.mode==="cover";
     api("/api/browse?share="+encodeURIComponent(pk.share)+"&path="+encodeURIComponent(pk.path))
     .then(d=>{
       pk.items=d.items||[];
-      $("#pk-list").innerHTML=d.items.length?d.items.map(x=>
-        '<div data-name="'+esc(x.name)+'" data-dir="'+(x.dir?1:0)+'">'+
-        (x.dir?"📁":"🎬")+'<span>'+esc(x.name)+'</span>'+(x.dir?'':'<span class="sz">'+(x.size/1048576).toFixed(1)+' MB</span>')+'</div>'
-      ).join(""):'<div class="hint">空目录</div>';
+      const items = coverMode ? d.items.filter(x=>x.dir||IMG_RE.test(x.name)) : d.items;
+      $("#pk-list").innerHTML=items.length?items.map(x=>{
+        const base=(pk.path==="/"?"":pk.path);
+        const rel=base+"/"+x.name;
+        const isImg=!x.dir&&IMG_RE.test(x.name);
+        const lead=isImg
+          ? '<img class="thumb" loading="lazy" src="'+coverSrc(pk.share+":"+rel.replace(/^\//,""))+'" alt="">'
+          : (x.dir?"📁":"🎬");
+        return '<div data-name="'+esc(x.name)+'" data-dir="'+(x.dir?1:0)+'">'+lead+
+        '<span>'+esc(x.name)+'</span>'+(x.dir?'':'<span class="sz">'+(x.size/1048576).toFixed(1)+' MB</span>')+'</div>';
+      }).join(""):'<div class="hint">'+(coverMode?"这个目录里没有图片":"空目录")+'</div>';
     }).catch(err=>msg("浏览失败："+err.message,"err"));
 }
 $("#pk-list").addEventListener("click",e=>{
@@ -1184,6 +1276,13 @@ $("#pk-list").addEventListener("click",e=>{
 function pick(rel,kind){
   if(!pk.target) return;
   const it=obj.sections[pk.target.s].items[pk.target.i];
+  if(pk.target.mode==="cover"){
+    // 封面在别的共享里（比如只读视频共享 + 可写 data 共享）时，写成「共享名:路径」
+    it.cover = (pk.share===cfg.share) ? rel : (pk.share+":"+rel);
+    $("#picker").classList.add("hidden"); renderSections(); markDirty();
+    msg("封面已设为 "+it.cover+"，记得点「保存到 NAS」","ok");
+    return;
+  }
   delete it.file; delete it.folder; delete it.app; it[kind]=rel;
   if(!it.title) it.title=rel.split("/").pop().replace(/\.[^.]+$/,"");
   // 同目录有同名图片 / cover.jpg 就顺手接上封面：没有封面的条目会让电视
@@ -1397,6 +1496,15 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/browse":
                 return self._json({"ok": True, **browse_dir(
                     cfg, (q.get("share") or [""])[0], (q.get("path") or ["/"])[0])})
+            if u.path == "/api/img":
+                # 封面缩略图预览：share 可省略（默认视频共享），path 是共享内相对路径
+                share = (q.get("share") or [""])[0] or (cfg.get("share") or "")
+                raw_path = (q.get("path") or [""])[0]
+                data = read_share_file(cfg, share, raw_path)
+                ext = raw_path.rsplit(".", 1)[-1].lower() if "." in raw_path else ""
+                ctype = {"png": "image/png", "webp": "image/webp", "gif": "image/gif",
+                         "bmp": "image/bmp"}.get(ext, "image/jpeg")
+                return self._send(200, data, ctype)
             if u.path == "/api/installed-apps":
                 return self._json({"ok": True, **installed_apps()})
             if u.path == "/api/tv-status":

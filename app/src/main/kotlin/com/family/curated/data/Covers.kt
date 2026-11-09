@@ -58,7 +58,11 @@ object Covers {
             var bmp: Bitmap? = null
             for (candidate in Repo.coverCandidates(item)) {
                 try {
-                    val bytes = Smb.readAll(cfg, candidate.path, 12 * 1024 * 1024, candidate.share)
+                    // 用独立短连接读图：封面只是装饰，绝不能因为某张图读挂而触发
+                    // 主连接的 watchdog 重置（那会把正在进行的剧集列表/播放一起弄死）
+                    val bytes = Smb.readAllIsolated(
+                        cfg, candidate.share ?: cfg.share, candidate.path, 8_000
+                    )
                     if (bytes.isEmpty()) continue
                     bmp = decode(bytes, targetW, targetH)
                     if (bmp != null) break
