@@ -11,6 +11,7 @@ import android.os.PowerManager
 import com.family.curated.data.AppGuard
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
+import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Store
 
 /**
@@ -45,6 +46,8 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                     )
                 }
                 enforceKiosk()
+                // 清单自动同步：内部按 autoRefresh.intervalSeconds 节流，只有内容变了才重绘
+                PlaylistSync.tick()
             } catch (e: Exception) {
                 // 守卫不能把应用搞崩
             }
@@ -106,6 +109,7 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         super.onCreate()
         Store.init(this)
         Extras.init(this)
+        PlaylistSync.init(this)
         registerActivityLifecycleCallbacks(this)
         handler.postDelayed(tick, 1200)
     }
@@ -114,6 +118,8 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         current = a
         // 只要自己的界面回到前台，外部应用的放行就结束了（按 Home / 返回都会走到这里）
         if (Extras.appLaunchActive()) Extras.clearAppLaunch()
+        // 从播放页 / 锁屏 / 别的应用回到主界面时，立刻查一次清单（下一次 1 秒 tick 生效）
+        if (a is MainActivity) PlaylistSync.nudge()
     }
     override fun onActivityPaused(a: Activity) { if (current === a) current = null }
     override fun onActivityCreated(a: Activity, s: Bundle?) {}

@@ -44,6 +44,16 @@
             </intent-filter>
         </activity>
 
+        <!-- 网页编辑器保存 tv.json 后的即时刷新通知（显式广播，adb/PC 发送） -->
+        <receiver
+            android:name=".PlaylistChangedReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.family.curated.PLAYLIST_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- 开机自启：仅当 tv.json 打开 kiosk 时生效，见 BootReceiver.kt -->
         <receiver
             android:name=".BootReceiver"

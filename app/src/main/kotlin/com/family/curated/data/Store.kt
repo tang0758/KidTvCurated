@@ -70,6 +70,31 @@ object Store {
         get() = sp.getLong("last_sync", 0L)
         set(v) = sp.edit().putLong("last_sync", v).apply()
 
+    // ---------- 清单自动刷新 ----------
+    /** 升级到「清单为准」策略的一次性迁移：清掉陈旧的电视本地勾选 */
+    var autoRefreshMigrated: Boolean
+        get() = sp.getBoolean("auto_refresh_migrated", false)
+        set(v) = sp.edit().putBoolean("auto_refresh_migrated", v).apply()
+
+    /** 上次成功加载的 apps 段指纹；清单里应用列表变了就让 entries 重新生效 */
+    var playlistAppsSignature: String
+        get() = sp.getString("playlist_apps_sig", "") ?: ""
+        set(v) = sp.edit().putString("playlist_apps_sig", v).apply()
+
+    /** 轮询配置缓存：广播把进程拉起时不必重新解析整份 JSON */
+    var autoRefreshEnabled: Boolean
+        get() = sp.getBoolean("auto_refresh_enabled", true)
+        set(v) = sp.edit().putBoolean("auto_refresh_enabled", v).apply()
+
+    var autoRefreshIntervalMs: Long
+        get() = sp.getLong("auto_refresh_interval_ms", 15_000L)
+        set(v) = sp.edit().putLong("auto_refresh_interval_ms", v).apply()
+
+    /** 最近一次「检测到 NAS 清单变化并成功应用」的时间，供网页诊断 */
+    var autoRefreshLastApplied: Long
+        get() = sp.getLong("auto_refresh_last_applied", 0L)
+        set(v) = sp.edit().putLong("auto_refresh_last_applied", v).apply()
+
     // ---------- 播放进度 ----------
     fun progress(key: String): Long = sp.getLong("pos_$key", 0L)
 

@@ -23,6 +23,7 @@ import com.family.curated.data.GateKeeper
 import com.family.curated.data.Item
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.Playlist
+import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Repo
 import com.family.curated.data.Section
 import com.family.curated.data.Store
@@ -46,6 +47,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** NAS 清单变了就无感重绘：复用 adapter，滚动位置和已解锁状态都留着 */
+    private val syncListener = PlaylistSync.Listener { pl, _ ->
+        if (isFinishing || isDestroyed) return@Listener
+        playlist = pl
+        render(null)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Store.init(this)
@@ -65,6 +73,7 @@ class MainActivity : AppCompatActivity() {
                 .setDuration(120).start()
         }
 
+        PlaylistSync.register(syncListener)
         loadPlaylist()
     }
 
@@ -98,12 +107,7 @@ class MainActivity : AppCompatActivity() {
                 b.pbLoading.visibility = View.GONE
                 playlist = res.playlist
                 // 时段、密码、通过比例都从清单同步到本地，播放页/锁屏页才能独立读到
-                Extras.saveSchedule(res.playlist.schedule)
-                Extras.savePin(res.playlist.pin)
-                Extras.savePassRatio(res.playlist.passRatio)
-                Extras.saveLearning(res.playlist.learning ?: com.family.curated.data.Learning())
-                Extras.saveKiosk(res.playlist.kiosk)
-                Extras.saveApps(res.playlist.apps)
+                PlaylistSync.applyToLocal(res.playlist)
                 render(res.error)
             }
         }.start()
@@ -158,6 +162,19 @@ class MainActivity : AppCompatActivity() {
         if (error != null) {
             b.tvEmpty.text = error
             b.tvEmpty.postDelayed({ b.tvEmpty.visibility = View.GONE }, 6000)
+        }
+
+        // 自动刷新时不重建 adapter：复用后纵向滚动、每个分区的横向位置、
+        // 「先跳过必看」状态和焦点都尽量保留，孩子正在浏览时不会被打断。
+        val existing = adapter
+        if (error == null && existing != null) {
+            val hadFocus = b.rvSections.hasFocus()
+            existing.update(shown, cfg)
+            updateHeader()
+            if (hadFocus) b.rvSections.post {
+                if (b.rvSections.findFocus() == null) focusFirstCard()
+            }
+            return
         }
 
         val a = SectionsAdapter(this, shown, cfg, skipGateOnce) { section, item -> onItemClick(section, item) }
@@ -289,6 +306,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         ui.removeCallbacks(clockTick)
+    }
+
+    override fun onDestroy() {
+        PlaylistSync.unregister(syncListener)
+        ui.removeCallbacks(clockTick)
+        super.onDestroy()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

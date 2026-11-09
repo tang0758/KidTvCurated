@@ -14,6 +14,16 @@ import java.net.URLDecoder
 object SmbPlaybackContext {
     @Volatile
     var config: NasConfig? = null
+
+    /**
+     * 是否正在播放。
+     *
+     * 电视只有一个网卡、一条 SMB 连接，播放时再让清单轮询 / 封面探测 / 网段扫描
+     * 去抢这条连接，轻则卡顿，重则把 smbj 的会话搞坏（表现为「所有视频都打不开，
+     * 重启 App 才好」）。播放期间这些后台活儿一律让路。
+     */
+    @Volatile
+    var playing: Boolean = false
 }
 
 /**

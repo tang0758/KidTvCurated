@@ -17,15 +17,16 @@ import com.family.curated.data.Store
 class SectionsAdapter(
     private val ctx: Context,
     private var playlist: Playlist,
-    private val cfg: NasConfig?,
+    private var cfg: NasConfig?,
     private var skipGate: Boolean = false,
     private val onItemClick: (Section, Item) -> Unit
 ) : RecyclerView.Adapter<SectionsAdapter.SectionVH>() {
 
     private val scrollMemo = HashMap<String, Int>()
 
-    fun update(p: Playlist) {
+    fun update(p: Playlist, newCfg: NasConfig? = cfg) {
         playlist = p
+        cfg = newCfg
         notifyDataSetChanged()
     }
 

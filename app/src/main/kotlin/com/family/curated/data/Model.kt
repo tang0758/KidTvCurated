@@ -59,6 +59,31 @@ data class Section(
     val autoCount: Int = 2
 )
 
+/**
+ * 清单自动刷新策略。写在 tv.json 顶层，不写就全部用默认值（开启 / 15 秒 / 清单优先）。
+ *
+ * - enabled        关掉后只在冷启动、家长菜单、广播时读清单
+ * - intervalSeconds 前台轮询间隔（5~3600 秒）；只在内容真的变了才重绘
+ * - followAppList  清单 apps 段变化时，自动清掉电视上家长菜单的本地勾选，
+ *                  让网页里改的应用列表立刻生效（否则本地勾选会一直盖住 entries）
+ */
+data class AutoRefresh(
+    val enabled: Boolean = true,
+    val intervalSeconds: Int = 15,
+    val followAppList: Boolean = true
+) {
+    companion object {
+        fun parse(o: JSONObject?): AutoRefresh {
+            if (o == null) return AutoRefresh()
+            return AutoRefresh(
+                enabled = o.optBoolean("enabled", true),
+                intervalSeconds = o.optInt("intervalSeconds", 15).coerceIn(5, 3600),
+                followAppList = o.optBoolean("followAppList", true)
+            )
+        }
+    }
+}
+
 data class Playlist(
     val nas: NasConfig?,
     val sections: List<Section>,
@@ -67,7 +92,8 @@ data class Playlist(
     val schedule: Schedule? = null, // 可用时段 / 每日时长上限；不写就不限制
     val learning: Learning? = null,  // 锁屏右侧学习角；不写 = 启用内置题库
     val kiosk: Kiosk = Kiosk(),      // 儿童锁；不写 = 关闭，行为与旧版一致
-    val apps: AppsConfig = AppsConfig() // 家长允许的应用入口；不写 = 不显示
+    val apps: AppsConfig = AppsConfig(), // 家长允许的应用入口；不写 = 不显示
+    val autoRefresh: AutoRefresh = AutoRefresh() // 清单变更自动同步策略
 ) {
     val gateSections: List<Section> get() = sections.filter { it.gate }
 }
@@ -161,7 +187,8 @@ object PlaylistParser {
             ),
             learning = Learning.parse(root.optJSONObject("learning")),
             kiosk = Kiosk.parse(root.optJSONObject("kiosk")),
-            apps = AppsConfig.parse(root.optJSONObject("apps"))
+            apps = AppsConfig.parse(root.optJSONObject("apps")),
+            autoRefresh = AutoRefresh.parse(root.optJSONObject("autoRefresh"))
         )
     }
 }

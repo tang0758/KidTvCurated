@@ -13,7 +13,10 @@ import java.util.concurrent.Executors
  */
 object Covers {
 
-    private val pool = Executors.newFixedThreadPool(3)
+    // 单线程：smbj 的 DiskShare 不是线程安全的，多个封面线程同时读同一条连接
+    // 会把会话搞坏。封面慢一点无所谓，播放断了才是大事。
+    private val pool = Executors.newSingleThreadExecutor { r -> Thread(r, "covers") }
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -45,6 +48,12 @@ object Covers {
             return
         }
 
+        // 播放中不抢 SMB 连接：隔一会儿再试，退出播放页后自然补上封面
+        if (SmbPlaybackContext.playing) {
+            retryAfterPlayback(iv, cfg, item, targetW, targetH, onLoaded, 0)
+            return
+        }
+
         pool.execute {
             var bmp: Bitmap? = null
             for (candidate in Repo.coverCandidates(item)) {
@@ -66,6 +75,25 @@ object Covers {
                 if (iv.tag == tag) onLoaded(bmp)
             }
         }
+    }
+
+    /** 播放中先挂起，每 1.5 秒探一次，退出播放后自动补封面 */
+    private fun retryAfterPlayback(
+        iv: ImageView, cfg: NasConfig, item: Item,
+        targetW: Int, targetH: Int, onLoaded: (Bitmap?) -> Unit, attempt: Int
+    ) {
+        if (attempt >= 8) {
+            onLoaded(null)
+            return
+        }
+        main.postDelayed({
+            if (iv.tag != item.key()) return@postDelayed
+            if (SmbPlaybackContext.playing) {
+                retryAfterPlayback(iv, cfg, item, targetW, targetH, onLoaded, attempt + 1)
+            } else {
+                load(iv, cfg, item, targetW, targetH, onLoaded)
+            }
+        }, 1_500L)
     }
 
     private fun decode(bytes: ByteArray, reqW: Int, reqH: Int): Bitmap? {

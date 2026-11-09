@@ -2,6 +2,7 @@ package com.family.curated
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
@@ -28,9 +29,15 @@ class EpisodesActivity : AppCompatActivity() {
     private var folder: String = ""
     private var episodes: List<Item> = emptyList()
     private var seekLock = false
+    private var loadFailed = false
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (KioskKeys.systemBlocked(keyCode)) return true
+        // 读失败时列表是空的，遥控器没焦点可用，按 OK 直接重试
+        if (loadFailed && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+            loadEpisodes()
+            return true
+        }
         return super.onKeyDown(keyCode, event)
     }
 
@@ -43,20 +50,32 @@ class EpisodesActivity : AppCompatActivity() {
         folder = intent.getStringExtra(EXTRA_FOLDER) ?: ""
         seekLock = intent.getBooleanExtra(EXTRA_GATE, false)
         b.tvTitle.text = intent.getStringExtra(EXTRA_TITLE) ?: ""
-        b.tvSub.text = "正在读取…"
 
         b.rvEpisodes.layoutManager = LinearLayoutManager(this)
+        loadEpisodes()
+    }
 
+    private fun loadEpisodes() {
+        b.tvSub.text = "正在读取…"
+        loadFailed = false
         Thread {
             val cfg = Store.nas()
+            var failed = false
             val list = try {
                 if (cfg == null || folder.isEmpty()) emptyList() else Repo.listVideos(cfg, folder)
             } catch (e: Exception) {
+                failed = true
+                Log.w("Episodes", "读取剧集失败: $folder", e)
                 emptyList()
             }
             runOnUiThread {
                 episodes = list
-                b.tvSub.text = if (list.isEmpty()) "这个文件夹里没有视频" else "共 ${list.size} 个"
+                loadFailed = failed
+                b.tvSub.text = when {
+                    failed -> "读取超时，按遥控器 OK 重试"
+                    list.isEmpty() -> "这个文件夹里没有视频"
+                    else -> "共 ${list.size} 个"
+                }
                 b.rvEpisodes.adapter = EpAdapter()
                 b.rvEpisodes.post {
                     val first = b.rvEpisodes.findViewHolderForAdapterPosition(0)

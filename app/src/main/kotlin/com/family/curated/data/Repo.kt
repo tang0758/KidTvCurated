@@ -14,6 +14,10 @@ object Repo {
 
     private const val TAG = "Repo"
 
+    /** 上一次扫网段的时间：读清单失败时别每次都扫 254 个地址，电视扛不住 */
+    @Volatile private var lastDiscoverAt = 0L
+    private const val DISCOVER_COOLDOWN_MS = 10 * 60 * 1000L
+
     data class LoadResult(val playlist: Playlist, val fromCache: Boolean, val error: String?)
 
     /** 首次启动用的默认 NAS；清单里的 nas 段会覆盖它 */
@@ -43,8 +47,15 @@ object Repo {
             val where = "${cfg.host}:${cfg.port}/$usedShare/${Store.playlistPath}"
             Log.w(TAG, "从 NAS 读取清单失败 ($where): ${e.message}")
 
-            // NAS 换 IP 很常见（DHCP 重新分配）：扫一遍本网段找 SMB 服务，找到就自动切过去
-            if (allowDiscover) {
+            // NAS 换 IP 很常见（DHCP 重新分配）：扫一遍本网段找 SMB 服务，找到就自动切过去。
+            // 但这活儿很重（254 个地址 + 逐个 reset 连接），必须限流：播放中不扫，
+            // 10 分钟内只许扫一次。否则编辑器保存瞬间读失败一次，就会把电视网卡打满，
+            // 表现成「所有视频突然都播不了」。
+            val now = System.currentTimeMillis()
+            if (allowDiscover && !SmbPlaybackContext.playing &&
+                now - lastDiscoverAt > DISCOVER_COOLDOWN_MS
+            ) {
+                lastDiscoverAt = now
                 val found = discoverSmb(cfg)
                 if (found != null && found.host != cfg.host) {
                     Log.i(TAG, "发现 NAS 换了地址：${cfg.host} -> ${found.host}")
@@ -84,7 +95,7 @@ object Repo {
         var last: Exception? = null
         for (s in candidates) {
             try {
-                val bytes = Smb.readAll(cfg, path, 4 * 1024 * 1024, s)
+                val bytes = Smb.readAllIsolated(cfg, s, path)
                 Store.playlistShare = s
                 Log.i(TAG, "清单读取自共享 $s / $path (${bytes.size} 字节)")
                 return bytes to s

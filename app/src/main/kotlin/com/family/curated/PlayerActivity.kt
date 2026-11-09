@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
+import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Smb
 import com.family.curated.data.SmbDataSource
 import com.family.curated.data.SmbPlaybackContext
@@ -428,8 +429,16 @@ class PlayerActivity : AppCompatActivity() {
         else String.format("%02d:%02d", m, sec)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 播放期间让清单轮询 / 封面探测让路，避免一条 SMB 连接被后台任务抢死
+        SmbPlaybackContext.playing = true
+    }
+
     override fun onPause() {
         super.onPause()
+        SmbPlaybackContext.playing = false
+        PlaylistSync.nudge()
         flushWatch()
         Extras.setFrontier(key, frontier)
         savePosition()
