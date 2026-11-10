@@ -109,12 +109,14 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
 
     companion object {
         /**
-         * 已知开关与默认值。默认 true 的只有「本来就有的行为」，
+         * 已知开关与默认值。默认 true 的是「本来就有的行为」和「已在实机确认的 bug 修复」，
          * 其余全部 false —— 灰度、回滚都靠它。
          */
         val DEFAULTS: Map<String, Boolean> = linkedMapOf(
             "autoNext" to false,      // OPT-11 自动连播
-            "extWatchMs" to false,    // OPT-04 外部应用计时
+            // 2026-11-10 实机确认：孩子从应用入口进优酷 2 小时不进账，等于绕过每日上限。
+            // 这是修 bug 不是灰度新功能，装上就得生效；出问题改回 false，15 秒回滚。
+            "extWatchMs" to true,     // OPT-04 外部应用计时
             "remoteControl" to false, // OPT-06 远程控制卡
             "report" to false,        // OPT-08 周报页
             "kioskPullback" to true   // 儿童锁「被切走后拉回」，老行为，默认开

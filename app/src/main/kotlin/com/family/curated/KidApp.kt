@@ -10,6 +10,7 @@ import android.os.Looper
 import android.os.PowerManager
 import com.family.curated.data.AppGuard
 import com.family.curated.data.Extras
+import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Store
@@ -26,6 +27,7 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
     private var lastLockLaunch = 0L
     private var backgroundSince = 0L
     private var lastPullback = 0L
+    private var lastGatePullback = 0L
     private var power: PowerManager? = null
 
     private val tick = object : Runnable {
@@ -34,6 +36,8 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 // 先把观看时长结算掉，再判断时段：顺序反了，时段到点那一瞬间
                 // 正在播放的一整段就会随着 clearAppLaunch() 丢掉（ADR-01 约束 2）
                 WatchClock.tick()
+                // 外部应用会话也必须在 clearAppLaunch() 之前结算，同样的理由
+                ExtWatchTracker.tick(this@KidApp)
                 val st = GateKeeper.status()
                 // 到了不可用时段，孩子即使正在家长允许的应用里也要收回来锁屏
                 if (!st.open && Extras.appLaunchActive()) Extras.clearAppLaunch()
@@ -51,6 +55,11 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                     )
                 }
+                // 孩子在第三方应用里时 current==null，上面的锁屏分支盖不到他。
+                // 门禁兜底：把主界面拉回来，下一秒 tick 就会盖上锁屏。
+                // 这条与 kioskPullback 无关 —— 那是「防切走」的体验开关，
+                // 时段 / 限额是硬规则，不能被一个体验开关关掉。
+                if (!st.open && a == null && !Extras.kioskExitActive()) pullbackForGate()
                 enforceKiosk()
                 // 清单自动同步：内部按 autoRefresh.intervalSeconds 节流，只有内容变了才重绘
                 PlaylistSync.tick()
@@ -58,6 +67,25 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 // 守卫不能把应用搞崩
             }
             handler.postDelayed(this, 1000)
+        }
+    }
+
+    /** 时段外 / 限额用尽时，孩子在第三方应用里也要收回来锁屏 */
+    private fun pullbackForGate() {
+        val now = System.currentTimeMillis()
+        if (now - lastGatePullback < 3000L) return
+        lastGatePullback = now
+        try {
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                            or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
+            )
+        } catch (e: Exception) {
+            // 后台启动被 ROM 拦下时，下一秒 tick 会再试一次
         }
     }
 
@@ -129,7 +157,10 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
 
     override fun onActivityResumed(a: Activity) {
         current = a
-        // 只要自己的界面回到前台，外部应用的放行就结束了（按 Home / 返回都会走到这里）
+        // 只要自己的界面回到前台，外部应用的会话就结束了。
+        // 必须先结算再清放行：settle 的结束信号之一是 appLaunchActive()，
+        // 顺序反了整段时长会丢（ADR-01 4.2 / 8 节）
+        ExtWatchTracker.settle(a)
         if (Extras.appLaunchActive()) Extras.clearAppLaunch()
         // 从播放页 / 锁屏 / 别的应用回到主界面时，立刻查一次清单（下一次 1 秒 tick 生效）
         if (a is MainActivity) PlaylistSync.nudge()

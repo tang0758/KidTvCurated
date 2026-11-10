@@ -96,6 +96,30 @@ object WatchClock {
     @Synchronized
     fun flush() = flushLocked()
 
+    /** 外部会话开始时，播放页若忘了 stop，把它的 owner 收掉，避免同一段时间记两次 */
+    @Synchronized
+    fun stopCurrent() {
+        if (owner == null) return
+        Log.w(TAG, "外部应用会话开始，清掉残留计时 owner=$owner")
+        flushLocked()
+        owner = null
+        lastRt = 0L
+    }
+
+    /**
+     * 直接入账（正数加、负数退），给外部应用结算 / 预扣用。
+     * [ext] = 同时写 `ext_<day>` 明细；日期键一律走 ClockGuard，改电视日期骗不过它。
+     *
+     * 注意：ClockGuard 的 dayMax 只增不减，**直接用 add 传负数退不掉**。
+     * 预扣退还必须走 [refund]（内部 refund=true 同步下调地板）；
+     * 精确模式结算只补正差额，负差额按「宁可多算几秒」保留。
+     */
+    @Synchronized
+    fun add(ms: Long, ext: Boolean = false) {
+        if (ms == 0L) return
+        Extras.addWatchMs(ms, ClockGuard.day(), ext)
+    }
+
     /** 还没落盘的「今天」部分，供 GateKeeper 精确判定到点 */
     @Synchronized
     fun pendingMsToday(): Long {
@@ -123,7 +147,7 @@ object WatchClock {
     fun preCharge(ms: Long) {
         if (ms <= 0L) return
         val day = ClockGuard.day()
-        Extras.addWatchMs(ms, day, ext = true)
+        add(ms, ext = true)
         chargedMs += ms
         chargedDay = day
         Log.i(TAG, "预扣 ${ms / 1000} 秒（${day}）")
@@ -134,7 +158,8 @@ object WatchClock {
     fun refund(ms: Long = chargedMs) {
         if (ms <= 0L) return
         val day = if (chargedDay.isNotEmpty()) chargedDay else ClockGuard.day()
-        Extras.addWatchMs(-ms, day, ext = true)
+        // 预扣是「合法下调」，必须绕过 dayMax 的只增不减，否则 30 分钟预扣永远退不掉
+        Extras.addWatchMs(-ms, day, ext = true, refund = true)
         chargedMs = (chargedMs - ms).coerceAtLeast(0L)
         if (chargedMs == 0L) chargedDay = ""
         Log.i(TAG, "退还 ${ms / 1000} 秒（${day}）")

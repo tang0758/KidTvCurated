@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.ClockGuard
 import com.family.curated.data.Extras
+import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.Features
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
@@ -215,6 +216,14 @@ class SettingsActivity : AppCompatActivity() {
                 else "已关闭：按 Home 不再拉回",
                 if (Extras.feature("kioskPullback")) "开启" else "关闭"
             ) { togglePullback() }
+        )
+        list.add(
+            Entry.Row(
+                "外部应用计时",
+                if (Extras.feature("extWatchMs")) ExtWatchTracker.modeText(this)
+                else "已关闭：应用入口不计入上限",
+                if (Extras.feature("extWatchMs")) "开启" else "关闭"
+            ) { toggleExtWatch() }
         )
         val anomalies = ClockGuard.anomalyCount()
         if (anomalies > 0 || ClockGuard.frozen()) {
@@ -584,12 +593,26 @@ class SettingsActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * 外部应用计时默认开：2026-11-10 实机确认孩子从应用入口进优酷 2 小时不入账，
+     * 等于绕过每日上限。这是修 bug 不是灰度，装上就生效；出问题在这里关掉，15 秒回滚。
+     */
+    private fun toggleExtWatch() {
+        val next = !Extras.feature("extWatchMs")
+        save({ root ->
+            val o = root.optJSONObject("features") ?: JSONObject().also { root.put("features", it) }
+            o.put("extWatchMs", next)
+        }, {
+            Extras.saveFeatures(Features(Extras.features().on + ("extWatchMs" to next)))
+        })
+    }
+
     /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
     private fun showAbout() {
         val names = linkedMapOf(
             "kioskPullback" to "后台拉回",
             "autoNext" to "自动连播（占位）",
-            "extWatchMs" to "外部应用计时（占位）",
+            "extWatchMs" to "外部应用计时",
             "remoteControl" to "远程控制（占位）",
             "report" to "周报（占位）"
         )
@@ -603,6 +626,8 @@ class SettingsActivity : AppCompatActivity() {
             append("包名：${packageName}\n\n")
             append("功能开关（tv.json 的 features 段，改完 15 秒生效）\n")
             append(switches)
+            append("\n\n今日外部应用：${Extras.extMsToday() / 60_000L} 分钟（已计入每日上限）")
+            append("\n计时模式：${ExtWatchTracker.modeText(this@SettingsActivity)}")
             if (anomalies > 0) {
                 append("\n\n系统时间被改过 $anomalies 次")
                 if (ClockGuard.frozen()) append("（当前按校正时间计算）")

@@ -19,8 +19,8 @@ android {
         minSdk = 24
         targetSdk = 34
         // 每个 Wave 发一版：Wave 0 + OPT-03 → 2
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
 
         ndk {

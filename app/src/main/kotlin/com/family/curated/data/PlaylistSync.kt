@@ -69,6 +69,17 @@ object PlaylistSync {
             Extras.init(ctx)
             initialized = true
 
+            // 冷启动补下发：applyToLocal 平时只在「清单内容变了」时跑，升级 / 重装（保留数据）
+            // 后本地可能根本没有 kiosk、features 这些键 —— 2026-11-10 实机确认电视上
+            // kid_extras.xml 无 kiosk，Kiosk.enabled 取默认 false，「被切走后拉回」全程没工作。
+            // 用缓存清单幂等重放一次，不读 SMB、不占那一条连接。
+            Store.cachedPlaylist?.let { cached ->
+                runCatching {
+                    applyToLocal(PlaylistParser.parse(cached))
+                    Log.i(TAG, "冷启动已用缓存清单补下发本地配置")
+                }.onFailure { Log.w(TAG, "缓存清单解析失败，跳过补下发", it) }
+            }
+
             // 升级迁移：旧版本里家长在电视上勾过的应用会永久盖住 apps.entries。
             // 新版改成「清单为准」，升级后清一次陈旧勾选，让网页里加的应用立刻出现。
             if (!Store.autoRefreshMigrated) {

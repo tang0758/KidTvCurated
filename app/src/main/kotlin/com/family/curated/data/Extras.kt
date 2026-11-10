@@ -97,7 +97,7 @@ object Extras {
      * 记账。ms 可以是负数（退预扣），结果不会小于 0。
      * [ext] = 这段时长来自外部应用（应用入口），另记一份明细到 `ext_<day>`。
      */
-    fun addWatchMs(ms: Long, dayKey: String = day(), ext: Boolean = false) {
+    fun addWatchMs(ms: Long, dayKey: String = day(), ext: Boolean = false, refund: Boolean = false) {
         if (ms == 0L) return
         val k = "watch_$dayKey"
         val cur = p().getLong(k, 0L)
@@ -108,7 +108,8 @@ object Extras {
             e.putLong(ek, (p().getLong(ek, 0L) + ms).coerceAtLeast(0L))
         }
         e.apply()
-        ClockGuard.noteUsage(dayKey, next)
+        if (refund && ms < 0) ClockGuard.lowerUsageFloor(dayKey, next)
+        else ClockGuard.noteUsage(dayKey, next)
     }
 
     fun watchMsWeek(): Long {

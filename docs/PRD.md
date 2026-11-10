@@ -573,16 +573,53 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 **描述**：`tv.json` 顶层 `features` 段作为灰度与回滚闸门；设置页显示版本与构建时间。
 
 **规则**
-- 开关集合：`kioskPullback`（默认开，老行为）、`autoNext` / `extWatchMs` / `remoteControl` / `report`（默认关，新功能）。
+- 开关集合：`kioskPullback`（默认开，老行为）、`extWatchMs`（默认开，已确认的 bug 修复，见 FR-22）、
+  `autoNext` / `remoteControl` / `report`（默认关，新功能）。
 - `applyToLocal()` 把 `features` 写进本地；业务代码统一 `if (Extras.feature("xxx"))`，缺字段/类型错都读默认值，不抛异常。
+- **每次冷启动**用缓存清单幂等重放一次 `applyToLocal()`：它原先只在清单内容变化时跑，升级 / 重装（保留数据）
+  后本地会缺 `kiosk` / `features` 键，`Kiosk.enabled` 取默认 `false` 导致「被切走后拉回」全程不工作。
 - 改完 15 秒内经轮询生效，不重装 APK；网页控制台「规则」页可直接勾选，也可手改 JSON。
-- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.1(2) 11-10 17:09`。
+- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.2(3) 11-10 21:05`。
 
 **AC**
 1. 把 `features.kioskPullback` 改为 `false`，15 秒内按 Home 切走后不再被拉回；改回 `true` 同样 15 秒恢复。
 2. 删除整个 `features` 段，行为回到默认（拉回仍然生效）。
 3. `features: {"kioskPullback": "abc"}` 这类脏值不崩、按默认值处理。
 4. 设置页页脚与 APK 属性里的版本一致，且含构建时间。
+5. 清掉本地 `kiosk` 键后冷启动，键被补回且 `enabled` 与清单一致。
+
+#### FR-22 外部应用计时（P0）✅（2026-11-10 新增，实机缺陷驱动）
+
+**描述**：孩子从「应用」分区打开第三方 App（如优酷）后，这段时间必须计入 `dailyLimitMinutes`，
+且到点必须能被锁屏收回。架构见 [ADR-01](ADR-外部应用计时.md)。
+
+**背景（实机确认）**：`dumpsys usagestats` 显示 `com.cibn.tv` 当天 `totalTime=2:01:27`、
+`appLaunchCount=8`，每 30 分钟放行窗口到期拉回后立刻又点进去；同期 `watch_<day>` 只涨了
+小剧场内的 6 分钟，50 分钟上限**从未触发**。四个漏洞叠加：外部时长不入账、点应用入口不查门禁、
+`current == null` 时锁屏盖不上、本地 `kiosk` 键缺失导致拉回根本没启用。
+
+**规则**
+- 账本统一：外部会话每 5 秒写入 `watch_<day>`，同时写 `ext_<day>` 明细；`GateKeeper` 不改。
+- 探针三态 `STILL_IN / LEFT / UNKNOWN`：只看会话窗口内最后一次 `MOVE_TO_FOREGROUND` 的包名；
+  **长时间无事件 ≠ 已离开**，静置期间继续计时，靠放行窗口到期或回前台钩子结算。
+- 有 `PACKAGE_USAGE_STATS` 授权走精确计时（结算用 `totalTimeInForeground` 增量纠偏，偏差 > 20% 以系统值为准）；
+  无授权降级 C：进入即预扣 `apps.maxMinutes`，结算退还差额，设置页标注「估算扣时」。
+- 结束信号三个：探针 `LEFT`、`appLaunchActive()` 变 false、自己界面 `onActivityResumed`；
+  三者都调同一个幂等 `settle()`。**顺序必须是「先结算 → 再 `clearAppLaunch()` → 再拉锁屏」**。
+- 点应用入口前先查 `GateKeeper.status()`；限额用尽 / 时段外直接拒绝，不能靠跳到别的 App 绕过。
+- 孩子在第三方 App 里（`current == null`）且门禁不可用时，前台守卫主动把主界面拉回来盖锁屏；
+  这条**与 `features.kioskPullback` 无关**，体验开关不能关掉硬规则。
+- 全链路 `elapsedRealtime` + `ClockGuard.day()`；不新增线程 / 定时器 / 服务，复用 `KidApp.tick` 的 1 秒节拍。
+- `features.extWatchMs=false` 时全程不计时、不预扣，行为与旧版一致（15 秒回滚）。
+
+**AC**
+1. 从应用入口进优酷 10 分钟后回来，`watch_<day>` 增加 600±60 秒，`ext_<day>` 同值。
+2. 优酷前台静置 5 分钟无任何事件，时长继续累计，不误判退出。
+3. 限额用尽后再点应用入口被拒绝；已在第三方 App 内则用尽后 3 秒内被拉回并盖锁屏。
+4. `features.extWatchMs=false` 时不计时、不预扣；改回 `true` 15 秒内恢复。
+5. 撤销 `appops` 授权后进应用，设置页显示「估算扣时」，看 2 分钟后退出退还剩余预扣。
+6. 外部应用启动失败（已卸载）时预扣全额退还。
+7. 时段到点瞬间退出外部应用，该段时长完整落账，不因 `clearAppLaunch()` 丢失。
 
 ---
 
@@ -596,7 +633,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-04 | 完成判定 | 进度 ≥ `passRatio`（默认 0.92）；`passRatio` 以 Double 写入，避免浮点脏值 |
 | R-05 | 必看完成 | gate 分区内**全部**条目 done；随之解锁 `requires` 指向的分区 |
 | R-06 | 打卡幂等 | 自然日唯一；连续天数按自然日；最长连击单独存 |
-| R-07 | 时长统计 | 仅播放中累计（暂停/缓冲不计）；单一来源 `WatchClock`，10 s 落盘；`watch_<day>` 总账 + `ext_<day>` 明细 |
+| R-07 | 时长统计 | 仅播放中累计（暂停/缓冲不计）；单一来源 `WatchClock`，10 s 落盘；`watch_<day>` 总账 + `ext_<day>` 明细；外部应用会话走同一本账（FR-22） |
 | R-08 | 时段判定 | 左闭右开；结束 < 开始视为跨零点；`weekend` 缺省沿用工作日，`[]` = 全天 |
 | R-09 | 放行优先级 | 家长临时放行 > 时段/时长限制；放行期间不弹锁屏、不被前台守卫拉回 |
 | R-10 | 应用入口解锁 | `showAfterDaily` 且存在 gate 分区 → 必看完成后可用；否则一直可用 |
@@ -608,7 +645,12 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-16 | 日期键唯一 | 所有日期键走 `ClockGuard.day()`；墙上时间跳变（回拨或大跨度前跳）时按「上次可信时间 + 真实流逝」冻结，改回后自动解除 |
 | R-17 | 当日用量只增不减 | 取 `max(watch_<day>, daymax_<day>)`；清记录、改日期都不能让今天「重新有时间」 |
 | R-18 | 放行倒计时不看墙上时间 | 临时放行 / 儿童锁放行 / 应用放行另存 `elapsedRealtime` 截止点，与墙上截止点取剩余较小者 |
-| R-19 | 功能开关兜底 | `features` 缺字段 / 类型错一律读默认值（新功能默认关、老行为默认开），开关本身不得抛异常 |
+| R-19 | 功能开关兜底 | `features` 缺字段 / 类型错一律读默认值（新功能默认关、老行为与已确认 bug 修复默认开），开关本身不得抛异常 |
+| R-20 | 外部时长只入一次账 | `ExtWatchTracker` 是唯一 owner；`settle()` 幂等；进入前 `WatchClock.stopCurrent()` 清掉播放页残留 owner |
+| R-21 | 信息缺失不等于离开 | 探针 `UNKNOWN` 保持会话；只有 `LEFT` / 放行窗口到期 / 回前台才结算，静置看片不漏记 |
+| R-22 | 宁可多扣不漏记 | 无 usage 授权时先预扣 `maxMinutes` 再按实测退还；精确模式结算的负差额不强退（dayMax 只增不减） |
+| R-23 | 门禁不能被体验开关关掉 | `kioskPullback` 只管「防切走」体验；限额 / 时段的兜底拉回独立执行，且点应用入口前必须先查门禁 |
+| R-24 | 冷启动补下发 | `PlaylistSync.init()` 用缓存清单幂等重放 `applyToLocal()`，不读 SMB；防止升级后本地缺 `kiosk` / `features` |
 
 ---
 
@@ -628,7 +670,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
-| | `features` | object | 否 | 远程功能开关，见 FR-21；缺字段 = 默认值（`kioskPullback` 开，其余关） |
+| | `features` | object | 否 | 远程功能开关，见 FR-21 / FR-22；缺字段 = 默认值（`kioskPullback` / `extWatchMs` 开，其余关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
 | | `title` | string | 是 | 行标题 |
 | | `gate` | bool | 否 | 每日必看 |
@@ -654,8 +696,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | `appsSelected` | 同上 | 家长勾选的应用（优先于 `entries`） |
 | `kioskExitUntil` / `kioskExitRt` | 同上 | 家长放行截止时间（墙上 + 单调两份，取剩余小的那个） |
 | `tempUntil` / `tempUntilRt` | 同上 | 临时放行（同上） |
-| `watch_<day>` / `ext_<day>` | 同上 | 当天总时长 / 外部应用明细（`WatchClock` 10 秒落盘） |
-| `features` | 同上 | 清单下发的功能开关快照（JSON 文本） |
+| `watch_<day>` / `ext_<day>` | 同上 | 当天总时长 / 外部应用明细（播放页 `WatchClock` 10 秒落盘；外部会话每 5 秒） |
+| `appLaunchPkg` / `appLaunchUntil` / `appLaunchRt` | 同上 | 外部应用会话放行窗口（包名 + 墙上/单调两份截止点） |
+| `kiosk` / `features` | 同上 | 清单下发的儿童锁与功能开关快照（**冷启动补下发**，缺了拉回会失效） |
 | `good_wall` / `anomaly` | `kid_clock.xml` | 时钟守卫：最近可信墙上时间、时间跳变次数 |
 | `daymax_<day>` | 同上 | 当日用量历史最大值（只增不减，保留 30 天） |
 | `auto_refresh_*` / `playlist_apps_sig` | `curated_prefs.xml` | 轮询状态、apps 指纹 |
@@ -846,6 +889,13 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-11 | 改系统时间绕过限额 | 看满 50 分钟后把日期改到明天 | 仍锁定；改回后当日用量不回退，设置页出现「时间被改过 N 次」 |
 | EX-12 | 放行期间改日期续命 | 临时放行 15 分钟时把日期往前调一天 | 剩余时间不变，到点仍结束（倒计时走单调时间） |
 | EX-13 | `features` 段写坏 | 写 `{"kioskPullback":"abc"}` 或整段删掉 | 不崩、按默认值处理，拉回行为不变 |
+| EX-14 | 从应用入口看外部 App | 进优酷 30 分钟 | 计入 `watch_<day>` 与 `ext_<day>`，到点触发锁屏（2026-11-10 实机确认过原来的绕过） |
+| EX-15 | 优酷前台静置 | 5 分钟无任何 UsageStats 事件 | 探针返回 `UNKNOWN`，不结算、不漏记、不崩 |
+| EX-16 | `appops` 授权被回收 | 撤销 `GET_USAGE_STATS` 后进入应用 | 自动降级 C（预扣 + 退还），设置页显示「估算扣时」，不出现少扣 |
+| EX-17 | 外部应用启动失败 | 应用已卸载 / 组件找不到 | 预扣全额退还，不冤枉孩子 |
+| EX-18 | 时段到点瞬间退出 | 外部会话中跨过时间窗边界 | 先结算再清放行再拉锁屏，该段时长完整落账 |
+| EX-19 | 限额用尽后点应用入口 | 已看满当日上限 | 入口直接拒绝；已在第三方 App 内则被拉回并盖锁屏 |
+| EX-20 | 外部会话中跨零点 | 23:59 进入外部应用 | 按 `ClockGuard.day()` 分账到两天，`ext_<day>` 同步 |
 
 ### 15.5 缺陷分级
 

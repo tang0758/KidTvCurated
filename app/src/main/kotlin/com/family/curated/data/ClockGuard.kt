@@ -101,6 +101,16 @@ object ClockGuard {
         if (usedMs > sp.getLong(k, 0L)) sp.edit().putLong(k, usedMs).apply()
     }
 
+    /**
+     * 唯一的「合法下调」入口：外部应用预扣的退还（ADR-01 C 方案）。
+     * 只由 `Extras.addWatchMs(refund=true)` 调用，额度受预扣值约束且结算幂等；
+     * 孩子改日期 / 改记录都碰不到它，所以「只增不减」的防绕过语义没被打开。
+     */
+    fun lowerUsageFloor(day: String, usedMs: Long) {
+        if (!::sp.isInitialized) return
+        sp.edit().putLong("daymax_$day", usedMs.coerceAtLeast(0L)).apply()
+    }
+
     /** 清掉 30 天前的 daymax，避免 prefs 无限长大 */
     fun prune(days: Int = 30) {
         if (!::sp.isInitialized) return

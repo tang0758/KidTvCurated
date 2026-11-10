@@ -328,6 +328,9 @@ function normalize(d){
   if (!d.features || typeof d.features !== "object") d.features = {};
   const F = d.features;
   if (F.kioskPullback === undefined) F.kioskPullback = true;
+  // 2026-11-10 实机确认：外部应用不计时等于绕过每日上限，修好后默认开。
+  // 这里必须一起补 true，否则家长在网页保存一次就会把修复写关掉。
+  if (F.extWatchMs === undefined) F.extWatchMs = true;
   // 文本域用这个虚拟字段；以 _ 开头，保存时会被 cleanKeys 自动剔除
   A._entriesText = A.entries.map(e => typeof e === "string" ? e :
     ((e && e.package ? e.package : "") + (e && e.label ? " | " + e.label : "")))
@@ -656,8 +659,11 @@ function renderRules(){
   const F = d.features || (d.features = {});
   h += '<div class="card"><h3>功能开关 <span class="sub">改完 15 秒生效，不用重装 APK</span></h3>' +
     chk("features.kioskPullback", "后台拉回：孩子按 Home 切走后自动拉回小剧场", F.kioskPullback !== false) +
-    '<p class="empty">关掉后按 Home / 切到别的应用不再被拉回，「主界面拦截返回键」和时段锁屏照旧。' +
-    '只有在个别电视上拉回会和投屏、系统弹窗打架时才关；关掉后家长仍可通过「菜单 → PIN → 退出到桌面」维护。</p></div>';
+    chk("features.extWatchMs", "外部应用计时：从「应用」分区看优酷等也计入每日上限", F.extWatchMs !== false) +
+    '<p class="empty">「后台拉回」关掉后按 Home / 切到别的应用不再被拉回，「主界面拦截返回键」和时段锁屏照旧；' +
+    '只有在个别电视上拉回会和投屏、系统弹窗打架时才关。<br>' +
+    '「外部应用计时」默认开：曾经孩子从应用入口进优酷 2 小时不进账，50 分钟上限永远触发不了。' +
+    '关掉就退回老行为，仅在排查计时异常时临时使用。电视设置页「系统 → 版本与开关」能看到当前是精确计时还是估算扣时。</p></div>';
   body.innerHTML = h;
 }
 

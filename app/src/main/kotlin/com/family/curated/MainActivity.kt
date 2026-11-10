@@ -16,6 +16,7 @@ import com.family.curated.data.AppCatalog
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.Badges
 import com.family.curated.data.Extras
+import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.Item
 import com.family.curated.data.KioskKeys
@@ -302,19 +303,31 @@ class MainActivity : AppCompatActivity() {
         startActivity(Intent(this, SettingsActivity::class.java))
     }
 
-    /** 打开家长允许的应用，同时开一段「不自动拉回」的窗口 */
+    /** 打开家长允许的应用，同时开一段「不自动拉回」的窗口并起一段计时会话 */
     private fun launchAllowedApp(spec: String, title: String) {
+        // 限额用尽 / 时段外不能靠「点应用入口」绕过去：以前这里没检查，
+        // 跳到优酷后自己的界面全在后台，锁屏分支盖不到他（2026-11-10 实机确认）
+        val st = GateKeeper.status()
+        if (!st.open) {
+            Toast.makeText(
+                this, st.headline.ifBlank { "现在不能看啦" }, Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         val intent = AppCatalog.launchIntent(packageManager, spec)
         if (intent == null) {
             Toast.makeText(this, "$title 打不开了，可能已经卸载", Toast.LENGTH_SHORT).show()
             return
         }
         val minutes = Extras.apps().maxMinutes
-        Extras.grantAppLaunch(spec.substringBefore('/'), minutes)
+        val pkg = spec.substringBefore('/')
+        Extras.grantAppLaunch(pkg, minutes)
+        ExtWatchTracker.onLaunch(this, pkg, minutes)
         try {
             startActivity(intent)
-            Toast.makeText(this, "$title · 最多 $minutes 分钟后自动回小剧场", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$title · 最多 $minutes 分钟，会计入今日时长", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            ExtWatchTracker.onLaunchFailed(this)   // 启动失败要全额退还预扣
             Extras.clearAppLaunch()
             Toast.makeText(this, "打不开 $title：${e.message}", Toast.LENGTH_SHORT).show()
         }
