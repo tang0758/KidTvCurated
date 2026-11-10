@@ -9,7 +9,7 @@
 | 对应代码 | `curated-tv` 仓库 `main` @ `2e1120c`（家长控制 + 电视端设置页） |
 | 对应交付物 | `app-debug.apk`（26.7 MB，versionCode 1 / versionName 1.0）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
-| 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级） |
+| 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
 > 本文档描述「现在真实存在并跑在家里电视上的产品」，不是构想稿。所有标 **✅ 已上线** 的能力均已在海信 55E3F-MAX 实机验证；标 **⚠️ 限制** 的是当前技术或固件条件下做不到、已被明确接受的部分。
 
