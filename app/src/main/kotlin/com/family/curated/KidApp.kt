@@ -13,6 +13,7 @@ import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Store
+import com.family.curated.data.WatchClock
 
 /**
  * 全局时间守卫：任何界面（包括剧集列表、播放页）到了不可用时段都会被锁屏盖住，
@@ -30,6 +31,9 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
     private val tick = object : Runnable {
         override fun run() {
             try {
+                // 先把观看时长结算掉，再判断时段：顺序反了，时段到点那一瞬间
+                // 正在播放的一整段就会随着 clearAppLaunch() 丢掉（ADR-01 约束 2）
+                WatchClock.tick()
                 val st = GateKeeper.status()
                 // 到了不可用时段，孩子即使正在家长允许的应用里也要收回来锁屏
                 if (!st.open && Extras.appLaunchActive()) Extras.clearAppLaunch()
@@ -61,8 +65,15 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
      * 第 3 道防线：Home 键系统不发给应用，但可以「事后」把孩子拉回来。
      * 只要自己的界面全都不在前台、屏幕还亮着、又不在家长放行窗口里，
      * 等 reentryMs 就把 MainActivity 拉回前台。配合「设为默认桌面」后基本感觉不到这一跳。
+     *
+     * 受 `features.kioskPullback` 控制：个别电视上这套「拉回」会和投屏 / 系统弹窗打架，
+     * 家长把开关改成 false 后 15 秒生效，不用重装 APK。
      */
     private fun enforceKiosk() {
+        if (!Extras.feature("kioskPullback")) {
+            backgroundSince = 0L
+            return
+        }
         val k = Extras.kiosk()
         if (!k.enabled || Extras.kioskExitActive() || current != null) {
             backgroundSince = 0L

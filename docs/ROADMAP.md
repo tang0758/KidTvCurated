@@ -13,6 +13,9 @@
 
 **V1.2 变更**：采纳 A+C 分层架构，外部应用计时（OPT-04）**由「待定」转为正式排期**，落在 Wave 2 之后、Wave 3 之前；架构定稿见 [ADR-01](ADR-外部应用计时.md)；规则闭环目标由「3 条绕过路径降到 1 条」改为**本期清零**。Wave 顺序不变，孩子体验不因此后移。
 
+**V1.3 进度（2026-11-10）**：**Wave 0（OPT-00 / OPT-01 / OPT-02）+ OPT-03 已落地，`versionCode 2`**。
+落地范围与偏差见第 14 节「落地记录」。可绕过路径：**3 → 2**（「改时钟」已闭合；「外部应用不计时」待 OPT-04、「重装清零」待 OPT-09）。
+
 ---
 
 ## 1. 一页结论
@@ -49,7 +52,7 @@
 
 后续每一项都依赖这三块地基，顺序不能乱。
 
-### OPT-00 远程功能开关（灰度与回滚闸门）
+### OPT-00 远程功能开关（灰度与回滚闸门）✅
 
 - **问题**：现在改一个行为只能重装 APK；新逻辑出问题，家长只能跑 `adb`。
 - **做法**：在 `tv.json` 增加 `features` 段（`extWatchMs`、`autoNext`、`remoteControl`、`report` 等布尔开关），由 `PlaylistSync.applyToLocal()` 写进 `Extras`；每处新逻辑用 `if (Extras.feature("xxx"))` 包一层，默认关闭。
@@ -57,7 +60,7 @@
 - **验收**：`features.autoNext=false` 时连播不触发；改回 true 15 秒内生效。
 - **估时**：0.5 人日。
 
-### OPT-01 观看时长统一账本 `WatchClock`
+### OPT-01 观看时长统一账本 `WatchClock` ✅
 
 - **问题**：`Extras.addWatchMs()` 只被 `PlayerActivity`（275、353 行）调用，口径单点，外部应用完全不计时。
 - **做法**：新增 `data/WatchClock.kt`，单例 + 单一 owner（同一时刻只允许一个来源计时，避免重复计数）：`start(owner)` / `stop(owner)` / `tick()` / `add()`，另加 `preCharge()` / `refund()` 供外部应用兜底预扣使用；每 10 秒落盘一次；`KidApp` 的 1 秒 tick 驱动。`PlayerActivity` 改为 start/stop，删除自身累加逻辑。总账仍写 `watch_<day>`，另记 `ext_<day>` 明细。
@@ -66,7 +69,7 @@
 - **验收**：播放 3 分钟，`watch_今天` 增加 180±5 秒；暂停 1 分钟不增加；切后台不增加。
 - **估时**：1 人日。
 
-### OPT-02 时钟回退守卫 `ClockGuard`
+### OPT-02 时钟回退守卫 `ClockGuard` ✅
 
 - **问题**：`Extras.day()` 用 `System.currentTimeMillis()` 生成日期键，`tempUntil`/`kioskExitUntil` 也挂在墙上时间上。改电视日期 → 限额归零；自动对时回拨 → 误判。
 - **做法**：新增 `data/ClockGuard.kt`：持久化 `lastWall`、`dayMaxUsedMs`；`now()` 若发现墙上时间倒退超过 2 分钟，返回「单调递增」的校正时间并累加 `anomalyCount`；当日已用量取 `max(实际, dayMaxUsedMs)` 只增不减。放行类倒计时改用 `SystemClock.elapsedRealtime()` 差值而不是墙上截止时间。
@@ -86,7 +89,7 @@
 
 > OPT-04（外部应用计时）不放在本波，也不插到 Wave 2 之前——避免把已经提前的「孩子体验」再往后推 1.5 人日。它的位置见第 8 节。
 
-### OPT-03 版本可见
+### OPT-03 版本可见 ✅
 
 - **做法**：`versionCode` 1 → 2；`SettingsActivity` 页脚显示 `versionName + 构建时间`（`BuildConfig.BUILD_TIME` 或 `build.gradle` 注入字段）。
 - **理由**：排障第一句永远是「电视上装的是哪版」。现在答不上来。
@@ -318,7 +321,37 @@ graph LR
 
 ## 13. 下一步
 
-1. 落 Wave 0 三项 + OPT-03（约 2.2 人日），发 `versionCode 2`。`WatchClock` 按 [ADR-01](ADR-外部应用计时.md) 第 7 节预留 `preCharge/refund` 与 `ext_<day>`，避免 OPT-04 时返工。
+1. ~~落 Wave 0 三项 + OPT-03（约 2.2 人日），发 `versionCode 2`~~ ✅ 已完成，见第 14 节。
 2. 电视开机后尽早跑 V1–V5（10 分钟）。架构已定，验证只决定 OPT-04 的实现范围（1.5 或 0.5 人日），不再决定要不要做。
 3. Wave 1 的 OPT-06（远程控制）与 Wave 2 的 OPT-11（自动连播）可并行——一个在家长侧、一个在孩子侧，互不冲突。
 4. Wave 2 收尾后按 [ADR-01](ADR-外部应用计时.md) 实施 OPT-04，再进 Wave 3（周报读 `ext_<day>` 分段）。
+
+---
+
+## 14. 落地记录
+
+### 2026-11-10 · Wave 0 + OPT-03（`versionCode 2` / `versionName 1.1`）
+
+| 项 | 落地内容 | 新增 / 改动 |
+|---|---|---|
+| OPT-00 | `features` 段解析 + `Extras.feature()` + `applyToLocal()` 下发；编辑器「规则」页与电视设置页都能改；**当前真正被消费的开关是 `kioskPullback`** | `Model.kt`（`Features`）、`Extras.kt`、`PlaylistSync.kt`、`KidApp.kt`、`SettingsActivity.kt`、`tools/static/index.html`、`docs/tv.schema.json` |
+| OPT-01 | `WatchClock`：单一 owner、1 秒 tick、10 秒落盘、`watch_<day>` + `ext_<day>`、跨零点分账、`preCharge/refund` 预留 | 新增 `data/WatchClock.kt`；`PlayerActivity` 改为 `onIsPlayingChanged` 起停，删掉自带累加 |
+| OPT-02 | `ClockGuard`：日期键统一、时间跳变冻结、改回自动解除、`daymax_<day>` 只增不减；放行倒计时改单调时间 | 新增 `data/ClockGuard.kt`、`data/ClockMath.kt`（纯计算）；`Extras`、`GateKeeper`、`SettingsActivity` |
+| OPT-03 | `versionCode 2`、`versionName 1.1`、`BuildConfig.BUILD_TIME`；设置页页脚常显 | `app/build.gradle.kts`、`SettingsActivity.kt` |
+
+**与计划的偏差（都是有意的）**
+
+1. **OPT-00 多了一个 `kioskPullback` 开关**。计划用 `features.autoNext` 做验收，但 autoNext 要到 Wave 2 才有逻辑，
+   Wave 0 阶段无从验证「15 秒生效」。所以把已有的「被切走后拉回」提升为可远程开关的项（默认 `true`，行为不变），
+   让这条链路从第一天起就是活的。其余四个开关按计划先占位。
+2. **ClockGuard 的数学部分拆成 `ClockMath` 并补了 6 条单测**。单测整体排在 Wave 4，但这段逻辑错一次就是
+   「孩子被冤枉」或「规则被绕开」，先单独盖住。`gradlew test` 已可跑。
+3. **放行倒计时存两份（墙上 + `elapsedRealtime`），取剩余小者**。计划只写「改用 elapsedRealtime」，
+   但只存单调时间会在重启后失效（`elapsedRealtime` 归零 → 截止点看起来远在未来 → 放行永不结束）。
+4. **已用量读取改为 `max(watch_<day>, daymax_<day>)` 且 `GateKeeper` 计入未落盘零头**，否则「到点」最晚迟 10 秒。
+
+**已知限制**
+
+- 时钟跳变只在一次运行期间比对（`elapsedRealtime` 重启归零）。「改日期 + 重启电视」这一组合识别不了，
+  但那需要进系统设置再断电，不在本期威胁模型内（README 与 PRD 都已写明）。
+- `features` 里的 `autoNext` / `extWatchMs` / `remoteControl` / `report` 目前只是占位，改了不影响行为。

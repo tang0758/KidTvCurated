@@ -1,7 +1,14 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// 排障第一句永远是「电视上装的是哪版」，所以把构建时间编译进 APK，
+// 设置页页脚直接显示，不用连电脑查 dumpsys。
+val buildStamp: String = SimpleDateFormat("MM-dd HH:mm").format(Date())
 
 android {
     namespace = "com.family.curated"
@@ -11,8 +18,10 @@ android {
         applicationId = "com.family.curated"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // 每个 Wave 发一版：Wave 0 + OPT-03 → 2
+        versionCode = 2
+        versionName = "1.1"
+        buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
 
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")
@@ -36,11 +45,16 @@ android {
 
     buildFeatures {
         viewBinding = true
+        // 设置页要显示版本与构建时间
+        buildConfig = true
     }
 
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
+        }
+        getByName("test") {
+            java.srcDirs("src/test/kotlin")
         }
     }
 
@@ -75,4 +89,7 @@ dependencies {
     implementation("org.slf4j:slf4j-nop:1.7.36")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // 纯逻辑单测（ClockMath 这类不碰 Android API 的计算）
+    testImplementation("junit:junit:4.13.2")
 }

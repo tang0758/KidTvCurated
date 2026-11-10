@@ -2,9 +2,6 @@ package com.family.curated.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * 本地存储：NAS 配置、清单缓存、播放进度、"今天看过"记录。
@@ -131,7 +128,8 @@ object Store {
     }
 
     // ---------- 今日完成 ----------
-    fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    // 走 ClockGuard：这一套 done_ 键也是「日期派生」的，改电视日期同样不该让它清零
+    fun today(): String = ClockGuard.day()
 
     fun markDone(key: String) {
         sp.edit().putString("done_$key", today()).apply()

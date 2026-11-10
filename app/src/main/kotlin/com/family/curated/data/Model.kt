@@ -84,6 +84,65 @@ data class AutoRefresh(
     }
 }
 
+/**
+ * 远程功能开关（tv.json 顶层 `features` 段）。
+ *
+ * 存在的意义只有一个：**新逻辑出问题时，家长在编辑器改一行、15 秒后生效，不用重装 APK**。
+ * 所以约定：
+ *  - 新功能一律默认关闭（缺字段 = 关闭），写错类型也不抛异常；
+ *  - 已经在用的老行为保持默认开启（例如 kioskPullback），升级后行为不变；
+ *  - 判断只写 `if (Extras.feature("xxx"))`，不要在业务代码里各自解析 JSON。
+ */
+data class Features(val on: Map<String, Boolean> = emptyMap()) {
+
+    val autoNext: Boolean get() = value("autoNext")
+    val extWatchMs: Boolean get() = value("extWatchMs")
+    val remoteControl: Boolean get() = value("remoteControl")
+    val report: Boolean get() = value("report")
+    val kioskPullback: Boolean get() = value("kioskPullback")
+
+    fun value(name: String): Boolean = on[name] ?: defaultOf(name)
+
+    fun toJsonString(): String = JSONObject().apply {
+        DEFAULTS.keys.forEach { put(it, value(it)) }
+    }.toString()
+
+    companion object {
+        /**
+         * 已知开关与默认值。默认 true 的只有「本来就有的行为」，
+         * 其余全部 false —— 灰度、回滚都靠它。
+         */
+        val DEFAULTS: Map<String, Boolean> = linkedMapOf(
+            "autoNext" to false,      // OPT-11 自动连播
+            "extWatchMs" to false,    // OPT-04 外部应用计时
+            "remoteControl" to false, // OPT-06 远程控制卡
+            "report" to false,        // OPT-08 周报页
+            "kioskPullback" to true   // 儿童锁「被切走后拉回」，老行为，默认开
+        )
+
+        fun defaultOf(name: String): Boolean = DEFAULTS[name] ?: false
+
+        fun parse(o: JSONObject?): Features {
+            if (o == null) return Features()
+            val m = LinkedHashMap<String, Boolean>()
+            o.keys().forEach { k ->
+                // 只认布尔；写成 "false" 字符串之类一律当默认值处理
+                if (o.opt(k) is Boolean) m[k] = o.optBoolean(k)
+            }
+            return Features(m)
+        }
+
+        fun fromJson(s: String?): Features {
+            if (s.isNullOrBlank()) return Features()
+            return try {
+                parse(JSONObject(s))
+            } catch (e: Exception) {
+                Features()
+            }
+        }
+    }
+}
+
 data class Playlist(
     val nas: NasConfig?,
     val sections: List<Section>,
@@ -93,7 +152,8 @@ data class Playlist(
     val learning: Learning? = null,  // 锁屏右侧学习角；不写 = 启用内置题库
     val kiosk: Kiosk = Kiosk(),      // 儿童锁；不写 = 关闭，行为与旧版一致
     val apps: AppsConfig = AppsConfig(), // 家长允许的应用入口；不写 = 不显示
-    val autoRefresh: AutoRefresh = AutoRefresh() // 清单变更自动同步策略
+    val autoRefresh: AutoRefresh = AutoRefresh(), // 清单变更自动同步策略
+    val features: Features = Features()  // 远程功能开关；缺字段 = 默认值
 ) {
     val gateSections: List<Section> get() = sections.filter { it.gate }
 }
@@ -194,7 +254,8 @@ object PlaylistParser {
             learning = Learning.parse(root.optJSONObject("learning")),
             kiosk = Kiosk.parse(root.optJSONObject("kiosk")),
             apps = AppsConfig.parse(root.optJSONObject("apps")),
-            autoRefresh = AutoRefresh.parse(root.optJSONObject("autoRefresh"))
+            autoRefresh = AutoRefresh.parse(root.optJSONObject("autoRefresh")),
+            features = Features.parse(root.optJSONObject("features"))
         )
     }
 }

@@ -110,6 +110,26 @@
       }
     },
     "allowed": { "$ref": "#/definitions/windows", "description": "旧版简写：同时作用于工作日与周末" },
+    "autoRefresh": {
+      "type": "object",
+      "description": "清单变更自动同步策略；不写 = 开启 / 15 秒 / 清单优先",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "前台轮询；关掉后只在冷启动、家长菜单、广播时读清单" },
+        "intervalSeconds": { "type": "integer", "minimum": 5, "maximum": 3600 },
+        "followAppList": { "type": "boolean", "description": "apps 段变化时清掉电视本地勾选，让 entries 生效" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "远程功能开关：改完 15 秒生效，出问题改回 false 即可回滚，不用重装 APK。缺字段 = 默认值",
+      "properties": {
+        "kioskPullback": { "type": "boolean", "default": true, "description": "孩子按 Home 切走后自动拉回小剧场（老行为，默认开）" },
+        "autoNext": { "type": "boolean", "default": false, "description": "自动连播下一集（规划中）" },
+        "extWatchMs": { "type": "boolean", "default": false, "description": "外部应用观看也计时长（规划中）" },
+        "remoteControl": { "type": "boolean", "default": false, "description": "远程控制卡 control.json（规划中）" },
+        "report": { "type": "boolean", "default": false, "description": "周报页（规划中）" }
+      }
+    },
     "allowedHours": { "$ref": "#/definitions/windows", "description": "旧版简写" },
     "dailyLimitMinutes": { "type": "integer", "minimum": 0, "description": "旧版简写，有 schedule 段时以 schedule 为准" },
     "lockMessage": { "type": "string", "description": "旧版简写" },

@@ -330,11 +330,29 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 - 锁屏：左 42% 大倒计时（隔几米可读），右 58% 学习角；家长 PIN 可放行 15 分钟。
 - 设置页本身不受锁屏遮挡（家长多在改时段时被锁）。
 
+**时长口径（R-07 的实现，2026-11-10 重构）**
+- 全应用只有一个计时来源 `WatchClock`：`start(owner)` / `stop(owner)` + 1 秒 tick，单一 owner
+  令牌；换 owner 自动结算旧的，重进播放页不会重复计。
+- 每 10 秒落盘；`watch_<day>` 是总账，`ext_<day>` 是外部应用明细（为「外部应用计时」预留）。
+- 播放页只负责在 `onIsPlayingChanged` 里 start/stop —— 暂停与缓冲天然不计时。
+
+**时钟守卫（R-08 的实现，2026-11-10 新增）**
+- 日期键统一由 `ClockGuard` 提供，不允许业务代码各自 `SimpleDateFormat`。
+- 墙上时间被改（回拨 > 5 分钟或大跨度前跳）时，按「上次可信时间 + 真实流逝」继续算，
+  日期不会跳到明天、当日用量不会归零；改回正确时间后自动解除，无需人工干预。
+- 当日已用量取 `max(记录值, dayMaxUsed)`，只增不减。
+- 放行类倒计时（临时放行 / 儿童锁放行 / 应用放行）改用 `elapsedRealtime` 计时，
+  同时保留墙上截止时间，两个剩余量取小 —— 既防「改日期续命」，也防重启后 `elapsedRealtime`
+  归零导致放行永不结束。
+
 **AC**
 1. 时段外打开 App，1.2 s 内弹出锁屏，倒计时按秒跳动。
 2. 播放到上限瞬间中断并锁屏；已看时长不因重启清零。
 3. 跨零点时段（22:00–01:00）在 23:30 判定为可用。
 4. 在设置页停留跨过时段边界，不被锁屏打断。
+5. 连续播放 3 分钟，`watch_<day>` 增加 180±5 秒；暂停 1 分钟、切后台均不增加。
+6. 看满限额后把电视日期改到明天，仍处于锁定；日期改回后当日用量不回退（EX-11）。
+7. 临时放行期间把日期往前调一天，放行不会被「续命」。
 
 #### FR-09 等待时间学习角（P1）✅
 
@@ -550,6 +568,22 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 
 **AC**：全新电视按文档 30 分钟内可看到第一屏并成功播放一个视频。
 
+#### FR-21 远程功能开关与版本可见（P0）✅（2026-11-10 新增）
+
+**描述**：`tv.json` 顶层 `features` 段作为灰度与回滚闸门；设置页显示版本与构建时间。
+
+**规则**
+- 开关集合：`kioskPullback`（默认开，老行为）、`autoNext` / `extWatchMs` / `remoteControl` / `report`（默认关，新功能）。
+- `applyToLocal()` 把 `features` 写进本地；业务代码统一 `if (Extras.feature("xxx"))`，缺字段/类型错都读默认值，不抛异常。
+- 改完 15 秒内经轮询生效，不重装 APK；网页控制台「规则」页可直接勾选，也可手改 JSON。
+- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.1(2) 11-10 17:09`。
+
+**AC**
+1. 把 `features.kioskPullback` 改为 `false`，15 秒内按 Home 切走后不再被拉回；改回 `true` 同样 15 秒恢复。
+2. 删除整个 `features` 段，行为回到默认（拉回仍然生效）。
+3. `features: {"kioskPullback": "abc"}` 这类脏值不崩、按默认值处理。
+4. 设置页页脚与 APK 属性里的版本一致，且含构建时间。
+
 ---
 
 ## 9. 关键业务规则（实现契约）
@@ -562,7 +596,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-04 | 完成判定 | 进度 ≥ `passRatio`（默认 0.92）；`passRatio` 以 Double 写入，避免浮点脏值 |
 | R-05 | 必看完成 | gate 分区内**全部**条目 done；随之解锁 `requires` 指向的分区 |
 | R-06 | 打卡幂等 | 自然日唯一；连续天数按自然日；最长连击单独存 |
-| R-07 | 时长统计 | 仅播放中累计（暂停/缓冲不计），3 s 批量落盘 |
+| R-07 | 时长统计 | 仅播放中累计（暂停/缓冲不计）；单一来源 `WatchClock`，10 s 落盘；`watch_<day>` 总账 + `ext_<day>` 明细 |
 | R-08 | 时段判定 | 左闭右开；结束 < 开始视为跨零点；`weekend` 缺省沿用工作日，`[]` = 全天 |
 | R-09 | 放行优先级 | 家长临时放行 > 时段/时长限制；放行期间不弹锁屏、不被前台守卫拉回 |
 | R-10 | 应用入口解锁 | `showAfterDaily` 且存在 gate 分区 → 必看完成后可用；否则一直可用 |
@@ -571,6 +605,10 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-13 | 单一事实来源 | 时段/上限/PIN/apps 以 NAS `tv.json` 为准；电视本地只存运行态（进度、打卡、勾选、放行） |
 | R-14 | 写回必须合并 | 读远端最新 → 只改目标字段 → 备份 → 原子写 → 回读校验 |
 | R-15 | 播放优先级 | 播放期间暂停轮询与封面加载，避免抢 SMB 连接 |
+| R-16 | 日期键唯一 | 所有日期键走 `ClockGuard.day()`；墙上时间跳变（回拨或大跨度前跳）时按「上次可信时间 + 真实流逝」冻结，改回后自动解除 |
+| R-17 | 当日用量只增不减 | 取 `max(watch_<day>, daymax_<day>)`；清记录、改日期都不能让今天「重新有时间」 |
+| R-18 | 放行倒计时不看墙上时间 | 临时放行 / 儿童锁放行 / 应用放行另存 `elapsedRealtime` 截止点，与墙上截止点取剩余较小者 |
+| R-19 | 功能开关兜底 | `features` 缺字段 / 类型错一律读默认值（新功能默认关、老行为默认开），开关本身不得抛异常 |
 
 ---
 
@@ -590,6 +628,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
+| | `features` | object | 否 | 远程功能开关，见 FR-21；缺字段 = 默认值（`kioskPullback` 开，其余关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
 | | `title` | string | 是 | 行标题 |
 | | `gate` | bool | 否 | 每日必看 |
@@ -613,8 +652,13 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | `stamps` / `bestStreak` | 同上 | 打卡日期集合、最长连击 |
 | `watchMsTotal` / `watchMsToday` | 同上 | 累计/今日真实观看毫秒 |
 | `appsSelected` | 同上 | 家长勾选的应用（优先于 `entries`） |
-| `kioskExitUntil` | 同上 | 家长放行截止时间 |
-| `auto_refresh_*` / `playlist_apps_sig` | 同上 | 轮询状态、apps 指纹 |
+| `kioskExitUntil` / `kioskExitRt` | 同上 | 家长放行截止时间（墙上 + 单调两份，取剩余小的那个） |
+| `tempUntil` / `tempUntilRt` | 同上 | 临时放行（同上） |
+| `watch_<day>` / `ext_<day>` | 同上 | 当天总时长 / 外部应用明细（`WatchClock` 10 秒落盘） |
+| `features` | 同上 | 清单下发的功能开关快照（JSON 文本） |
+| `good_wall` / `anomaly` | `kid_clock.xml` | 时钟守卫：最近可信墙上时间、时间跳变次数 |
+| `daymax_<day>` | 同上 | 当日用量历史最大值（只增不减，保留 30 天） |
+| `auto_refresh_*` / `playlist_apps_sig` | `curated_prefs.xml` | 轮询状态、apps 指纹 |
 
 ---
 
@@ -799,6 +843,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-08 | 解码链路卡死 | 视频全部黑屏 | 断电重启恢复（不得仅重启 App） |
 | EX-09 | 存储不足 | 安装 APK | 清理缓存后安装成功 |
 | EX-10 | 默认桌面被抢 | Aerial 未停用 | 按 README 停用后 Home 回小剧场 |
+| EX-11 | 改系统时间绕过限额 | 看满 50 分钟后把日期改到明天 | 仍锁定；改回后当日用量不回退，设置页出现「时间被改过 N 次」 |
+| EX-12 | 放行期间改日期续命 | 临时放行 15 分钟时把日期往前调一天 | 剩余时间不变，到点仍结束（倒计时走单调时间） |
+| EX-13 | `features` 段写坏 | 写 `{"kioskPullback":"abc"}` 或整段删掉 | 不崩、按默认值处理，拉回行为不变 |
 
 ### 15.5 缺陷分级
 

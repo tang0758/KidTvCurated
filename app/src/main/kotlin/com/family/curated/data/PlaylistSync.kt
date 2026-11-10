@@ -54,6 +54,7 @@ object PlaylistSync {
         Extras.saveLearning(pl.learning ?: Learning())
         Extras.saveKiosk(pl.kiosk)
         Extras.saveApps(pl.apps)
+        Extras.saveFeatures(pl.features)
         Store.playlistAppsSignature = appsSignature(pl.apps)
         Store.autoRefreshEnabled = pl.autoRefresh.enabled
         Store.autoRefreshIntervalMs = pl.autoRefresh.intervalSeconds * 1000L

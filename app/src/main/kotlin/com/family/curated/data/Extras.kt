@@ -2,9 +2,9 @@ package com.family.curated.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.SystemClock
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -21,11 +21,18 @@ object Extras {
         if (!::sp.isInitialized) {
             sp = ctx.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         }
+        // 日期键统一由 ClockGuard 提供，两个一起初始化，避免先后顺序出坑
+        ClockGuard.init(ctx)
+        featureMap = null
     }
 
     private fun p(): SharedPreferences = sp
 
-    fun day(now: Long = System.currentTimeMillis()): String = synchronized(fmt) { fmt.format(Date(now)) }
+    /** 当前日期键（yyyy-MM-dd）。走时钟守卫，改电视日期不会让它跳走 */
+    fun day(now: Long = ClockGuard.now()): String = ClockGuard.day(now)
+
+    /** 和日期键同一套校正时间的 Calendar（打卡连击、近 7 天统计都用它） */
+    private fun calNow(): Calendar = Calendar.getInstance().apply { timeInMillis = ClockGuard.now() }
 
     // ---------- 打卡墙 ----------
 
@@ -34,7 +41,7 @@ object Extras {
 
     fun isCheckedIn(date: String): Boolean = stamps().contains(date)
 
-    fun markCheckIn(now: Long = System.currentTimeMillis()) {
+    fun markCheckIn(now: Long = ClockGuard.now()) {
         val d = day(now)
         val s = stamps()
         if (d in s) return
@@ -46,7 +53,7 @@ object Extras {
     fun streak(): Int {
         val s = stamps()
         if (s.isEmpty()) return 0
-        val cal = Calendar.getInstance()
+        val cal = calNow()
         if (day(cal.timeInMillis) !in s) cal.add(Calendar.DAY_OF_YEAR, -1)
         var n = 0
         while (day(cal.timeInMillis) in s) {
@@ -74,21 +81,41 @@ object Extras {
         return best
     }
 
-    // ---------- 播放时长 ----------
+    // ---------- 播放时长（统一由 WatchClock 记账，这里只读写） ----------
 
-    fun watchMsToday(): Long = p().getLong("watch_" + day(), 0L)
+    /** 某天的真实用量。取 max(记录值, 历史最大值)：只增不减，改记录/改日期都不会让它变小 */
+    fun watchMsOn(dayKey: String): Long {
+        val actual = p().getLong("watch_$dayKey", 0L)
+        return maxOf(actual, ClockGuard.dayMaxUsed(dayKey))
+    }
 
-    fun addWatchMs(ms: Long) {
-        if (ms <= 0) return
-        val k = "watch_" + day()
-        p().edit().putLong(k, p().getLong(k, 0L) + ms).apply()
+    fun watchMsToday(): Long = watchMsOn(day())
+
+    fun extMsToday(): Long = p().getLong("ext_" + day(), 0L)
+
+    /**
+     * 记账。ms 可以是负数（退预扣），结果不会小于 0。
+     * [ext] = 这段时长来自外部应用（应用入口），另记一份明细到 `ext_<day>`。
+     */
+    fun addWatchMs(ms: Long, dayKey: String = day(), ext: Boolean = false) {
+        if (ms == 0L) return
+        val k = "watch_$dayKey"
+        val cur = p().getLong(k, 0L)
+        val next = (cur + ms).coerceAtLeast(0L)
+        val e = p().edit().putLong(k, next)
+        if (ext) {
+            val ek = "ext_$dayKey"
+            e.putLong(ek, (p().getLong(ek, 0L) + ms).coerceAtLeast(0L))
+        }
+        e.apply()
+        ClockGuard.noteUsage(dayKey, next)
     }
 
     fun watchMsWeek(): Long {
-        val cal = Calendar.getInstance()
+        val cal = calNow()
         var sum = 0L
         for (i in 0..6) {
-            sum += p().getLong("watch_" + day(cal.timeInMillis), 0L)
+            sum += watchMsOn(day(cal.timeInMillis))
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
         return sum
@@ -140,17 +167,16 @@ object Extras {
     fun saveKiosk(v: Kiosk) = p().edit().putString("kiosk", v.toJson()).apply()
 
     /** 家长临时放行的截止时间；在此之前前台守卫不会把应用拉回来 */
-    fun kioskExitUntil(): Long = p().getLong("kioskExitUntil", 0L)
+    fun kioskExitUntil(): Long = ClockGuard.now() + kioskExitRemainingMs()
 
-    fun kioskExitActive(): Boolean = System.currentTimeMillis() < kioskExitUntil()
+    fun kioskExitRemainingMs(): Long = remaining("kioskExitRt", "kioskExitUntil")
+
+    fun kioskExitActive(): Boolean = kioskExitRemainingMs() > 0L
 
     fun grantKioskExit(minutes: Int) =
-        p().edit().putLong(
-            "kioskExitUntil",
-            System.currentTimeMillis() + minutes.coerceIn(1, 24 * 60) * 60_000L
-        ).apply()
+        grant("kioskExitRt", "kioskExitUntil", minutes.coerceIn(1, 24 * 60))
 
-    fun clearKioskExit() = p().edit().remove("kioskExitUntil").apply()
+    fun clearKioskExit() = p().edit().remove("kioskExitUntil").remove("kioskExitRt").apply()
 
     // ---------- 家长允许的应用入口 ----------
 
@@ -172,22 +198,22 @@ object Extras {
     fun clearSelectedApps() = p().edit().remove("appsSelected").apply()
 
     /** 孩子点开一个允许的应用后的临时放行窗口 */
-    fun grantAppLaunch(pkg: String, minutes: Int) = p().edit()
-        .putString("appLaunchPkg", pkg)
-        .putLong(
-            "appLaunchUntil",
-            System.currentTimeMillis() + minutes.coerceIn(1, 240) * 60_000L
-        ).apply()
+    fun grantAppLaunch(pkg: String, minutes: Int) {
+        grant("appLaunchRt", "appLaunchUntil", minutes.coerceIn(1, 240))
+        p().edit().putString("appLaunchPkg", pkg).apply()
+    }
 
     fun appLaunchPackage(): String = p().getString("appLaunchPkg", "") ?: ""
 
-    fun appLaunchUntil(): Long = p().getLong("appLaunchUntil", 0L)
+    fun appLaunchUntil(): Long = ClockGuard.now() + appLaunchRemainingMs()
+
+    fun appLaunchRemainingMs(): Long = remaining("appLaunchRt", "appLaunchUntil")
 
     fun appLaunchActive(): Boolean =
-        appLaunchPackage().isNotBlank() && System.currentTimeMillis() < appLaunchUntil()
+        appLaunchPackage().isNotBlank() && appLaunchRemainingMs() > 0L
 
     fun clearAppLaunch() = p().edit()
-        .remove("appLaunchUntil").remove("appLaunchPkg").apply()
+        .remove("appLaunchUntil").remove("appLaunchRt").remove("appLaunchPkg").apply()
 
     // ---------- 锁屏学习角 ----------
 
@@ -196,14 +222,61 @@ object Extras {
 
     fun saveLearning(v: Learning) = p().edit().putString("learning", v.toJson()).apply()
 
-    /** 家长临时放行的截止时间（毫秒） */
-    fun tempUntil(): Long = p().getLong("tempUntil", 0L)
+    /** 家长临时放行的截止时间（毫秒，墙上时间，给界面显示用） */
+    fun tempUntil(): Long = ClockGuard.now() + tempRemainingMs()
+
+    fun tempRemainingMs(): Long = remaining("tempUntilRt", "tempUntil")
 
     fun grantTemp(minutes: Int) {
-        p().edit().putLong("tempUntil", System.currentTimeMillis() + minutes * 60_000L).apply()
+        // 0 分钟 = 立刻结束（远程「立即锁屏」用），不能当成"永久放行"
+        if (minutes <= 0) { clearTemp(); return }
+        grant("tempUntilRt", "tempUntil", minutes)
     }
 
-    fun clearTemp() = p().edit().remove("tempUntil").apply()
+    fun clearTemp() = p().edit().remove("tempUntil").remove("tempUntilRt").apply()
+
+    // ---------- 放行倒计时的实现 ----------
+    //
+    // 截止时间存两份：墙上时间（给界面显示 / 跨重启还认）+ 单调时间 elapsedRealtime
+    // （改电视日期骗不过它）。取两者剩余的最小值 —— 哪个先到就按哪个结束，
+    // 既防「改日期续命」，也防「重启后 elapsedRealtime 归零导致放行永不结束」。
+
+    private fun grant(rtKey: String, wallKey: String, minutes: Int) {
+        val ms = minutes * 60_000L
+        p().edit()
+            .putLong(wallKey, System.currentTimeMillis() + ms)
+            .putLong(rtKey, SystemClock.elapsedRealtime() + ms)
+            .apply()
+    }
+
+    private fun remaining(rtKey: String, wallKey: String): Long {
+        val byWall = (p().getLong(wallKey, 0L) - System.currentTimeMillis()).coerceAtLeast(0L)
+        val rtDeadline = p().getLong(rtKey, 0L)
+        if (rtDeadline <= 0L) return byWall
+        val byRt = (rtDeadline - SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        // 刚开机时 elapsedRealtime 很小，rtDeadline 会显得很远 → 取小的那个
+        return minOf(byWall, byRt)
+    }
+
+    // ---------- 远程功能开关（tv.json 的 features 段） ----------
+
+    @Volatile private var featureMap: Map<String, Boolean>? = null
+
+    fun features(): Features = Features(featureCache())
+
+    fun saveFeatures(v: Features) {
+        featureMap = v.on
+        p().edit().putString("features", v.toJsonString()).apply()
+    }
+
+    /**
+     * 新功能总开关。缺字段、写错类型都读默认值（新功能默认关闭），绝不抛异常 ——
+     * 这是「出问题改一行 JSON、15 秒恢复」的前提，开关本身不能成为新的故障点。
+     */
+    fun feature(name: String): Boolean = featureCache()[name] ?: Features.defaultOf(name)
+
+    private fun featureCache(): Map<String, Boolean> =
+        featureMap ?: Features.fromJson(p().getString("features", null)).on.also { featureMap = it }
 
     // ---------- 勋章 ----------
 

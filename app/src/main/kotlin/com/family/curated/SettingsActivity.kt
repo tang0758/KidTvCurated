@@ -13,7 +13,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.data.AppsConfig
+import com.family.curated.data.ClockGuard
 import com.family.curated.data.Extras
+import com.family.curated.data.Features
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.PlaylistSync
@@ -44,7 +46,7 @@ class SettingsActivity : AppCompatActivity() {
     private var busy = false
     private var lastFocusPos = -1
 
-    private val footer = "方向键选择 · OK 修改 · 返回键回到片单"
+    private val footer = "方向键选择 · OK 修改 · 返回键回到片单 · v${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE}) ${BuildConfig.BUILD_TIME}"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -162,7 +164,7 @@ class SettingsActivity : AppCompatActivity() {
         list.add(
             Entry.Row(
                 "临时放行",
-                if (Extras.tempUntil() > System.currentTimeMillis())
+                if (Extras.tempRemainingMs() > 0L)
                     "放行中，到点自动恢复" else "不锁屏，到点结束",
                 tempText()
             ) { chooseTemp() }
@@ -203,6 +205,43 @@ class SettingsActivity : AppCompatActivity() {
                     ParentTools.exitToLauncher(this)
                 }
             }
+        )
+
+        list.add(Entry.Group("系统"))
+        list.add(
+            Entry.Row(
+                "后台拉回",
+                if (Extras.feature("kioskPullback")) "被切走后自动拉回小剧场"
+                else "已关闭：按 Home 不再拉回",
+                if (Extras.feature("kioskPullback")) "开启" else "关闭"
+            ) { togglePullback() }
+        )
+        val anomalies = ClockGuard.anomalyCount()
+        if (anomalies > 0 || ClockGuard.frozen()) {
+            list.add(
+                Entry.Row(
+                    "电视时间",
+                    "系统时间被改过 $anomalies 次，用量已按正确时间计算",
+                    if (ClockGuard.frozen()) "正在校正" else "校准 ›"
+                ) {
+                    confirm(
+                        "按实际时间校准？",
+                        "只在电视时间确实设错过时才需要点。\n\n" +
+                            "校准后，今天的已看时长不会被清零；" +
+                            "「改日期绕过限额」的记录也会重新计数。"
+                    ) {
+                        ClockGuard.reset()
+                        render()
+                    }
+                }
+            )
+        }
+        list.add(
+            Entry.Row(
+                "版本与开关",
+                "构建于 ${BuildConfig.BUILD_TIME}",
+                "v${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
+            ) { showAbout() }
         )
 
         adapter.submit(list)
@@ -254,11 +293,9 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun tempText(): String {
-        val until = Extras.tempUntil()
-        val now = System.currentTimeMillis()
-        if (until <= now) return "未放行"
-        val m = ((until - now) / 60_000L) + 1
-        return "剩余 $m 分钟"
+        val left = Extras.tempRemainingMs()
+        if (left <= 0L) return "未放行"
+        return "剩余 ${(left / 60_000L) + 1} 分钟"
     }
 
     private fun hhmm(min: Int) = String.format("%02d:%02d", min / 60, min % 60)
@@ -514,7 +551,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun chooseTemp() {
-        val active = Extras.tempUntil() > System.currentTimeMillis()
+        val active = Extras.tempRemainingMs() > 0L
         val labels = (if (active) arrayListOf("结束放行（立刻恢复限制）") else arrayListOf()) +
             listOf("放行 15 分钟", "放行 30 分钟", "放行 60 分钟", "放行 120 分钟")
         val minutes = listOf(15, 30, 60, 120)
@@ -533,6 +570,48 @@ class SettingsActivity : AppCompatActivity() {
                 render()
             }
             .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 后台拉回是「老行为」，默认开；个别电视上会和投屏/系统弹窗打架，可以在这里关掉 */
+    private fun togglePullback() {
+        val next = !Extras.feature("kioskPullback")
+        save({ root ->
+            val o = root.optJSONObject("features") ?: JSONObject().also { root.put("features", it) }
+            o.put("kioskPullback", next)
+        }, {
+            Extras.saveFeatures(Features(Extras.features().on + ("kioskPullback" to next)))
+        })
+    }
+
+    /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
+    private fun showAbout() {
+        val names = linkedMapOf(
+            "kioskPullback" to "后台拉回",
+            "autoNext" to "自动连播（占位）",
+            "extWatchMs" to "外部应用计时（占位）",
+            "remoteControl" to "远程控制（占位）",
+            "report" to "周报（占位）"
+        )
+        val switches = names.entries.joinToString("\n") { (k, label) ->
+            "$label：${if (Extras.feature(k)) "开" else "关"}"
+        }
+        val anomalies = ClockGuard.anomalyCount()
+        val msg = buildString {
+            append("版本：v${BuildConfig.VERSION_NAME}（versionCode ${BuildConfig.VERSION_CODE}）\n")
+            append("构建：${BuildConfig.BUILD_TIME}\n")
+            append("包名：${packageName}\n\n")
+            append("功能开关（tv.json 的 features 段，改完 15 秒生效）\n")
+            append(switches)
+            if (anomalies > 0) {
+                append("\n\n系统时间被改过 $anomalies 次")
+                if (ClockGuard.frozen()) append("（当前按校正时间计算）")
+            }
+        }
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("关于")
+            .setMessage(msg)
+            .setPositiveButton("知道了", null)
             .show()
     }
 

@@ -20,21 +20,22 @@ object GateKeeper {
         val limitMinutes: Int
     )
 
-    fun status(now: Long = System.currentTimeMillis()): Status {
+    fun status(now: Long = ClockGuard.now()): Status {
         val sch = Extras.schedule()
-        val usedMs = Extras.watchMsToday()
+        // 含还没落盘的零头：否则「到点」最多会晚 10 秒，孩子能多看一眼
+        val usedMs = WatchClock.todayMs()
         val usedMin = (usedMs / 60_000L).toInt()
 
         if (sch == null || !sch.enabled) {
             return Status(true, Reason.OK, "", "", 0L, usedMin, 0)
         }
         val limit = sch.dailyLimitMinutes
-        val temp = Extras.tempUntil()
-        if (now < temp) {
+        val tempLeft = Extras.tempRemainingMs()
+        if (tempLeft > 0L) {
             return Status(
                 true, Reason.TEMP, "临时放行中",
-                "家长已临时放行，剩余 ${((temp - now) / 60_000L) + 1} 分钟",
-                (temp - now) / 1000L, usedMin, limit
+                "家长已临时放行，剩余 ${(tempLeft / 60_000L) + 1} 分钟",
+                tempLeft / 1000L, usedMin, limit
             )
         }
 

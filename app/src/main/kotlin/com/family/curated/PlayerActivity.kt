@@ -25,6 +25,7 @@ import com.family.curated.data.Smb
 import com.family.curated.data.SmbDataSource
 import com.family.curated.data.SmbPlaybackContext
 import com.family.curated.data.Store
+import com.family.curated.data.WatchClock
 import com.family.curated.databinding.ActivityPlayerBinding
 
 class PlayerActivity : AppCompatActivity() {
@@ -54,8 +55,6 @@ class PlayerActivity : AppCompatActivity() {
     private var lastFrontierSaved = 0L
     private var lastPos = 0L
 
-    private var pendingWatchMs = 0L
-    private var lastTickAt = 0L
     private var lastGuardAt = 0L
     private var lockLaunched = false
     private var lastBlockToastAt = 0L
@@ -152,6 +151,8 @@ class PlayerActivity : AppCompatActivity() {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 b.pbLoading.visibility = if (!isPlaying && p.playbackState == Player.STATE_BUFFERING)
                     View.VISIBLE else View.GONE
+                // 只统计「真的在放」的时间：暂停、缓冲都不算
+                if (isPlaying) WatchClock.start(clockToken) else WatchClock.stop(clockToken)
             }
 
             /** 不管是谁发起的 seek（遥控器、PlayerView、进度条），越过已看边界一律拉回来 */
@@ -172,7 +173,6 @@ class PlayerActivity : AppCompatActivity() {
         p.prepare()
         if (!tickerStarted) {
             tickerStarted = true
-            lastTickAt = SystemClock.elapsedRealtime()
             startTicker()
         }
     }
@@ -266,17 +266,9 @@ class PlayerActivity : AppCompatActivity() {
                     return
                 }
                 val nowRt = SystemClock.elapsedRealtime()
-                val dt = (nowRt - lastTickAt).coerceIn(0L, 2_000L)
-                lastTickAt = nowRt
 
-                if (p.isPlaying) {
-                    pendingWatchMs += dt
-                    if (pendingWatchMs >= 3_000L) {
-                        Extras.addWatchMs(pendingWatchMs)
-                        pendingWatchMs = 0L
-                    }
-                }
-
+                // 计时不在播放页做：统一交给 WatchClock（它只认「主人令牌 + 单调时间」），
+                // 播放页只负责在 onStart / onPause 里 start / stop
                 val pos = p.currentPosition.coerceAtLeast(0)
                 val dur = p.duration
                 if (dur > 0) {
@@ -349,10 +341,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun flushWatch() {
-        if (pendingWatchMs > 0) {
-            Extras.addWatchMs(pendingWatchMs)
-            pendingWatchMs = 0L
-        }
+        WatchClock.stop(clockToken)
     }
 
     private fun showControls() {
@@ -428,6 +417,9 @@ class PlayerActivity : AppCompatActivity() {
         return if (h > 0) String.format("%d:%02d:%02d", h, m, sec)
         else String.format("%02d:%02d", m, sec)
     }
+
+    /** WatchClock 的令牌：一个视频一个，重进页面用同一个就不会重复计 */
+    private val clockToken: String get() = "player:$key"
 
     override fun onStart() {
         super.onStart()
