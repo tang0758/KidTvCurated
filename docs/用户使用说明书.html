@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小剧场 使用说明书</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --text:#1f2328; --muted:#5c6670;
+  --line:#e3e6ea; --accent:#b8860b; --accent-soft:#fdf6e3;
+  --code-bg:#f2f4f7; --thead:#f7f8fa;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  font-size:16px; line-height:1.78; -webkit-font-smoothing:antialiased;
+}
+.layout{display:flex; align-items:flex-start; max-width:1280px; margin:0 auto; padding:0 24px}
+/* 侧栏 */
+.sidebar{
+  width:270px; flex:0 0 270px; position:sticky; top:0; max-height:100vh;
+  overflow:auto; padding:34px 18px 40px 0; border-right:1px solid var(--line);
+}
+.sidebar .brand{font-size:14px; letter-spacing:.08em; color:var(--accent); font-weight:700; text-transform:uppercase}
+.sidebar .docname{font-size:17px; font-weight:700; margin:6px 0 16px}
+.sidebar nav a{
+  display:block; padding:5px 10px; margin:1px 0; border-radius:6px;
+  color:var(--muted); text-decoration:none; font-size:14px; line-height:1.5;
+  border-left:2px solid transparent;
+}
+.sidebar nav a:hover{background:#eef0f3; color:var(--text)}
+.sidebar nav a.lv3{padding-left:24px; font-size:13px; color:#78828c}
+.sidebar nav a.active{color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft)}
+/* 正文 */
+main{flex:1 1 auto; min-width:0; background:var(--panel); margin:24px 0 60px 34px;
+  padding:48px 56px 72px; border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 1px 3px rgba(16,24,40,.04);}
+h1{font-size:32px; line-height:1.35; margin:0 0 8px; letter-spacing:-.01em}
+h2{font-size:23px; margin:44px 0 14px; padding-bottom:9px; border-bottom:1px solid var(--line)}
+h3{font-size:18px; margin:28px 0 10px}
+h4{font-size:16px; margin:20px 0 8px; color:#333}
+p{margin:10px 0}
+a{color:#0b66c3; text-decoration:none}
+a:hover{text-decoration:underline}
+ul,ol{padding-left:1.45em; margin:10px 0}
+li{margin:4px 0}
+hr{border:0; border-top:1px solid var(--line); margin:36px 0}
+strong{font-weight:650}
+/* 表格 */
+table{border-collapse:collapse; width:100%; margin:16px 0; font-size:14.5px;
+  display:block; overflow-x:auto; white-space:normal}
+thead th{background:var(--thead); text-align:left; font-weight:650}
+th,td{border:1px solid var(--line); padding:9px 12px; vertical-align:top}
+tbody tr:nth-child(even){background:#fbfcfd}
+table code{white-space:nowrap}
+/* 代码 */
+code{background:var(--code-bg); padding:2px 5px; border-radius:4px;
+  font-family:"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.9em}
+pre{background:#1f2430; color:#e6e9ef; padding:16px 18px; border-radius:8px;
+  overflow:auto; line-height:1.6; font-size:13.5px; margin:16px 0}
+pre code{background:none; color:inherit; padding:0; font-size:inherit}
+/* 引用块 = 提示 */
+blockquote{margin:16px 0; padding:12px 16px; background:var(--accent-soft);
+  border-left:3px solid var(--accent); border-radius:0 6px 6px 0; color:#4a3f22}
+blockquote p{margin:4px 0}
+blockquote code{background:#fff8e6}
+/* 图片 */
+img{max-width:100%; height:auto; display:block; margin:18px auto; border-radius:8px;
+  border:1px solid var(--line); box-shadow:0 2px 8px rgba(16,24,40,.06)}
+table tbody td:first-child,table thead th:first-child{white-space:nowrap}
+/* 文档头 */
+.docmeta{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 26px}
+.docmeta span{font-size:13px; color:var(--muted); background:#f1f3f6;
+  border:1px solid var(--line); border-radius:999px; padding:3px 11px}
+.tip{font-size:13.5px; color:var(--muted); margin-top:8px}
+/* 回到顶部 */
+#top{position:fixed; right:26px; bottom:26px; width:42px; height:42px; border-radius:50%;
+  background:#fff; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+  box-shadow:0 2px 10px rgba(16,24,40,.12); font-size:18px; display:none}
+#top.show{display:block}
+@media (max-width:900px){
+  .layout{display:block; padding:0 12px}
+  .sidebar{display:none}
+  main{margin:12px 0 30px; padding:26px 18px 44px}
+  h1{font-size:26px} h2{font-size:20px}
+  body{font-size:15.5px}
+}
+@media print{
+  body{background:#fff}
+  .sidebar,#top{display:none!important}
+  main{margin:0; border:0; box-shadow:none; padding:0}
+  h2{page-break-after:avoid} table,pre,img{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">小剧场 · KidTvCurated</div>
+    <div class="docname">家长使用说明书</div>
+    <nav id="toc"><a class="" href="#0-一分钟速查">0. 一分钟速查</a>
+<a class="" href="#1-小剧场是什么">1. 小剧场是什么</a>
+<a class="" href="#2-开始之前">2. 开始之前</a>
+<a class="lv3" href="#2-1-你需要有">2.1 你需要有</a>
+<a class="lv3" href="#2-2-三个关键位置-记住这三行就够">2.2 三个关键位置（记住这三行就够）</a>
+<a class="lv3" href="#2-3-电视上的-app">2.3 电视上的 App</a>
+<a class="" href="#3-第一次安装-三件事">3. 第一次安装（三件事）</a>
+<a class="lv3" href="#3-1-装-apk">3.1 装 APK</a>
+<a class="lv3" href="#3-2-第一次打开-确认能读到片单">3.2 第一次打开，确认能读到片单</a>
+<a class="lv3" href="#3-3-立刻做两件事-强烈建议">3.3 立刻做两件事（强烈建议）</a>
+<a class="" href="#4-电视上都有什么">4. 电视上都有什么</a>
+<a class="lv3" href="#4-1-主界面-海报墙">4.1 主界面（海报墙）</a>
+<a class="lv3" href="#4-2-剧集列表">4.2 剧集列表</a>
+<a class="lv3" href="#4-3-播放页">4.3 播放页</a>
+<a class="lv3" href="#4-4-我的奖励-打卡墙-勋章墙">4.4 我的奖励（打卡墙 + 勋章墙）</a>
+<a class="lv3" href="#4-5-锁屏与学习角">4.5 锁屏与学习角</a>
+<a class="lv3" href="#4-6-家长控制-电视上直接改设置">4.6 家长控制（电视上直接改设置）</a>
+<a class="" href="#5-遥控器速查">5. 遥控器速查</a>
+<a class="" href="#6-孩子的一天-正常流程长什么样">6. 孩子的一天（正常流程长什么样）</a>
+<a class="" href="#7-家长日常操作">7. 家长日常操作</a>
+<a class="lv3" href="#7-1-加一部新动画-最常用-6-步">7.1 加一部新动画（最常用，6 步）</a>
+<a class="lv3" href="#7-2-调整顺序-换必看">7.2 调整顺序、换必看</a>
+<a class="lv3" href="#7-3-设置-几点能看-能看多久">7.3 设置“几点能看、能看多久”</a>
+<a class="lv3" href="#7-4-改家长密码-看完判定">7.4 改家长密码、看完判定</a>
+<a class="lv3" href="#7-5-让某个-app-出现在电视上-可选">7.5 让某个 App 出现在电视上（可选）</a>
+<a class="lv3" href="#7-6-换-补封面">7.6 换 / 补封面</a>
+<a class="lv3" href="#7-7-学习角怎么换内容">7.7 学习角怎么换内容</a>
+<a class="lv3" href="#7-8-完全不想限制">7.8 完全不想限制</a>
+<a class="" href="#8-儿童锁-不让孩子退回桌面">8. 儿童锁：不让孩子退回桌面</a>
+<a class="lv3" href="#8-1-先理解一件事">8.1 先理解一件事</a>
+<a class="lv3" href="#8-2-开启">8.2 开启</a>
+<a class="lv3" href="#8-3-家长怎么出去-怎么回来">8.3 家长怎么出去、怎么回来</a>
+<a class="lv3" href="#8-4-已知限制-不是坏了">8.4 已知限制（不是坏了）</a>
+<a class="" href="#9-出门在外也想改片单-可选">9. 出门在外也想改片单（可选）</a>
+<a class="" href="#10-常见问题">10. 常见问题</a>
+<a class="" href="#11-出问题了怎么救">11. 出问题了怎么救</a>
+<a class="lv3" href="#11-1-所有视频黑屏-一直缓冲-连优酷都没画面">11.1 所有视频黑屏 / 一直缓冲（连优酷都没画面）</a>
+<a class="lv3" href="#11-2-剧集页永远-正在读取-点播放没反应">11.2 剧集页永远「正在读取…」/ 点播放没反应</a>
+<a class="lv3" href="#11-3-电视连不上-nas">11.3 电视连不上 NAS</a>
+<a class="lv3" href="#11-4-忘了家长密码-密码被写坏">11.4 忘了家长密码 / 密码被写坏</a>
+<a class="lv3" href="#11-5-改错了-想退回上一版片单">11.5 改错了，想退回上一版片单</a>
+<a class="lv3" href="#11-6-想彻底重来">11.6 想彻底重来</a>
+<a class="" href="#12-安全与保养">12. 安全与保养</a>
+<a class="" href="#13-附录">13. 附录</a>
+<a class="lv3" href="#13-1-一份最小可用的-tv-json">13.1 一份最小可用的 tv.json</a>
+<a class="lv3" href="#13-2-常用字段速查">13.2 常用字段速查</a>
+<a class="lv3" href="#13-3-文件都放在哪">13.3 文件都放在哪</a>
+<a class="lv3" href="#13-4-术语">13.4 术语</a></nav>
+  </aside>
+  <main>
+    <h1 id="_1">小剧场 使用说明书</h1>
+<div class="docmeta"><span>用户使用说明书</span><span>V1.0</span><span>2026-11-10</span><span>适用：海信 VIDAA / Android 9 + 绿联 NAS</span></div>
+<p><strong>适用版本</strong>：V1.0（2026-11-10）　<strong>适用设备</strong>：海信 55E3F-MAX（VIDAA / Android 9）+ 绿联 UGOS Pro NAS<br />
+<strong>这份说明书给谁看</strong>：家长。孩子不需要看，他只需要遥控器的方向键和 OK。</p>
+<hr />
+<h2 id="0-一分钟速查">0. 一分钟速查</h2>
+<table>
+<thead>
+<tr>
+<th>我想……</th>
+<th>怎么做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>给孩子加一部新动画</td>
+<td>双击桌面「打开 tv.json 编辑器」→ 重新读取 → 添加条目 → 保存到 NAS</td>
+</tr>
+<tr>
+<td>换掉今天的必看</td>
+<td>编辑器里改「今天要看的」分区的条目 → 保存</td>
+</tr>
+<tr>
+<td>让孩子九点后不能看</td>
+<td>电视：家长控制 → 时间与时长 → 周末/平日时段</td>
+</tr>
+<tr>
+<td>每天最多看 1 小时</td>
+<td>电视：家长控制 → 每日上限 → 60</td>
+</tr>
+<tr>
+<td>我自己要看电视</td>
+<td>遥控器菜单键 → PIN → 退出到桌面（30 分钟内不回弹）</td>
+</tr>
+<tr>
+<td>孩子被锁屏了，想再给 15 分钟</td>
+<td>锁屏上直接按 PIN 四个数字</td>
+</tr>
+<tr>
+<td>改完片单电视没反应</td>
+<td>等 15 秒；还没有就菜单键 → 重新读取清单</td>
+</tr>
+<tr>
+<td>封面是灰的</td>
+<td>双击 <code>tools/make-covers.bat</code>，或编辑器里「选图」</td>
+</tr>
+<tr>
+<td>视频全黑、连优酷也没画面</td>
+<td><strong>把电视电源拔掉再插上</strong>（不是只重启 App）</td>
+</tr>
+<tr>
+<td>忘了家长密码</td>
+<td>见第 11.4 节（先试 1234）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="1-小剧场是什么">1. 小剧场是什么</h2>
+<p>一句话：<strong>电视上只出现你挑过的内容，孩子每天先看完你指定的几集，才能看动画片。</strong></p>
+<p>它和你用过的视频 App 有三点根本不同：</p>
+<table>
+<thead>
+<tr>
+<th>普通视频 App</th>
+<th>小剧场</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首页推荐、自动连播、广告</td>
+<td>只有你写进片单的内容，没有推荐流</td>
+</tr>
+<tr>
+<td>内容在平台服务器上</td>
+<td>视频就在你家 NAS 上，走局域网直读</td>
+</tr>
+<tr>
+<td>你管不了「看多久、看什么」</td>
+<td>时段、时长、必看门禁、儿童锁都由你定</td>
+</tr>
+</tbody>
+</table>
+<p>它<strong>不会</strong>做的事，请先知道，免得误会：</p>
+<ul>
+<li>不会联网刮削海报，也不会自动从视频里截封面。没配封面就是一张灰卡（第 7.6 节教你补）。</li>
+<li>不会扫描全盘。NAS 里没写进 <code>tv.json</code> 的视频，电视上永远看不到。</li>
+<li>不是万能的“锁”。Home 键靠“设为默认桌面”解决，输入源/电源这类硬件键拦不住（第 8 节说明）。</li>
+</ul>
+<hr />
+<h2 id="2-开始之前">2. 开始之前</h2>
+<h3 id="2-1-你需要有">2.1 你需要有</h3>
+<table>
+<thead>
+<tr>
+<th>东西</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>电视</td>
+<td>Android 电视即可（本项目实测海信 55E3F-MAX，Android 9）</td>
+</tr>
+<tr>
+<td>NAS</td>
+<td>开启 SMB 服务（445 端口）；一个可写共享（本项目用 <code>data</code>）</td>
+</tr>
+<tr>
+<td>电脑</td>
+<td>Windows，用来改片单；手机浏览器也可以</td>
+</tr>
+<tr>
+<td>网线 / WiFi</td>
+<td>电视和 NAS 在同一个局域网</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-2-三个关键位置-记住这三行就够">2.2 三个关键位置（记住这三行就够）</h3>
+<pre><code>视频文件：    NAS 共享「儿童资源」下的任意目录（只读没关系）
+片单文件：    NAS 共享「data」→ curated/tv.json      ← 唯一的“遥控器”
+备份文件：    NAS 共享「data」→ curated/tv.backup.json ← 每次保存自动生成
+</code></pre>
+<p>片单 = 一份 JSON 文件。<strong>你在电脑上改它，电视就跟着变</strong>，不需要重装 App、也不需要拿遥控器操作。</p>
+<h3 id="2-3-电视上的-app">2.3 电视上的 App</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>名称</td>
+<td>小剧场</td>
+</tr>
+<tr>
+<td>包名</td>
+<td><code>com.family.curated</code></td>
+</tr>
+<tr>
+<td>安装包</td>
+<td>项目根目录 <code>小剧场.apk</code>，或 <code>app/build/outputs/apk/debug/app-debug.apk</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-第一次安装-三件事">3. 第一次安装（三件事）</h2>
+<h3 id="3-1-装-apk">3.1 装 APK</h3>
+<p><strong>方法一：用 adb（推荐，能顺带设默认桌面）</strong></p>
+<pre><code class="language-bash">adb connect 192.168.31.147:5555
+adb install -r 小剧场.apk
+</code></pre>
+<p>电视需要先打开「网络 ADB 调试」（开发者选项里）。adb 显示 <code>offline</code> 时：</p>
+<pre><code class="language-bash">adb disconnect 192.168.31.147:5555
+adb connect 192.168.31.147:5555
+</code></pre>
+<p><strong>方法二：U 盘</strong>：把 APK 拷到 U 盘，插电视，用电视自带的文件管理器安装（需允许“未知来源”）。</p>
+<h3 id="3-2-第一次打开-确认能读到片单">3.2 第一次打开，确认能读到片单</h3>
+<p>打开后应该看到海报墙。如果显示「请在 NAS 的共享文件夹里放一份清单」：</p>
+<ol>
+<li>确认 NAS 上真的有 <code>data/curated/tv.json</code>；</li>
+<li>确认 <code>tv.json</code> 里的 <code>nas</code> 段账号密码正确；</li>
+<li>确认 NAS 的 SMB 服务开着、445 端口通。</li>
+</ol>
+<h3 id="3-3-立刻做两件事-强烈建议">3.3 立刻做两件事（强烈建议）</h3>
+<ol>
+<li><strong>改家长密码</strong>：主界面右上「家长控制」→ 输 <code>1234</code> → 规则 → 家长密码 → 改成你自己的 4–8 位数字。</li>
+<li><strong>决定要不要开儿童锁</strong>：不做也能用，孩子按 Home 会回到别的桌面。要做见第 8 节。</li>
+</ol>
+<hr />
+<h2 id="4-电视上都有什么">4. 电视上都有什么</h2>
+<h3 id="4-1-主界面-海报墙">4.1 主界面（海报墙）</h3>
+<p><img alt="海报墙" src="preview/poster-wall.jpg" /></p>
+<blockquote>
+<p>这张是较早的实拍，当前版本顶栏在「我的奖励」旁边还多了「家长控制」按钮。</p>
+</blockquote>
+<p>顶栏从左到右：</p>
+<table>
+<thead>
+<tr>
+<th>元素</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>「今天要看的」/ 鼓励语</td>
+<td>完成必看后会变成「今天的都做完啦」之类</td>
+</tr>
+<tr>
+<td><strong>我的奖励</strong></td>
+<td>进打卡墙 + 勋章墙；有新勋章时显示「· N 枚新勋章」</td>
+</tr>
+<tr>
+<td><strong>家长控制</strong></td>
+<td>要 PIN；进设置页（改时段、上限、密码）</td>
+</tr>
+<tr>
+<td>今天 X/60 分钟</td>
+<td>今日已看时长 / 上限；没设上限只显示已看</td>
+</tr>
+<tr>
+<td>状态文字</td>
+<td>例如「必修还剩 3 个」「必修已完成 5/5」</td>
+</tr>
+</tbody>
+</table>
+<p>主体是一行行分区。每行标题右边显示这一行有几个条目。被锁住的分区，卡片上有锁标和「还差 N 个才解锁」。</p>
+<h3 id="4-2-剧集列表">4.2 剧集列表</h3>
+<p>点整季的卡片（如「汪汪队立大功」）进入，显示「共 85 个」，一集一行，看过的有进度条。上下选、OK 播放、返回回主界面。</p>
+<blockquote>
+<p>如果显示「读取超时」，按一下 OK 重试即可，不需要重启 App。</p>
+</blockquote>
+<h3 id="4-3-播放页">4.3 播放页</h3>
+<table>
+<thead>
+<tr>
+<th>按键</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OK</td>
+<td>暂停 / 继续</td>
+</tr>
+<tr>
+<td>左 / 右</td>
+<td>快退 / 快进 15 秒</td>
+</tr>
+<tr>
+<td>返回</td>
+<td>退出播放（进度自动记住）</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>下次进来从上次的位置继续。</li>
+<li><strong>必看分区的视频不能跳着看</strong>：系统记住你“真正连续看到的最远位置”，快进越界会被拉回并提示。看过的部分可以回看。</li>
+<li>播放出错时屏幕会显示「正在自动重连 1/3」之类，多数情况自己会好；彻底失败会按错误类型提示，按 OK 可重试。</li>
+</ul>
+<h3 id="4-4-我的奖励-打卡墙-勋章墙">4.4 我的奖励（打卡墙 + 勋章墙）</h3>
+<p><img alt="打卡墙与勋章墙" src="preview/rewards.png" /></p>
+<ul>
+<li><strong>打卡墙</strong>：每天必看全部完成，当天自动盖一个章。月份可翻页，右上角显示「连续 N 天」。</li>
+<li><strong>勋章墙</strong>：10 枚勋章，按累计打卡、连击、观看时长、视频数解锁。新解锁的勋章在主界面按钮上挂小红点。</li>
+<li>遥控器「信息 / 指南」键可以从任何界面直接跳到这里。</li>
+</ul>
+<h3 id="4-5-锁屏与学习角">4.5 锁屏与学习角</h3>
+<p>到了不可用时段，或今天的时长用完，会出现锁屏：</p>
+<p><img alt="锁屏：唐诗" src="preview/lock-learning-poem.png" /></p>
+<ul>
+<li><strong>左边 42%</strong>：大大的倒计时，告诉你还有多久能看（隔几米也看得清）。</li>
+<li><strong>右边 58%</strong>：学习角，自动轮播唐诗、英语单词、名画、识字卡。</li>
+<li>遥控器 ◀ ▶ 可以手动翻一张；</li>
+<li>播放/暂停键可以暂停轮播；</li>
+<li>每张停留 20 秒（可改）。</li>
+<li>内置 <strong>255 张</strong>卡片，断网也能用：57 首唐诗、78 个单词（A–Z 每字母 3 个）、50 幅名画、70 张识字/成语/短句。</li>
+</ul>
+<h3 id="4-6-家长控制-电视上直接改设置">4.6 家长控制（电视上直接改设置）</h3>
+<p>主界面「家长控制」→ 输 PIN → 两列设置页。方向键选，OK 改，返回回片单。</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>能改什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间与时长</td>
+<td>每日上限（0/20/30/45/60/90/120/自定义）、平日时段、周末时段、时段限制开关</td>
+</tr>
+<tr>
+<td>规则</td>
+<td>家长密码（4–8 位）、看完判定（80%–100%）、应用入口</td>
+</tr>
+<tr>
+<td>维护</td>
+<td>临时放行、今天全部重来、清空播放进度、重新读取清单、退出到桌面</td>
+</tr>
+</tbody>
+</table>
+<p><strong>这里改的东西会写回 NAS 的 <code>tv.json</code></strong>，所以电视和电脑上看到的永远是同一份配置。写入前会自动备份 <code>tv.backup.json</code>，写完会回读校验；NAS 写不进去会明确报错，不会“界面改了、下次又变回去”。</p>
+<blockquote>
+<p>小提示：遥控器没有 TAB 键，输入框里输完直接按 OK 就是“确定”。</p>
+</blockquote>
+<hr />
+<h2 id="5-遥控器速查">5. 遥控器速查</h2>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>按键</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主界面选片</td>
+<td>上/下选分区，左/右选卡片，OK 进入</td>
+</tr>
+<tr>
+<td>播放</td>
+<td>OK 暂停，左/右 ±15 秒，返回退出</td>
+</tr>
+<tr>
+<td>家长菜单</td>
+<td><strong>菜单键</strong> → 输 PIN</td>
+</tr>
+<tr>
+<td>锁屏时临时放行</td>
+<td>直接按 PIN 数字（不用先按菜单）</td>
+</tr>
+<tr>
+<td>锁屏时翻学习卡</td>
+<td>◀ ▶（或 ▲ ▼ / OK）</td>
+</tr>
+<tr>
+<td>锁屏时暂停轮播</td>
+<td>播放/暂停键</td>
+</tr>
+<tr>
+<td>打卡墙 / 勋章墙</td>
+<td>信息 / 指南键</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-孩子的一天-正常流程长什么样">6. 孩子的一天（正常流程长什么样）</h2>
+<ol>
+<li><strong>17:30</strong> 打开电视，主界面第一行「今天要看的」有 5 集，下面「动画片」「纪录片」「学习」都带锁。</li>
+<li>一集一集看完，右上角从「必修还剩 5 个」变成「必修已完成 5/5」。</li>
+<li>完成后：今天盖章、可能解锁新勋章、下面三个分区解锁。</li>
+<li>孩子去「动画片」挑一部，进入剧集列表选集。</li>
+<li><strong>20:30</strong> 或累计看满 60 分钟，画面切到锁屏：左边倒计时，右边开始放名画和唐诗。</li>
+<li>想再看？只能等明天，或者家长来输 PIN 放行 15 分钟。</li>
+</ol>
+<hr />
+<h2 id="7-家长日常操作">7. 家长日常操作</h2>
+<h3 id="7-1-加一部新动画-最常用-6-步">7.1 加一部新动画（最常用，6 步）</h3>
+<p>先确认：视频已经拷进 NAS 的「儿童资源」共享里（<code>儿童资源/儿童视频/99.娱乐动画/新动画/...</code>）。</p>
+<ol>
+<li>电脑上双击桌面 <strong>「打开 tv.json 编辑器」</strong>（实际调用项目里的 <code>start-tvjson-editor.bat</code>），浏览器会打开 <code>127.0.0.1:8787</code>。</li>
+<li>点顶部 <strong>「重新读取」</strong>。<strong>这一步别省</strong>——先读一遍，才不会把别人刚改的内容覆盖掉。</li>
+<li>找到「动画片」分区，点 <strong>「＋ 添加条目」</strong>。</li>
+<li>类型选 <strong>folder（整季）</strong>，点「浏览」逐层进入 NAS，选中剧集目录。</li>
+<li>填标题（电视上显示的名字），副标题可选（如「26 集」）。</li>
+<li>点 <strong>「保存到 NAS」</strong>。等 15 秒，电视上就出现了，不用碰遥控器。</li>
+</ol>
+<blockquote>
+<p>加单集就选 <strong>file</strong>；想加一个别的 App 的入口就选 <strong>app</strong>。<br />
+编辑器顶部会显示当前清单，例如「192.168.31.72 · data:curated/tv.json · N 字节 · 4 分区 / 27 条目」。</p>
+</blockquote>
+<h3 id="7-2-调整顺序-换必看">7.2 调整顺序、换必看</h3>
+<ul>
+<li>在分区里用 <strong>上移 / 下移</strong> 调条目顺序（电视上就是这个顺序）。</li>
+<li>分区顺序也是同理：分区的上下位置决定电视上第几行。</li>
+<li>想让某个分区变成“每天必须先看”：在分区卡片上勾选 <strong>「每日必看 gate」</strong>（默认「今天要看的」已经勾上）。</li>
+<li>想让「动画片」必须做完必看才能进：在它的分区卡片「解锁依赖 requires」里填 <strong><code>daily</code></strong>（即必看分区的 <code>key</code>）。</li>
+<li>想让某个分区每天自动换一批：分区卡片里填 <strong>「自动轮换 auto」</strong>，如 <code>{"folder": "儿童视频/99.娱乐动画/Maisy", "count": 2}</code>。</li>
+<li>想完全取消门禁：把所有分区的 <code>gate</code> 和 <code>requires</code> 删掉。</li>
+</ul>
+<blockquote>
+<p>放心调顺序：条目的身份是按<strong>路径</strong>记的，不是按位置。上移下移不会让封面或观看进度错位。</p>
+</blockquote>
+<h3 id="7-3-设置-几点能看-能看多久">7.3 设置“几点能看、能看多久”</h3>
+<p><strong>推荐在电视上改</strong>（改完立刻生效，也会同步到 NAS）：</p>
+<p>家长控制 → 时间与时长：</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>例子</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>每日上限</td>
+<td>60</td>
+<td>只算真正播放的时间，暂停不算；0 = 不限</td>
+</tr>
+<tr>
+<td>平日时段</td>
+<td>17:30–20:30</td>
+<td>周一至周五</td>
+</tr>
+<tr>
+<td>周末时段</td>
+<td>09:00–11:30、16:00–23:30</td>
+<td>周末可以两段</td>
+</tr>
+<tr>
+<td>时段限制</td>
+<td>开 / 关</td>
+<td>关掉就只看时长，不看时间</td>
+</tr>
+</tbody>
+</table>
+<p>也可以在电脑上改 <code>tv.json</code> 的 <code>schedule</code> 段：</p>
+<pre><code class="language-json">&quot;schedule&quot;: {
+  &quot;enabled&quot;: true,
+  &quot;weekday&quot;: [[&quot;17:30&quot;, &quot;20:30&quot;]],
+  &quot;weekend&quot;: [[&quot;09:00&quot;, &quot;11:30&quot;], [&quot;16:00&quot;, &quot;23:30&quot;]],
+  &quot;dailyLimitMinutes&quot;: 60,
+  &quot;lockMessage&quot;: &quot;电视休息时间，先去玩会儿别的吧&quot;
+}
+</code></pre>
+<p>规则：<br />
+- 结束时间比开始时间早 = 跨零点（如 <code>"22:00-01:00"</code>）。<br />
+- 不写 <code>weekend</code> = 周末跟平日一样；写 <code>[]</code> = 周末全天开放。<br />
+- <code>enabled: false</code> 或整段删掉 = 完全不限制。</p>
+<h3 id="7-4-改家长密码-看完判定">7.4 改家长密码、看完判定</h3>
+<p>电视：家长控制 → 规则。</p>
+<ul>
+<li><strong>家长密码</strong>：4–8 位数字。默认 <code>1234</code>，<strong>一定要改</strong>。</li>
+<li><strong>看完判定</strong>：进度到多少算“看完”，默认 92%。孩子总差一点就卡住的，可以调到 85%；想更严格就 100%。</li>
+</ul>
+<h3 id="7-5-让某个-app-出现在电视上-可选">7.5 让某个 App 出现在电视上（可选）</h3>
+<p>比如允许孩子用「识字小游戏」或「优酷」：</p>
+<ol>
+<li>电视：菜单键 → PIN → <strong>「选择允许显示的应用」</strong>，OK 多选，保存。</li>
+<li>主界面最后会多一行「应用」，点开临时放行，到时间/按 Home/按返回就回小剧场。</li>
+<li>想让它“做完必看才出现”：<code>apps.showAfterDaily</code> 保持 <code>true</code>（默认），没做完时卡片显示「还差 N 个才解锁」。</li>
+</ol>
+<p>也可以在编辑器「应用入口」卡片里改，点「从电视读取并勾选」能看到电视上装了什么。</p>
+<blockquote>
+<p>注意：家长在电视上勾选的结果<strong>优先于</strong>网页里的列表。网页改完看不到时，去电视菜单点一次「恢复清单里的应用列表」。<br />
+新版 App 在网页改动 <code>apps</code> 段后会自动清掉本地勾选，通常不需要手动点。</p>
+</blockquote>
+<h3 id="7-6-换-补封面">7.6 换 / 补封面</h3>
+<p>App 只认 NAS 上现成的图片，不会自己截图。三条路，按省事程度排：</p>
+<ol>
+<li><strong>一键截帧（推荐）</strong>：双击 <code>tools/make-covers.bat</code>（等价于 <code>python tools/make_covers.py --from-nas --apply</code>）。<br />
+   它会为每个没封面的条目找一个视频，在 20% / 45% 处截一帧，拼成竖版海报，上传到 <code>data/curated/covers/</code>，再写回清单。<br />
+   - 只处理没有封面的条目；想全部重做加 <code>--force</code>。<br />
+   - 重复跑不会堆垃圾文件（文件名按路径 hash 固定）。</li>
+<li><strong>用现成图片</strong>：把图放进视频目录，命名成和视频同名 <code>.jpg</code>，或目录里放 <code>folder.jpg</code> / <code>poster.jpg</code> / <code>cover.jpg</code> / <code>封面.jpg</code>。</li>
+<li><strong>手动指</strong>：编辑器条目行的封面框里点「选图」，在 NAS 上点一张，自动写成 <code>共享名:路径</code>。</li>
+</ol>
+<blockquote>
+<p>视频共享是只读的也没关系：封面统一放可写的 <code>data</code> 共享，写法是 <code>"cover": "data:curated/covers/xxx.jpg"</code>。</p>
+</blockquote>
+<h3 id="7-7-学习角怎么换内容">7.7 学习角怎么换内容</h3>
+<p>在编辑器的「高级字段」里改（<code>learning</code> 段整体是一个 JSON），或者用网页控制台「等待学习角」页（有可视化表单）：</p>
+<table>
+<thead>
+<tr>
+<th>想做的事</th>
+<th>怎么改</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只让孩子先学第一批</td>
+<td><code>stage: 1</code>、<code>stageSize: 50</code>（每类前 50 张，一轮约 200 张）</td>
+</tr>
+<tr>
+<td>熟悉后进下一批</td>
+<td>把 <code>stage</code> 改成 <code>2</code></td>
+</tr>
+<tr>
+<td>不想分阶段</td>
+<td>两项都改回 <code>0</code>（255 张全上）</td>
+</tr>
+<tr>
+<td>只出单词</td>
+<td><code>order: ["word"]</code>（写几类就只出几类）</td>
+</tr>
+<tr>
+<td>每张停久一点</td>
+<td><code>intervalSeconds: 30</code>（6–600 秒）</td>
+</tr>
+<tr>
+<td>换成家庭相册 / 孩子画作</td>
+<td><code>artFolder: "curated/art"</code>、<code>artShare: "data"</code>，把图片放进 NAS 这个目录</td>
+</tr>
+<tr>
+<td>加自己的卡片</td>
+<td>网页控制台「等待学习角」页底部「自定义卡片」，按唐诗/单词/名画/识字四类添加</td>
+</tr>
+</tbody>
+</table>
+<h3 id="7-8-完全不想限制">7.8 完全不想限制</h3>
+<p>把 <code>schedule</code> 整段删掉，或设 <code>"enabled": false</code>。锁屏和学习角都不会再出现，门禁（<code>gate</code> / <code>requires</code>）也删掉后就是纯点播。</p>
+<hr />
+<h2 id="8-儿童锁-不让孩子退回桌面">8. 儿童锁：不让孩子退回桌面</h2>
+<h3 id="8-1-先理解一件事">8.1 先理解一件事</h3>
+<p>Android 的 Home 键由系统独占，App 收不到也拦不住。所以“不让孩子出去”必须分三层做，只改 App 一定被绕过：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>挡住什么</th>
+<th>怎么做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>① 应用内</td>
+<td>返回键、设置/输入源/最近任务等能收到的功能键</td>
+<td>片单里 <code>kiosk.enabled: true</code></td>
+</tr>
+<tr>
+<td>② 默认桌面</td>
+<td><strong>Home 键</strong></td>
+<td>一条 adb 命令（见下）</td>
+</tr>
+<tr>
+<td>③ 前台守卫</td>
+<td>被切到后台</td>
+<td>App 自带，约 1 秒拉回</td>
+</tr>
+<tr>
+<td>④ 硬件键</td>
+<td>输入源 / 直播 / 电源</td>
+<td>拦不住：贴住按键，或换简易遥控器</td>
+</tr>
+</tbody>
+</table>
+<h3 id="8-2-开启">8.2 开启</h3>
+<p><strong>第 1 步</strong>：编辑器「高级字段」里给 <code>kiosk</code> 打开（或直接编辑 JSON）：</p>
+<pre><code class="language-json">&quot;kiosk&quot;: {
+  &quot;enabled&quot;: true,
+  &quot;exitComponent&quot;: &quot;com.jamdeo.tv.vod/com.ju.main.launcher.LauncherActivity&quot;,
+  &quot;exitMinutes&quot;: 30,
+  &quot;reentryMs&quot;: 1000,
+  &quot;blockBack&quot;: true,
+  &quot;blockSystemKeys&quot;: true
+}
+</code></pre>
+<p>保存到 NAS。<code>exitComponent</code> 是家长“退出到桌面”时打开的那个桌面（上面这个是海信原生桌面）。</p>
+<p><strong>第 2 步</strong>：电脑上执行（只需一次）：</p>
+<pre><code class="language-bash">adb shell cmd package set-home-activity --user 0 com.family.curated/.MainActivity
+adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
+</code></pre>
+<p>第二条命令应该直接返回 <code>com.family.curated/.MainActivity</code>。如果返回 <code>ResolverActivity</code>，说明没写死，再执行一次第一条。</p>
+<p><strong>第 3 步（如果装过 Aerial 桌面）</strong>：Aerial 会不断把自己抢回桌面，必须停用它（可逆）：</p>
+<pre><code class="language-bash">adb shell cmd package disable-user --user 0 app.orchard.tv
+</code></pre>
+<p>撤销：</p>
+<pre><code class="language-bash">adb shell cmd package enable --user 0 app.orchard.tv
+adb shell cmd package set-home-activity --user 0 app.orchard.tv/.MainActivity
+</code></pre>
+<h3 id="8-3-家长怎么出去-怎么回来">8.3 家长怎么出去、怎么回来</h3>
+<ul>
+<li><strong>出去</strong>：菜单键 → PIN → 「退出到桌面」。默认放行 30 分钟（<code>exitMinutes</code>），期间不会被拉回。</li>
+<li><strong>回来</strong>：放行到期自动恢复；也可以回小剧场后菜单键 → 「结束家长放行（恢复儿童锁）」提前恢复。</li>
+</ul>
+<h3 id="8-4-已知限制-不是坏了">8.4 已知限制（不是坏了）</h3>
+<ul>
+<li><strong>海信 VIDAA 开机不通知第三方 App</strong>：开机后会停在海信原生桌面，<strong>按一次 Home 就进小剧场</strong>，之后再也出不去。这是固件限制。</li>
+<li>输入源 / 直播 / 电源键属于硬件层，应用收不到。最省事的办法是把这几个键贴住，或换一把只有方向键 + OK + 返回的遥控器。</li>
+<li>不要为了“开机直达”去给小剧场授无障碍 + 悬浮窗 + 写系统设置权限，权限面太大，且会和其它守护互相抢前台。</li>
+</ul>
+<hr />
+<h2 id="9-出门在外也想改片单-可选">9. 出门在外也想改片单（可选）</h2>
+<p>前提：控制台已经常驻在 NAS 上（<code>docker compose up -d</code>，或导入 <code>dist/kidtv-console-ugospro.zip</code>）。电视完全不用动。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>怎么打开</th>
+<th>安全性</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. Tailscale（推荐）</strong></td>
+<td>手机连 Tailscale，浏览器开 <code>http://&lt;NAS 的 100.x 地址&gt;:8765/</code></td>
+<td>不开放任何公网端口</td>
+<td>自己手机改</td>
+</tr>
+<tr>
+<td><strong>B. UGREENlink</strong></td>
+<td>外网登录绿联账号 → 桌面点「控制台」快捷方式</td>
+<td>绿联账号 + HTTPS + 访问码</td>
+<td>最省事</td>
+</tr>
+<tr>
+<td><strong>C. Cloudflare Tunnel</strong></td>
+<td>自己的域名 + 邮箱验证码</td>
+<td>HTTPS + 二次认证</td>
+<td>有域名</td>
+</tr>
+<tr>
+<td><strong>D. 绿联云 App</strong></td>
+<td>文件管理里直接编辑 <code>data/curated/tv.json</code></td>
+<td>安全但容易写错 JSON</td>
+<td>应急</td>
+</tr>
+</tbody>
+</table>
+<p><strong>红线</strong>：不要把 8765 映射到公网，不要用 DDNS 裸奔，不要把网址发群里。<br />
+这个页面能读到 NAS 的明文账号密码、能改家长 PIN 和整份片单。</p>
+<hr />
+<h2 id="10-常见问题">10. 常见问题</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>先查这里</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>改完片单，电视没变</td>
+<td>是不是没保存成功</td>
+<td>等 15 秒；编辑器看「已保存到 NAS」；再不行菜单键 → 重新读取清单</td>
+</tr>
+<tr>
+<td>海报全是灰的、只有标题首字</td>
+<td>正常现象，不是加载失败</td>
+<td>跑一次 <code>tools/make-covers.bat</code>，或在编辑器里「选图」</td>
+</tr>
+<tr>
+<td>卡片有图，但图不对</td>
+<td>封面路径写错</td>
+<td>编辑器里看缩略图预览，重新「选图」</td>
+</tr>
+<tr>
+<td>点整季提示「这个文件夹里没有视频」</td>
+<td>目录层数 / 扩展名</td>
+<td>目录不要超过 3 层；确认是 mp4/mkv 等视频文件（mp3 不进列表）</td>
+</tr>
+<tr>
+<td>播不了，提示「格式不支持」</td>
+<td>多半是首次读 SMB 抖动</td>
+<td>等它自动重连；不行按 OK 重试；反复失败再看错误码（2xxx NAS / 3xxx 文件头 / 4xxx 解码器）</td>
+</tr>
+<tr>
+<td>剧集页一直「正在读取…」</td>
+<td>SMB 连接卡住</td>
+<td>退出 App 重进；仍不行断电重启电视</td>
+</tr>
+<tr>
+<td>所有视频全黑，优酷也没画面</td>
+<td>电视解码链路卡死</td>
+<td><strong>拔电源重启电视</strong>，只重启 App 没用（见 11.1）</td>
+</tr>
+<tr>
+<td>锁屏一直不出来 / 一直锁着</td>
+<td>时段设置</td>
+<td>家长控制里看「时段限制」和当天时间窗；跨零点写法对不对</td>
+</tr>
+<tr>
+<td>忘了 PIN</td>
+<td>默认 <code>1234</code></td>
+<td>试 1234；不行看 11.4</td>
+</tr>
+<tr>
+<td>保存时报错</td>
+<td>NAS 是否可写、磁盘满没满、账号权限</td>
+<td>换 <code>data</code> 共享试试；看编辑器提示的具体错误</td>
+</tr>
+<tr>
+<td>连不上 NAS</td>
+<td>445、账号、共享名、IP</td>
+<td>电视和 NAS 是否同网段；NAS 的 SMB 服务是否开着</td>
+</tr>
+<tr>
+<td>开机停在海信桌面</td>
+<td>固件不派发开机广播</td>
+<td>按一次 Home，这是已知限制</td>
+</tr>
+<tr>
+<td>孩子进了别的 App</td>
+<td>是否在允许列表里</td>
+<td>菜单 → PIN → 选择允许显示的应用，取消勾选</td>
+</tr>
+<tr>
+<td>学习角不自动换</td>
+<td>是不是按了暂停</td>
+<td>再按一次播放键；或看 <code>intervalSeconds</code> 是否很大</td>
+</tr>
+<tr>
+<td>时间窗里孩子还能看</td>
+<td>家长放行没结束</td>
+<td>菜单 → 结束家长放行</td>
+</tr>
+<tr>
+<td>电视存储不足装不上</td>
+<td>/data 剩余空间</td>
+<td><code>adb shell pm trim-caches 999G</code> 清缓存；删不用的 App</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-出问题了怎么救">11. 出问题了怎么救</h2>
+<h3 id="11-1-所有视频黑屏-一直缓冲-连优酷都没画面">11.1 所有视频黑屏 / 一直缓冲（连优酷都没画面）</h3>
+<p><strong>这是电视系统级解码链路卡住，不是 App 也不是片单的问题。</strong></p>
+<p>判断依据：小剧场和优酷同时“有声音没画面/一直转圈”；NAS 能 ping 通，SMB 也连着。</p>
+<p>处理：<strong>把电视电源拔掉，等 10 秒再插上</strong>（待机不够，要断电）。开机后按一次 Home 进小剧场，再试播放。</p>
+<p><strong>为什么会这样</strong>：曾在电视上跑 scrcpy 远程看画面，把分辨率/帧率调高做软编压测，触发硬编崩溃后，MTK9652 的共享视频链路被卡死。<strong>以后不要提高 scrcpy 的分辨率或帧率做压测</strong>，也绝不要把 5555 端口映射到公网。</p>
+<h3 id="11-2-剧集页永远-正在读取-点播放没反应">11.2 剧集页永远「正在读取…」/ 点播放没反应</h3>
+<ol>
+<li>退出 App 再进（用遥控器返回回主界面，或 <code>adb shell am force-stop com.family.curated</code> 后重开）。</li>
+<li>仍然不行：断电重启电视。</li>
+<li>只在“刚保存完片单”时出现：等 2 分钟，或在电脑上重新保存一次（新版已修，长时间不恢复说明是旧 APK）。</li>
+</ol>
+<h3 id="11-3-电视连不上-nas">11.3 电视连不上 NAS</h3>
+<p>按顺序查：</p>
+<ol>
+<li>电视和 NAS 是不是同一个网段（如都是 <code>192.168.31.x</code>）。</li>
+<li>NAS 的 SMB 服务是否开启、445 是否可达。</li>
+<li><code>tv.json</code> 里的 <code>nas.host / user / password / share</code> 是否和现在一致。</li>
+<li>电视是否在用旧缓存（顶栏会有离线提示）。改完清单后菜单 → 重新读取清单。</li>
+</ol>
+<h3 id="11-4-忘了家长密码-密码被写坏">11.4 忘了家长密码 / 密码被写坏</h3>
+<ul>
+<li>先试默认 <code>1234</code>。</li>
+<li>忘了但能进电脑：打开编辑器，在「全局设置」里找到「家长 PIN」（或切到 JSON 原文看 <code>pin</code>），改成新的再保存。</li>
+<li>密码位被写成一串星号、导致电视连不上 NAS（历史上发生过）：需要把 NAS 上 <code>data/curated/tv.json</code> 的 <code>nas.password</code> 改回真实密码。</li>
+<li>简单办法：绿联云 App → 文件管理 → 编辑 <code>data/curated/tv.json</code>；</li>
+<li>或者用上一份 <code>tv.backup.json</code> 覆盖回去。</li>
+<li>电视端缓存的密码可以重装 App（<code>adb install -r</code> 不会清数据；要清就 <code>adb shell pm clear com.family.curated</code>，但这会清掉打卡与进度，慎用）。</li>
+</ul>
+<blockquote>
+<p>记住一个原则：<strong>密码框里看到是星号或空白时，不要去动它</strong>。编辑器和电视端都会把“空 / 全星号 / <code>__KEEP_NAS_PASSWORD__</code>”当成“沿用原密码”。</p>
+</blockquote>
+<h3 id="11-5-改错了-想退回上一版片单">11.5 改错了，想退回上一版片单</h3>
+<p>NAS 上同目录有 <code>tv.backup.json</code>，那是<strong>上一次保存前</strong>的版本：</p>
+<ol>
+<li>绿联云文件管理里，把 <code>tv.backup.json</code> 复制一份、改名成 <code>tv.json</code> 覆盖；</li>
+<li>电视菜单 → 重新读取清单。</li>
+</ol>
+<p>编辑器本机还留了更早的历史：<code>curated-tv/.tmp/tvjson-backups/tv.YYYYMMDD-HHMMSS.json</code>。</p>
+<h3 id="11-6-想彻底重来">11.6 想彻底重来</h3>
+<pre><code class="language-bash">adb shell pm clear com.family.curated     # 清掉本机进度、打卡、勾选（不可恢复）
+adb install -r 小剧场.apk                  # 重装
+</code></pre>
+<p>NAS 上的 <code>tv.json</code> 不受影响。</p>
+<hr />
+<h2 id="12-安全与保养">12. 安全与保养</h2>
+<ol>
+<li><strong>改掉默认 PIN <code>1234</code></strong>，也不要设成孩子知道的生日。</li>
+<li><code>tv.json</code> 里有 NAS 明文账号密码，<strong>不要发微信、不要传网盘、不要提交到 Git</strong>。</li>
+<li>控制台默认只在本机 <code>127.0.0.1</code>；开手机访问后要访问码。不要把 8765 映射到公网。</li>
+<li>不要把 ADB 的 5555 暴露到公网（ADB 没有认证，等于把电视交出去）。</li>
+<li>用 scrcpy 看画面只用这套参数，不要提高分辨率/帧率：</li>
+</ol>
+<p><code>--no-audio --video-codec=h264 --video-encoder=OMX.google.h264.encoder
+   --max-size=960 --max-fps=15 -b 2M</code></p>
+<ol start="6">
+<li>电视只有 2.5 GB 内存，<code>/data</code> 曾经只剩 800 多 MB，别装太多用不上的 App。</li>
+<li>每次保存片单都会自动备份；重要改动（比如大改分区）前，可以自己再下载一份 JSON 存电脑。</li>
+<li>建议在路由器上给电视和 NAS 做 DHCP 保留，避免换 IP 后要重新配置。</li>
+</ol>
+<hr />
+<h2 id="13-附录">13. 附录</h2>
+<h3 id="13-1-一份最小可用的-tv-json">13.1 一份最小可用的 tv.json</h3>
+<pre><code class="language-json">{
+  &quot;nas&quot;: { &quot;host&quot;: &quot;192.168.31.72&quot;, &quot;port&quot;: 445, &quot;user&quot;: &quot;你的账号&quot;, &quot;password&quot;: &quot;你的密码&quot;, &quot;share&quot;: &quot;儿童资源&quot; },
+  &quot;playlistShare&quot;: &quot;data&quot;,
+  &quot;pin&quot;: &quot;1234&quot;,
+  &quot;passRatio&quot;: 0.92,
+  &quot;schedule&quot;: {
+    &quot;enabled&quot;: true,
+    &quot;weekday&quot;: [[&quot;17:30&quot;, &quot;20:30&quot;]],
+    &quot;weekend&quot;: [[&quot;09:00&quot;, &quot;11:30&quot;], [&quot;16:00&quot;, &quot;23:30&quot;]],
+    &quot;dailyLimitMinutes&quot;: 60
+  },
+  &quot;sections&quot;: [
+    {
+      &quot;key&quot;: &quot;daily&quot;, &quot;title&quot;: &quot;今天要看的&quot;, &quot;gate&quot;: true,
+      &quot;items&quot;: [
+        { &quot;title&quot;: &quot;识字 第3课&quot;, &quot;file&quot;: &quot;儿童视频/01.学习类视频/识字/03.mp4&quot; }
+      ]
+    },
+    {
+      &quot;key&quot;: &quot;cartoons&quot;, &quot;title&quot;: &quot;动画片&quot;, &quot;requires&quot;: &quot;daily&quot;,
+      &quot;items&quot;: [
+        { &quot;title&quot;: &quot;汪汪队立大功&quot;, &quot;subtitle&quot;: &quot;85 集&quot;, &quot;folder&quot;: &quot;儿童视频/99.娱乐动画/汪汪队立大功 PAW Patrol&quot; }
+      ]
+    }
+  ]
+}
+</code></pre>
+<p>放在 NAS 的 <code>data/curated/tv.json</code>，电视按菜单 → 「重新读取清单」即可。</p>
+<h3 id="13-2-常用字段速查">13.2 常用字段速查</h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>写在哪</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pin</code></td>
+<td>顶层</td>
+<td>家长密码（4–8 位）</td>
+</tr>
+<tr>
+<td><code>passRatio</code></td>
+<td>顶层</td>
+<td>看完比例，0.92 = 92%</td>
+</tr>
+<tr>
+<td><code>gate: true</code></td>
+<td>分区</td>
+<td>这是每日必看</td>
+</tr>
+<tr>
+<td><code>requires: "daily"</code></td>
+<td>分区</td>
+<td>必看没做完就锁着</td>
+</tr>
+<tr>
+<td><code>file</code></td>
+<td>条目</td>
+<td>单个视频文件</td>
+</tr>
+<tr>
+<td><code>folder</code></td>
+<td>条目</td>
+<td>整个剧集目录（递归 3 层）</td>
+</tr>
+<tr>
+<td><code>app</code></td>
+<td>条目</td>
+<td>一个应用的入口</td>
+</tr>
+<tr>
+<td><code>cover</code></td>
+<td>条目</td>
+<td>封面路径；<code>data:curated/xxx.jpg</code> 表示去 data 共享读</td>
+</tr>
+<tr>
+<td><code>subtitle</code></td>
+<td>条目</td>
+<td>卡片副标题（如「26 集」）</td>
+</tr>
+<tr>
+<td><code>schedule.weekday/weekend</code></td>
+<td>顶层</td>
+<td>可用时间窗</td>
+</tr>
+<tr>
+<td><code>schedule.dailyLimitMinutes</code></td>
+<td>顶层</td>
+<td>每日分钟上限，0 = 不限</td>
+</tr>
+<tr>
+<td><code>learning.stage/stageSize</code></td>
+<td>顶层</td>
+<td>学习角分阶段</td>
+</tr>
+<tr>
+<td><code>apps.showAfterDaily</code></td>
+<td>顶层</td>
+<td>应用入口是否要等必看完成</td>
+</tr>
+<tr>
+<td><code>kiosk.enabled</code></td>
+<td>顶层</td>
+<td>儿童锁总开关</td>
+</tr>
+<tr>
+<td><code>autoRefresh.intervalSeconds</code></td>
+<td>顶层</td>
+<td>自动刷新间隔，默认 15 秒</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-3-文件都放在哪">13.3 文件都放在哪</h3>
+<table>
+<thead>
+<tr>
+<th>东西</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>电视 App</td>
+<td>包名 <code>com.family.curated</code></td>
+</tr>
+<tr>
+<td>片单</td>
+<td>NAS <code>data/curated/tv.json</code></td>
+</tr>
+<tr>
+<td>片单备份</td>
+<td>NAS <code>data/curated/tv.backup.json</code></td>
+</tr>
+<tr>
+<td>封面图</td>
+<td>NAS <code>data/curated/covers/</code></td>
+</tr>
+<tr>
+<td>视频</td>
+<td>NAS <code>儿童资源/儿童视频/...</code></td>
+</tr>
+<tr>
+<td>简易编辑器</td>
+<td><code>curated-tv/start-tvjson-editor.bat</code>（桌面有快捷方式）</td>
+</tr>
+<tr>
+<td>网页控制台</td>
+<td><code>curated-tv/tools/console.py</code>（8765）</td>
+</tr>
+<tr>
+<td>PC 桌面助手</td>
+<td><code>curated-tv/KidTvConfig-PC.bat</code> 或 <code>dist/KidTvConfig-PC.exe</code></td>
+</tr>
+<tr>
+<td>编辑器本机备份</td>
+<td><code>curated-tv/.tmp/tvjson-backups/</code></td>
+</tr>
+<tr>
+<td>安装包</td>
+<td><code>小剧场.apk</code> / <code>app/build/outputs/apk/debug/app-debug.apk</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-4-术语">13.4 术语</h3>
+<table>
+<thead>
+<tr>
+<th>词</th>
+<th>意思</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分区</td>
+<td>电视上的一行，比如「今天要看的」</td>
+</tr>
+<tr>
+<td>条目</td>
+<td>一张海报卡：单集、整季或一个 App</td>
+</tr>
+<tr>
+<td>必看 / 门禁</td>
+<td>每天必须先完成的分区；没做完，别的分区锁着</td>
+</tr>
+<tr>
+<td>放行</td>
+<td>家长临时解除时间限制（15 分钟）或儿童锁（30 分钟）</td>
+</tr>
+<tr>
+<td>学习角</td>
+<td>锁屏右半边轮播的唐诗/单词/名画/识字卡</td>
+</tr>
+<tr>
+<td>frontier</td>
+<td>必看视频“真正连续看到的最远位置”，防跳看用</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>需要更细的字段说明？</strong> 看 <code>docs/CONFIG.md</code>。<br />
+<strong>想改代码或重新编译？</strong> 看 <code>README.md</code> 的「部署」章节（需要 JDK 17 + Android SDK 34）。</p>
+  </main>
+</div>
+<button id="top" title="回到顶部">↑</button>
+<script>
+const links=[...document.querySelectorAll('#toc a')];
+const heads=[...document.querySelectorAll('main h2,main h3')];
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    links.forEach(l=>l.classList.remove('active'));
+    const a=links.find(l=>l.getAttribute('href')==='#'+e.target.id);
+    if(a){a.classList.add('active'); a.scrollIntoView({block:'nearest'});}
+  }});
+},{rootMargin:'-10% 0px -75% 0px'});
+heads.forEach(h=>io.observe(h));
+const topBtn=document.getElementById('top');
+addEventListener('scroll',()=>topBtn.classList.toggle('show',scrollY>500));
+topBtn.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+</script>
+</body>
+</html>

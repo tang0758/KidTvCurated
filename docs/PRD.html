@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小剧场（KidTvCurated）产品需求文档 PRD</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --text:#1f2328; --muted:#5c6670;
+  --line:#e3e6ea; --accent:#b8860b; --accent-soft:#fdf6e3;
+  --code-bg:#f2f4f7; --thead:#f7f8fa;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  font-size:16px; line-height:1.78; -webkit-font-smoothing:antialiased;
+}
+.layout{display:flex; align-items:flex-start; max-width:1280px; margin:0 auto; padding:0 24px}
+/* 侧栏 */
+.sidebar{
+  width:270px; flex:0 0 270px; position:sticky; top:0; max-height:100vh;
+  overflow:auto; padding:34px 18px 40px 0; border-right:1px solid var(--line);
+}
+.sidebar .brand{font-size:14px; letter-spacing:.08em; color:var(--accent); font-weight:700; text-transform:uppercase}
+.sidebar .docname{font-size:17px; font-weight:700; margin:6px 0 16px}
+.sidebar nav a{
+  display:block; padding:5px 10px; margin:1px 0; border-radius:6px;
+  color:var(--muted); text-decoration:none; font-size:14px; line-height:1.5;
+  border-left:2px solid transparent;
+}
+.sidebar nav a:hover{background:#eef0f3; color:var(--text)}
+.sidebar nav a.lv3{padding-left:24px; font-size:13px; color:#78828c}
+.sidebar nav a.active{color:var(--accent); border-left-color:var(--accent); background:var(--accent-soft)}
+/* 正文 */
+main{flex:1 1 auto; min-width:0; background:var(--panel); margin:24px 0 60px 34px;
+  padding:48px 56px 72px; border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 1px 3px rgba(16,24,40,.04);}
+h1{font-size:32px; line-height:1.35; margin:0 0 8px; letter-spacing:-.01em}
+h2{font-size:23px; margin:44px 0 14px; padding-bottom:9px; border-bottom:1px solid var(--line)}
+h3{font-size:18px; margin:28px 0 10px}
+h4{font-size:16px; margin:20px 0 8px; color:#333}
+p{margin:10px 0}
+a{color:#0b66c3; text-decoration:none}
+a:hover{text-decoration:underline}
+ul,ol{padding-left:1.45em; margin:10px 0}
+li{margin:4px 0}
+hr{border:0; border-top:1px solid var(--line); margin:36px 0}
+strong{font-weight:650}
+/* 表格 */
+table{border-collapse:collapse; width:100%; margin:16px 0; font-size:14.5px;
+  display:block; overflow-x:auto; white-space:normal}
+thead th{background:var(--thead); text-align:left; font-weight:650}
+th,td{border:1px solid var(--line); padding:9px 12px; vertical-align:top}
+tbody tr:nth-child(even){background:#fbfcfd}
+table code{white-space:nowrap}
+/* 代码 */
+code{background:var(--code-bg); padding:2px 5px; border-radius:4px;
+  font-family:"Cascadia Mono",Consolas,"Courier New",monospace; font-size:.9em}
+pre{background:#1f2430; color:#e6e9ef; padding:16px 18px; border-radius:8px;
+  overflow:auto; line-height:1.6; font-size:13.5px; margin:16px 0}
+pre code{background:none; color:inherit; padding:0; font-size:inherit}
+/* 引用块 = 提示 */
+blockquote{margin:16px 0; padding:12px 16px; background:var(--accent-soft);
+  border-left:3px solid var(--accent); border-radius:0 6px 6px 0; color:#4a3f22}
+blockquote p{margin:4px 0}
+blockquote code{background:#fff8e6}
+/* 图片 */
+img{max-width:100%; height:auto; display:block; margin:18px auto; border-radius:8px;
+  border:1px solid var(--line); box-shadow:0 2px 8px rgba(16,24,40,.06)}
+table tbody td:first-child,table thead th:first-child{white-space:nowrap}
+/* 文档头 */
+.docmeta{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 26px}
+.docmeta span{font-size:13px; color:var(--muted); background:#f1f3f6;
+  border:1px solid var(--line); border-radius:999px; padding:3px 11px}
+.tip{font-size:13.5px; color:var(--muted); margin-top:8px}
+/* 回到顶部 */
+#top{position:fixed; right:26px; bottom:26px; width:42px; height:42px; border-radius:50%;
+  background:#fff; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+  box-shadow:0 2px 10px rgba(16,24,40,.12); font-size:18px; display:none}
+#top.show{display:block}
+@media (max-width:900px){
+  .layout{display:block; padding:0 12px}
+  .sidebar{display:none}
+  main{margin:12px 0 30px; padding:26px 18px 44px}
+  h1{font-size:26px} h2{font-size:20px}
+  body{font-size:15.5px}
+}
+@media print{
+  body{background:#fff}
+  .sidebar,#top{display:none!important}
+  main{margin:0; border:0; box-shadow:none; padding:0}
+  h2{page-break-after:avoid} table,pre,img{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">小剧场 · KidTvCurated</div>
+    <div class="docname">PRD 产品需求文档</div>
+    <nav id="toc"><a class="" href="#1-背景与问题">1. 背景与问题</a>
+<a class="lv3" href="#1-1-起点">1.1 起点</a>
+<a class="lv3" href="#1-2-真正的需求">1.2 真正的需求</a>
+<a class="lv3" href="#1-3-已发生过的真实故障-产品的由来">1.3 已发生过的真实故障（产品的由来）</a>
+<a class="" href="#2-产品定位与设计原则">2. 产品定位与设计原则</a>
+<a class="lv3" href="#设计原则-冲突时的取舍依据">设计原则（冲突时的取舍依据）</a>
+<a class="" href="#3-用户与使用场景">3. 用户与使用场景</a>
+<a class="lv3" href="#3-1-角色">3.1 角色</a>
+<a class="lv3" href="#3-2-关键场景">3.2 关键场景</a>
+<a class="" href="#4-目标与成功指标">4. 目标与成功指标</a>
+<a class="lv3" href="#4-1-北极星指标">4.1 北极星指标</a>
+<a class="lv3" href="#4-2-指标体系">4.2 指标体系</a>
+<a class="" href="#5-范围">5. 范围</a>
+<a class="lv3" href="#5-1-in-scope-本期">5.1 In Scope（本期）</a>
+<a class="lv3" href="#5-2-out-of-scope-明确不做">5.2 Out of Scope（明确不做）</a>
+<a class="" href="#6-权限与角色矩阵">6. 权限与角色矩阵</a>
+<a class="" href="#7-信息架构与关键状态">7. 信息架构与关键状态</a>
+<a class="lv3" href="#7-1-页面结构">7.1 页面结构</a>
+<a class="lv3" href="#7-2-观看状态机">7.2 观看状态机</a>
+<a class="lv3" href="#7-3-生效链路-改片单后">7.3 生效链路（改片单后）</a>
+<a class="" href="#8-功能需求">8. 功能需求</a>
+<a class="lv3" href="#8-1-内容与播放">8.1 内容与播放</a>
+<a class="lv3" href="#8-2-家长能力">8.2 家长能力</a>
+<a class="lv3" href="#8-3-编排与运维">8.3 编排与运维</a>
+<a class="" href="#9-关键业务规则-实现契约">9. 关键业务规则（实现契约）</a>
+<a class="" href="#10-数据模型">10. 数据模型</a>
+<a class="lv3" href="#10-1-tv-json-nas-data-curated-tv-json">10.1 tv.json（NAS：data:/curated/tv.json）</a>
+<a class="lv3" href="#10-2-电视本地存储-仅运行态">10.2 电视本地存储（仅运行态）</a>
+<a class="" href="#11-非功能需求">11. 非功能需求</a>
+<a class="lv3" href="#11-1-性能-实测基线-2-5-gb-ram-1080p">11.1 性能（实测基线，2.5 GB RAM / 1080p）</a>
+<a class="lv3" href="#11-2-兼容性">11.2 兼容性</a>
+<a class="lv3" href="#11-3-可靠性">11.3 可靠性</a>
+<a class="lv3" href="#11-4-安全与隐私">11.4 安全与隐私</a>
+<a class="lv3" href="#11-5-可维护性">11.5 可维护性</a>
+<a class="lv3" href="#11-6-成本">11.6 成本</a>
+<a class="" href="#12-约束与已知限制">12. 约束与已知限制</a>
+<a class="lv3" href="#12-1-技术约束">12.1 技术约束</a>
+<a class="lv3" href="#12-2-平台限制-不做承诺">12.2 平台限制（不做承诺）</a>
+<a class="" href="#13-发布-升级与回滚">13. 发布、升级与回滚</a>
+<a class="" href="#14-风险登记册">14. 风险登记册</a>
+<a class="" href="#15-验收与测试计划">15. 验收与测试计划</a>
+<a class="lv3" href="#15-1-测试环境">15.1 测试环境</a>
+<a class="lv3" href="#15-2-冒烟测试-每次发版必跑-10-条">15.2 冒烟测试（每次发版必跑，10 条）</a>
+<a class="lv3" href="#15-3-功能用例-节选-p0-p1">15.3 功能用例（节选，P0/P1）</a>
+<a class="lv3" href="#15-4-异常与恢复用例">15.4 异常与恢复用例</a>
+<a class="lv3" href="#15-5-缺陷分级">15.5 缺陷分级</a>
+<a class="lv3" href="#15-6-已知未闭环-不作为本次验收阻断项">15.6 已知未闭环（不作为本次验收阻断项）</a>
+<a class="" href="#16-路线图-按性价比">16. 路线图（按性价比）</a>
+<a class="" href="#17-附录">17. 附录</a>
+<a class="lv3" href="#17-1-术语">17.1 术语</a>
+<a class="lv3" href="#17-2-遥控器速查">17.2 遥控器速查</a>
+<a class="lv3" href="#17-3-错误码提示">17.3 错误码提示</a>
+<a class="lv3" href="#17-4-相关文件索引">17.4 相关文件索引</a></nav>
+  </aside>
+  <main>
+    <h1 id="kidtvcurated-prd">小剧场（KidTvCurated）产品需求文档 PRD</h1>
+<div class="docmeta"><span>产品需求文档 PRD</span><span>V1.0</span><span>2026-11-10</span><span>对应代码 2e1120c</span><span>内部文档</span></div><p class="tip">左侧目录可跳转；浏览器直接 Ctrl+P 可打印为 PDF。</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>产品名</td>
+<td>小剧场 · KidTvCurated</td>
+</tr>
+<tr>
+<td>文档版本</td>
+<td>V1.0</td>
+</tr>
+<tr>
+<td>撰写日期</td>
+<td>2026-11-10</td>
+</tr>
+<tr>
+<td>撰写角色</td>
+<td>产品经理 / 测试工程师</td>
+</tr>
+<tr>
+<td>对应代码</td>
+<td><code>curated-tv</code> 仓库 <code>main</code> @ <code>2e1120c</code>（家长控制 + 电视端设置页）</td>
+</tr>
+<tr>
+<td>对应交付物</td>
+<td><code>app-debug.apk</code>（26.7 MB，versionCode 1 / versionName 1.0）、<code>dist/KidTvConfig-PC.exe</code>、<code>dist/kidtv-console-ugospro.zip</code></td>
+</tr>
+<tr>
+<td>文档状态</td>
+<td>家庭生产环境已上线，功能持续迭代</td>
+</tr>
+<tr>
+<td>关联文档</td>
+<td><a href="../README.md">README</a>（功能与部署）、<a href="CONFIG.md">CONFIG.md</a>（字段手册）、<a href="用户使用说明书.md">用户使用说明书</a></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>本文档描述「现在真实存在并跑在家里电视上的产品」，不是构想稿。所有标 <strong>✅ 已上线</strong> 的能力均已在海信 55E3F-MAX 实机验证；标 <strong>⚠️ 限制</strong> 的是当前技术或固件条件下做不到、已被明确接受的部分。</p>
+</blockquote>
+<hr />
+<h2 id="1-背景与问题">1. 背景与问题</h2>
+<h3 id="1-1-起点">1.1 起点</h3>
+<p>家里电视是海信 55E3F-MAX（VIDAA / Android 9 / MTK9652 / 2.5 GB RAM / 1080p），片库在绿联 UGOS Pro NAS 上（<code>192.168.31.72</code>），核心是约 1970 个儿童视频文件：分级动画、英语启蒙、纪录片、识字课。孩子 5 岁半。</p>
+<p>在自研之前，依次试过三种方案，都不成立：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>实测结果</th>
+<th>根本问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kodi 21.3 + TMDB 刮削</td>
+<td>需打补丁绕过被墙域名；1970 文件扫库不稳；2.5 GB 内存吃紧；孩子能从「文件浏览」看到全部片库</td>
+<td>内容边界不可控，维护成本高</td>
+</tr>
+<tr>
+<td>Nova Video Player</td>
+<td>全量刮削导致错配、扫描不稳定</td>
+<td>同上，且不可离线可控</td>
+</tr>
+<tr>
+<td>各视频 App 自带推荐</td>
+<td>首页推荐、自动连播、广告</td>
+<td>观看决定权在平台，不在家长</td>
+</tr>
+</tbody>
+</table>
+<h3 id="1-2-真正的需求">1.2 真正的需求</h3>
+<p>不是「做一个播放器」，而是三件事：</p>
+<ol>
+<li><strong>内容白名单</strong>：电视上只出现家长挑过的内容，不扫全盘、不联网刮削、不被推荐算法带走。</li>
+<li><strong>规则可执行</strong>：每天先看完家长指定的几集，才能看动画片；到点自动锁屏；时长有上限。</li>
+<li><strong>维护成本接近零</strong>：家长在电脑上双击一个 bat 就能改片单，改完电视自己更新，不需要遥控器操作、不需要重装 App。</li>
+</ol>
+<h3 id="1-3-已发生过的真实故障-产品的由来">1.3 已发生过的真实故障（产品的由来）</h3>
+<p>这些事故直接塑造了今天的架构，也是测试重点：</p>
+<ul>
+<li>保存片单后<strong>全站无法播放</strong>（两次）：SMB 单连接被并发读挂死，只能重启 App。</li>
+<li>目录名含 <code>+</code> 的整季动画<strong>全部打不开</strong>：URL 解码把 <code>+</code> 变成空格。</li>
+<li>家长在编辑器里上移三行，电视上<strong>封面与标题整体错位</strong>：条目 id 用了数组下标。</li>
+<li>一次手工填写掩码密码，把 <code>********</code> 写进 NAS，电视<strong>永久连不上自己</strong>。</li>
+<li>用 scrcpy 高分辨率软编压测后，电视<strong>所有视频黑屏</strong>（含优酷），只有整机断电才恢复。</li>
+</ul>
+<hr />
+<h2 id="2-产品定位与设计原则">2. 产品定位与设计原则</h2>
+<p><strong>一句话定位</strong>：给家庭电视用的「家长编排型」儿童点播应用——电视端离线直读 NAS，家长在电脑/手机上编排，规则落在同一份 <code>tv.json</code> 上。</p>
+<h3 id="设计原则-冲突时的取舍依据">设计原则（冲突时的取舍依据）</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>原则</th>
+<th>具体表现</th>
+<th>代价（已接受）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td><strong>白名单优先</strong></td>
+<td>不扫全盘、不联网刮削、不截帧；只显示清单条目</td>
+<td>没配封面就是灰卡，不会自动出海报</td>
+</tr>
+<tr>
+<td>P2</td>
+<td><strong>单一事实来源</strong></td>
+<td>片单、时段、PIN、应用入口全部落在 NAS 的 <code>data/curated/tv.json</code>；电视端设置也写回它</td>
+<td>强依赖 NAS 可写共享；写坏会自锁（已加双层占位符保护）</td>
+</tr>
+<tr>
+<td>P3</td>
+<td><strong>家长零学习成本</strong></td>
+<td>双击 bat 开编辑器；电视端设置页方向键 + OK</td>
+<td>高级字段仍需理解 JSON（保留原文编辑兜底）</td>
+</tr>
+<tr>
+<td>P4</td>
+<td><strong>失败要能自愈</strong></td>
+<td>缓存兜底、SMB 硬超时重连、播放三层重试、NAS 换 IP 自发现</td>
+<td>逻辑复杂度上升，日志点多</td>
+</tr>
+<tr>
+<td>P5</td>
+<td><strong>系统改动必须可逆</strong></td>
+<td>默认桌面、停用 Aerial、appops 授权全部附撤销命令</td>
+<td>需要家长能跑 adb（提供一键脚本/文档）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="3-用户与使用场景">3. 用户与使用场景</h2>
+<h3 id="3-1-角色">3.1 角色</h3>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>画像</th>
+<th>使用设备</th>
+<th>核心诉求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>家长（主要操作者）</td>
+<td>本文档读者；懂一点电脑，不写代码</td>
+<td>Windows PC、手机浏览器、电视遥控器</td>
+<td>5 分钟内加一部新动画；能远程限时；出事能自己救回来</td>
+</tr>
+<tr>
+<td>孩子（5–7 岁）</td>
+<td>认字不多，只会方向键 + OK</td>
+<td>电视 + 遥控器</td>
+<td>打开就能看；看完有盖章和勋章</td>
+</tr>
+<tr>
+<td>系统 / 运维（家长兼任）</td>
+<td>会 <code>adb</code> 更好，不会也能用</td>
+<td>PC + 局域网</td>
+<td>安装、设为默认桌面、排障</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-2-关键场景">3.2 关键场景</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>触发</th>
+<th>期望结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1 每晚例行</td>
+<td>17:30 孩子开电视</td>
+<td>主界面出现「今天要看的」，看完 5 集自动盖章，动画片解锁</td>
+</tr>
+<tr>
+<td>S2 加新片</td>
+<td>家长下载了新动画到 NAS</td>
+<td>电脑双击编辑器 → 勾目录 → 保存；电视 15 秒内出现新卡片，无需遥控</td>
+</tr>
+<tr>
+<td>S3 到点收工</td>
+<td>20:30 或 60 分钟用尽</td>
+<td>播放中断，锁屏左 42% 大倒计时、右 58% 学习角；孩子翻不出去</td>
+</tr>
+<tr>
+<td>S4 家长临时加班</td>
+<td>孩子还想看 15 分钟</td>
+<td>锁屏按菜单键输 PIN（或直接按数字键）→ 放行 15 分钟</td>
+</tr>
+<tr>
+<td>S5 出门在外改片单</td>
+<td>家长在公司</td>
+<td>手机经 Tailscale / UGREENlink 打开控制台改 <code>tv.json</code>；电视照常内网播放</td>
+</tr>
+<tr>
+<td>S6 家长自己要用电视</td>
+<td>要看新闻/装应用</td>
+<td>菜单 → PIN → 退出到桌面（默认放行 30 分钟），回来可提前结束放行</td>
+</tr>
+<tr>
+<td>S7 换 NAS / 换 IP</td>
+<td>路由器重启、NAS 改地址</td>
+<td>电视自动扫本网段找到 SMB 主机；失败则用缓存清单照常显示</td>
+</tr>
+<tr>
+<td>S8 故障恢复</td>
+<td>播放黑屏 / 列表卡死</td>
+<td>按文档断电重启 / 清缓存 / 恢复备份，不丢打卡与进度</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="4-目标与成功指标">4. 目标与成功指标</h2>
+<h3 id="4-1-北极星指标">4.1 北极星指标</h3>
+<p><strong>从「家长在电脑上点保存」到「电视上看到新内容」的时间 ≤ 60 秒，且家长全程不碰遥控器。</strong></p>
+<p>当前实测：轮询通道 15 秒内生效；广播通道约 8 秒；两者互为兜底。</p>
+<h3 id="4-2-指标体系">4.2 指标体系</h3>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>指标</th>
+<th>目标</th>
+<th>当前</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>稳定性</td>
+<td>冷启动成功率</td>
+<td>≥ 99%</td>
+<td>达标（无 AndroidRuntime 崩溃记录）</td>
+</tr>
+<tr>
+<td>稳定性</td>
+<td>单次播放起播成功率（含自愈）</td>
+<td>≥ 99%</td>
+<td>修复后实测 1.4 s 起播、0 错误</td>
+</tr>
+<tr>
+<td>稳定性</td>
+<td>「保存片单后全站卡死」</td>
+<td>0 次/月</td>
+<td>已修（硬超时 + 独立连接），连续 20 次覆盖写无异常</td>
+</tr>
+<tr>
+<td>效率</td>
+<td>新增一部动画的操作步数</td>
+<td>≤ 6 步</td>
+<td>6 步（编辑器勾选 → 保存）</td>
+</tr>
+<tr>
+<td>效率</td>
+<td>片单变更到电视可见</td>
+<td>≤ 60 s</td>
+<td>8–15 s</td>
+</tr>
+<tr>
+<td>效果</td>
+<td>每日必看完成率</td>
+<td>≥ 80%</td>
+<td>待持续观察（打卡墙已具备统计）</td>
+</tr>
+<tr>
+<td>效果</td>
+<td>家长临时放行频次</td>
+<td>记录并观察</td>
+<td>待观察</td>
+</tr>
+<tr>
+<td>体验</td>
+<td>误锁（家长自己被锁）</td>
+<td>0 次/周</td>
+<td>设置页免锁 + 放行窗口已覆盖</td>
+</tr>
+<tr>
+<td>维护</td>
+<td>每月人工维护时长</td>
+<td>≤ 10 分钟</td>
+<td>封面需手动生成（懒人版一键）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-范围">5. 范围</h2>
+<h3 id="5-1-in-scope-本期">5.1 In Scope（本期）</h3>
+<ul>
+<li>Android TV 端 App（海报墙、剧集、播放、打卡、勋章、锁屏、家长菜单、设置页）</li>
+<li><code>tv.json</code> 片单协议与字段体系（分区、门禁、时段、学习角、儿童锁、应用入口、自动刷新）</li>
+<li>编排工具三件套：简易编辑器（8787）、网页控制台（8765）、PC 桌面助手（exe）</li>
+<li>封面批量生成、内置 255 张离线学习卡、50 幅名画</li>
+<li>部署与运维：Docker 常驻 NAS、UGOS Pro 部署包、Tailscale / UGREENlink 外网访问</li>
+<li>儿童锁：应用内拦截 + 默认桌面 + 前台守卫 + 开机自启（受固件限制）</li>
+</ul>
+<h3 id="5-2-out-of-scope-明确不做">5.2 Out of Scope（明确不做）</h3>
+<table>
+<thead>
+<tr>
+<th>不做</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>在线影视 / 内容分发</td>
+<td>版权与合规；产品只做「自家片库的入口」</td>
+</tr>
+<tr>
+<td>联网刮削海报、自动识别剧名</td>
+<td>违背 P1（离线可控）；改由 <code>make_covers.py</code> 截帧生成</td>
+</tr>
+<tr>
+<td>多娃档案 / 账号体系</td>
+<td>当前只有一名使用者；复杂度收益比不划算</td>
+</tr>
+<tr>
+<td>安卓原生编辑器 App</td>
+<td>手机浏览器 + 添加到主屏幕已够用</td>
+</tr>
+<tr>
+<td>iOS 端</td>
+<td>无使用场景</td>
+</tr>
+<tr>
+<td>家长 PIN 加密存储</td>
+<td>PIN 只防孩子随手解锁，不是安全边界（已在文档声明）</td>
+</tr>
+<tr>
+<td>拦截 Home / 输入源 / 电源等硬件键</td>
+<td>Android 与红外固件层面不可达（见 12.2）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-权限与角色矩阵">6. 权限与角色矩阵</h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>孩子</th>
+<th>家长（PIN 后）</th>
+<th>系统 / adb</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>浏览海报墙、播放、续播</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+<tr>
+<td>进入必看未完成的其他分区</td>
+<td>❌（提示「先做完上面那 N 个」）</td>
+<td>✅（一次性「先跳过必看」）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>查看打卡墙 / 勋章墙</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+<tr>
+<td>改时段 / 上限 / PIN / 应用入口</td>
+<td>❌</td>
+<td>✅（电视设置页或编辑器）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>临时放行 15 分钟</td>
+<td>❌</td>
+<td>✅（锁屏输 PIN）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>退出到桌面</td>
+<td>❌</td>
+<td>✅（PIN + 放行窗口）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>安装 APK / 设默认桌面 / 授权</td>
+<td>❌</td>
+<td>家长可执行</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>修改 NAS 上的 <code>tv.json</code></td>
+<td>❌</td>
+<td>✅（编辑器/控制台）</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="7-信息架构与关键状态">7. 信息架构与关键状态</h2>
+<h3 id="7-1-页面结构">7.1 页面结构</h3>
+<pre><code>小剧场 App（com.family.curated）
+├── MainActivity        海报墙（分区行 × 海报卡）+ 顶栏：鼓励语 / 我的奖励 / 家长控制 / 今日时长
+│   ├── EpisodesActivity 剧集列表（folder 条目进入；显示「共 N 个」）
+│   ├── PlayerActivity   播放（ExoPlayer；防跳看；续播；错误自愈）
+│   ├── RewardsActivity  打卡墙（月历 + 连续天数）+ 勋章墙（10 枚）+ 统计
+│   ├── SettingsActivity 家长控制（两列设置页，写回 NAS）
+│   └── LockActivity     锁屏（左 42% 倒计时 / 右 58% 学习角）
+└── 后台组件：KidApp（全局时间守卫 + 前台守卫）、PlaylistSync（轮询）、
+    PlaylistChangedReceiver（广播）、BootReceiver（开机自启）
+
+编排侧
+├── 简易编辑器 tools/tvjson_simple.py   127.0.0.1:8787（日常主力，双击 start-tvjson-editor.bat）
+├── 网页控制台 tools/console.py         127.0.0.1:8765（五页签，手机/PC 浏览器，可 Docker 常驻 NAS）
+└── PC 桌面助手 tools/desktop.py        dist/KidTvConfig-PC.exe（内嵌同一控制台 + 二维码 + 日志）
+</code></pre>
+<h3 id="7-2-观看状态机">7.2 观看状态机</h3>
+<pre><code>            ┌────────────── 家长 PIN 放行 15 min ──────────────┐
+            ↓                                                  │
+[可用] ──时段外/时长用尽──&gt; [锁屏 LockActivity] ──时长到/手动结束──┘
+   │                              ↑
+   │ 必看未完成                    │ 播放中到点
+   ↓                              │
+[门禁：其他分区上锁] ──必看全完成──&gt; [解锁 + 盖章 + 勋章检查]
+</code></pre>
+<h3 id="7-3-生效链路-改片单后">7.3 生效链路（改片单后）</h3>
+<pre><code>编辑器/控制台 保存
+   ├─ 备份 NAS 同目录 tv.backup.json
+   ├─ 写 .tv.json.tmp → 原子 rename
+   └─ 发显式广播 com.family.curated.PLAYLIST_CHANGED
+                 ↓（失败也不要紧）
+电视 PlaylistSync 每 15 s 读 NAS tv.json 全文 → 与缓存逐字比较
+                 ↓ 内容真变了
+Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状态）
+</code></pre>
+<hr />
+<h2 id="8-功能需求">8. 功能需求</h2>
+<blockquote>
+<p>优先级：<strong>P0</strong> = 不做产品不成立；<strong>P1</strong> = 核心体验，缺失会明显掉档；<strong>P2</strong> = 增强。<br />
+每条含验收标准（AC），可直接转为测试用例。</p>
+</blockquote>
+<h3 id="8-1-内容与播放">8.1 内容与播放</h3>
+<h4 id="fr-01-p0">FR-01 片单加载与离线兜底（P0）✅</h4>
+<p><strong>描述</strong>：App 启动时从 NAS 读取 <code>&lt;playlistShare&gt;/curated/tv.json</code>（默认 <code>data:/curated/tv.json</code>），解析为分区与条目。</p>
+<p><strong>规则</strong><br />
+- 读取顺序：<code>data</code> → 主共享 → <code>普通数据</code> → <code>迅雷下载</code>，记住首次成功者。<br />
+- 读不到时回退本机 <code>playlist_cache</code>，界面提示「正在使用上次的清单」，功能不中断。<br />
+- 读取使用<strong>独立短连接 + 硬超时（25 s）</strong>，不占播放主连接。<br />
+- 445 连不上时扫本网段找 SMB 主机（10 分钟冷却，播放中不扫）。</p>
+<p><strong>AC</strong><br />
+1. 正常网络下冷启动 ≤ 3 s 出现第一屏海报。<br />
+2. 拔掉 NAS 网线后重启 App，仍显示上次清单，顶栏有离线提示，不白屏、不崩溃。<br />
+3. NAS 改 IP 后（同网段），App 能自动连上新地址，无需改配置。</p>
+<h4 id="fr-02-p0">FR-02 海报墙（P0）✅</h4>
+<p><strong>描述</strong>：按 <code>sections</code> 顺序渲染分区行，每行默认 5 张卡（<code>columns</code> 可改），卡片显示封面或标题占位。</p>
+<p><strong>规则</strong><br />
+- 焦点：放大 1.10 + 金色描边 + 同排其它卡压暗至 0.72；分区标题同步变金。<br />
+- 卡片副标题显示集数（如「85 集」）。<br />
+- 空清单显示引导文案（「请在 NAS 的共享文件夹里放一份清单」）。<br />
+- 不联网、不刮削；封面只用 NAS 上现成图片（见 FR-16）。</p>
+<p><strong>AC</strong><br />
+1. 遥控器上下切分区、左右选片，焦点清晰可见（3 米外可辨）。<br />
+2. 从播放页/剧集页返回，焦点回到离开时那张卡（不是「我的奖励」）。<br />
+3. 空清单时显示引导文案而不是空白页。</p>
+<h4 id="fr-03-p0">FR-03 剧集列表（P0）✅</h4>
+<p><strong>描述</strong>：<code>folder</code> 条目进入剧集列表，递归最多 3 层子目录（<code>剧名/第N季/单集.mp4</code>）。</p>
+<p><strong>规则</strong><br />
+- 文件扩展名白名单（mp4/mkv/avi/ts/mov/m4v/webm 等）；mp3 不进列表。<br />
+- 显示「共 N 个」，已看过的显示进度条/完成标记。<br />
+- 读取失败显示「读取超时，按遥控器 OK 重试」，可重按。</p>
+<p><strong>AC</strong><br />
+1. 「数字积木」类多层目录能列出全部 181 集。<br />
+2. 目录名含 <code>+</code>、中文、空格、括号时可正常列出并播放（不得二次 URL 解码）。<br />
+3. 超过 3 层的目录不会被无限递归，最多 3 层。</p>
+<h4 id="fr-04-p0">FR-04 播放与续播（P0）✅</h4>
+<p><strong>描述</strong>：内置 ExoPlayer 直读 SMB，支持暂停、快进/快退 15 秒、续播。</p>
+<p><strong>规则</strong><br />
+- 每 3 秒批量落盘播放位置；再次进入从上次位置继续。<br />
+- 进度 ≥ <code>passRatio</code>（默认 92%）标记完成。<br />
+- 遥控器：OK 暂停/继续；左右 ±15 s；返回退出。<br />
+- 播放期间暂停轮询与封面加载（<code>SmbPlaybackContext.playing</code>），避免抢连接。</p>
+<p><strong>AC</strong><br />
+1. 1080p H.264 起播 ≤ 2 s（正常网络，实测 1.4 s）。<br />
+2. 中途退出再进入，从上次位置继续（误差 ≤ 5 s）。<br />
+3. 播放中每 15 s 的片单轮询不得造成卡顿或断流。</p>
+<h4 id="fr-05-p0">FR-05 每日必看门禁（P0）✅</h4>
+<p><strong>描述</strong>：<code>gate: true</code> 的分区为「每日必看」；<code>requires: "&lt;key&gt;"</code> 的分区在该 gate 全完成后解锁。</p>
+<p><strong>规则</strong><br />
+- 完成判定：条目进度 ≥ <code>passRatio</code>，或手动看完（进度到结尾）。<br />
+- 未完成时，被锁分区卡片显示锁标 +「还差 N 个才解锁」。<br />
+- 家长可「这次先跳过必看」（仅本次会话有效，重启恢复）。<br />
+- 无 gate 分区时，所有分区随时可看。</p>
+<p><strong>AC</strong><br />
+1. daily 5 条全部完成后，动画片/纪录片/学习三个分区立即解锁且可进入。<br />
+2. 未完成时点锁住的卡，提示「先做完上面那 N 个，就能看了」，不进入。<br />
+3. 「这次先跳过必看」后立即解锁；重启 App 后恢复限制。</p>
+<h4 id="fr-06-p1">FR-06 打卡墙（P1）✅</h4>
+<p><strong>描述</strong>：当天必看全部完成时自动盖章；月历可翻页，显示连续天数与最长连击。</p>
+<p><strong>规则</strong><br />
+- 盖章幂等：同一天只盖一次。<br />
+- 连续天数按自然日计算，中断即归零；历史最长连击单独保存。<br />
+- 进入奖励页即可查看，主界面完成后弹鼓励语。</p>
+<p><strong>AC</strong><br />
+1. 首次完成必看，当天格子出现印章，连续天数 +1。<br />
+2. 同一天重复看完不会重复盖章。<br />
+3. 中间漏了一天，连续天数从漏掉那天起归零（最长连击保留）。</p>
+<h4 id="fr-07-p1">FR-07 勋章墙（P1）✅</h4>
+<p><strong>描述</strong>：10 枚成就勋章，按累计打卡、连击、观看时长、视频数解锁；新解锁在主界面按钮挂小红点。</p>
+<table>
+<thead>
+<tr>
+<th>勋章</th>
+<th>条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>启程之星「初」</td>
+<td>首次完成每日必看</td>
+</tr>
+<tr>
+<td>三日之约「叁」</td>
+<td>连续打卡 3 天</td>
+</tr>
+<tr>
+<td>一周坚持「柒」</td>
+<td>连续打卡 7 天</td>
+</tr>
+<tr>
+<td>半月小达人「旬」</td>
+<td>累计打卡 15 天</td>
+</tr>
+<tr>
+<td>满月传说「月」</td>
+<td>累计打卡 30 天</td>
+</tr>
+<tr>
+<td>观影新星「十」</td>
+<td>累计看完 10 个视频</td>
+</tr>
+<tr>
+<td>百集勇士「百」</td>
+<td>累计看完 50 个视频</td>
+</tr>
+<tr>
+<td>时间旅行者「时」</td>
+<td>累计观看 5 小时</td>
+</tr>
+<tr>
+<td>资深观众「恒」</td>
+<td>累计观看 20 小时</td>
+</tr>
+<tr>
+<td>完美一周「冠」</td>
+<td>当前连击 7 天</td>
+</tr>
+</tbody>
+</table>
+<p><strong>AC</strong><br />
+1. 首次盖章后「启程之星」点亮，主界面按钮文案变为「我的奖励 · 1 枚新勋章」。<br />
+2. 勋章墙首次查看后小红点消失。<br />
+3. 勋章进度由累计数据推导，清缓存/重装前不会因界面刷新丢失（存本机 prefs）。</p>
+<h4 id="fr-08-p0">FR-08 可用时段与每日时长（P0）✅</h4>
+<p><strong>描述</strong>：工作日/周末可分别设时间窗；每日真实播放时长上限；超限或时段外锁屏。</p>
+<p><strong>规则</strong><br />
+- 时间窗支持 <code>"17:30-20:30"</code>、<code>["17:30","20:30"]</code>、<code>{"start","end"}</code> 三种写法；结束 &lt; 开始视为跨零点。<br />
+- 不写 <code>weekend</code> → 沿用工作日；<code>[]</code> → 周末全天。<br />
+- <code>dailyLimitMinutes: 0</code> = 不限；只统计真实播放时长，暂停/缓冲不计。<br />
+- 锁屏：左 42% 大倒计时（隔几米可读），右 58% 学习角；家长 PIN 可放行 15 分钟。<br />
+- 设置页本身不受锁屏遮挡（家长多在改时段时被锁）。</p>
+<p><strong>AC</strong><br />
+1. 时段外打开 App，1.2 s 内弹出锁屏，倒计时按秒跳动。<br />
+2. 播放到上限瞬间中断并锁屏；已看时长不因重启清零。<br />
+3. 跨零点时段（22:00–01:00）在 23:30 判定为可用。<br />
+4. 在设置页停留跨过时段边界，不被锁屏打断。</p>
+<h4 id="fr-09-p1">FR-09 等待时间学习角（P1）✅</h4>
+<p><strong>描述</strong>：锁屏右半边轮播离线学习卡片，共 255 张：57 首唐诗、78 个 A–Z 单词（每字母 3 个）、50 幅名画、70 张识字/成语/短句。</p>
+<p><strong>规则</strong><br />
+- 四类按 <code>order</code> 交错出现，默认 20 秒一张（可 6–600 s），顶部有进度条。<br />
+- <code>useBuiltin: false</code> 时只出自定义卡；<code>custom</code> 追加在内置库后。<br />
+- <code>stage</code> + <code>stageSize</code> 分阶段（如 1/50 = 每类前 50 张）。<br />
+- <code>artFolder</code> 可换成 NAS 上的家庭相册/孩子画作。<br />
+- 遥控器 ◀ ▶ 手动翻页，播放/暂停键暂停轮播；菜单键 + PIN 仍可放行。</p>
+<p><strong>AC</strong><br />
+1. 断网状态下 255 张卡片全部可显示，名画正常解码。<br />
+2. <code>order: ["word"]</code> 时只出单词（不得混入其它类）。<br />
+3. 播放/暂停键能暂停轮播并显示提示，再按继续。<br />
+4. 分阶段 1/50 时计数显示 1/200（四类 × 50）。</p>
+<h4 id="fr-10-p1">FR-10 防跳看（P1）✅</h4>
+<p><strong>描述</strong>：必看分区的视频记录「真正连续看到的最远位置」（frontier），只允许回看已看部分。</p>
+<p><strong>规则</strong><br />
+- 快进越界自动拉回并提示；非必看视频不受限。<br />
+- 播完/达到 passRatio 后解除限制。</p>
+<p><strong>AC</strong><br />
+1. 必看视频连按 6 次快进，位置被拉回 frontier 并出现提示。<br />
+2. 看完后可以自由拖动回看。<br />
+3. 非必看分区视频可自由快进。</p>
+<h3 id="8-2-家长能力">8.2 家长能力</h3>
+<h4 id="fr-11-pinp0">FR-11 家长菜单与 PIN（P0）✅</h4>
+<p><strong>入口</strong>：主界面遥控器 <strong>菜单键</strong>；输 PIN 后弹出选项。</p>
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>家长控制（时段 / 上限 / 密码）</td>
+<td>进入设置页</td>
+</tr>
+<tr>
+<td>重新读取清单</td>
+<td>强制重读 NAS（含 <code>Smb.reset()</code>）</td>
+</tr>
+<tr>
+<td>选择允许显示的应用</td>
+<td>多选应用入口</td>
+</tr>
+<tr>
+<td>恢复清单里的应用列表</td>
+<td>清掉电视本地勾选，改用 <code>apps.entries</code></td>
+</tr>
+<tr>
+<td>今天全部重来（清掉完成记录）</td>
+<td>重置今日打卡与完成</td>
+</tr>
+<tr>
+<td>这次先跳过必看 / 恢复必看限制</td>
+<td>本次会话临时解禁</td>
+</tr>
+<tr>
+<td>清空所有播放进度</td>
+<td>进度归零（不影响打卡历史）</td>
+</tr>
+<tr>
+<td>打卡墙 · 勋章墙</td>
+<td>直达奖励页</td>
+</tr>
+<tr>
+<td>临时放行 15 分钟</td>
+<td>家长自己也要看</td>
+</tr>
+<tr>
+<td>退出到桌面（家长维护）/ 结束家长放行</td>
+<td>儿童锁出口</td>
+</tr>
+</tbody>
+</table>
+<p><strong>规则</strong><br />
+- PIN 4–8 位数字，默认 <code>1234</code>，<strong>装好必须改</strong>。<br />
+- 锁屏状态下可直接按遥控器数字键输 PIN。<br />
+- 设置页输入框内「回车/OK = 确定」（遥控器没有 TAB）。</p>
+<p><strong>AC</strong><br />
+1. 输错 PIN 停留在原界面并提示，不进入。<br />
+2. 锁屏下直接按 <code>1234</code> 即放行 15 分钟。<br />
+3. PIN 改到 6 位后，旧 4 位 PIN 失效。</p>
+<h4 id="fr-12-p02026-11-10">FR-12 家长控制设置页（P0）✅（2026-11-10 新增）</h4>
+<p><strong>描述</strong>：主界面右上「家长控制」或菜单进入，PIN 后两列设置页，方向键选择、OK 修改。</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>可改项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间与时长</td>
+<td>每日上限（0/20/30/45/60/90/120/自定义 0–720）、平日时段、周末时段（分别编辑）、时段限制开关</td>
+</tr>
+<tr>
+<td>规则</td>
+<td>家长密码（4–8 位）、看完判定（80/85/90/92/95/100%）、应用入口开关与勾选</td>
+</tr>
+<tr>
+<td>维护</td>
+<td>临时放行（15/30/60/120 或立刻结束）、今天全部重来、清空播放进度、重新读取清单、退出到桌面</td>
+</tr>
+</tbody>
+</table>
+<p><strong>写回机制（关键）</strong><br />
+1. 读 NAS 最新 <code>tv.json</code>；<br />
+2. <strong>只改对应字段</strong>，不覆盖别人刚加的条目；<br />
+3. 备份 <code>tv.backup.json</code>；<br />
+4. 原子写回（<code>.tmp</code> → rename）；<br />
+5. 回读校验为合法 JSON；<br />
+6. 成功后更新本机，失败只提示、不改本地。</p>
+<p><strong>AC</strong><br />
+1. 改上限 50 → 60，NAS 上 <code>schedule.dailyLimitMinutes</code> 变为 60，<code>tv.backup.json</code> 为旧版本。<br />
+2. 改 <code>passRatio</code> 后写入值为干净的 <code>0.92</code>（不得出现 <code>0.9200000166893005</code>）。<br />
+3. NAS 不可写时明确报错，界面不回显「已修改」。<br />
+4. 设置页返回主界面，焦点回到「家长控制」按钮。<br />
+5. 写回不得改动 <code>nas.password</code>、条目、封面等字段。</p>
+<h4 id="fr-13-kioskp1">FR-13 儿童锁 Kiosk（P1）✅</h4>
+<p><strong>描述</strong>：不让孩子用遥控器退回桌面看别的资源。</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>挡住什么</th>
+<th>实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>应用内</td>
+<td>返回键、设置/输入源/最近任务/语音等可收到的功能键</td>
+<td>主界面吞返回；子页只吞系统键</td>
+</tr>
+<tr>
+<td>默认桌面</td>
+<td>Home 键</td>
+<td><code>cmd package set-home-activity</code> 写死小剧场</td>
+</tr>
+<tr>
+<td>前台守卫</td>
+<td>被切到后台</td>
+<td>离开约 1 s 自动拉回；息屏、家长放行期间不打扰</td>
+</tr>
+<tr>
+<td>开机自启</td>
+<td>开机后抢跑</td>
+<td><code>BootReceiver</code>（仅 <code>kiosk.enabled</code> 时）</td>
+</tr>
+<tr>
+<td>硬件键</td>
+<td>输入源/直播/电源</td>
+<td>⚠️ 应用层无解，物理遮挡或 Device Owner</td>
+</tr>
+</tbody>
+</table>
+<p><strong>规则</strong>：<code>kiosk.enabled</code> 默认 false；<code>reentryMs</code> 300–10000；家长出口放行 <code>exitMinutes</code>（默认 30）。</p>
+<p><strong>AC</strong><br />
+1. 开启后主界面按返回无反应；剧集/播放页返回仍可回上一级。<br />
+2. 按 Home 回小剧场（设了默认桌面）；强制启动别的桌面约 1 s 后被拉回。<br />
+3. 家长「退出到桌面」后 30 分钟内不被拉回；可点「结束家长放行」提前恢复。<br />
+4. ⚠️ 海信 VIDAA 不派发开机广播：开机后停在原生桌面，按一次 Home 进入（已知限制，不作为缺陷）。</p>
+<h4 id="fr-14-appsp1">FR-14 应用入口 apps（P1）✅</h4>
+<p><strong>描述</strong>：儿童锁下允许孩子使用指定 App，主界面最后一行显示图标。</p>
+<p><strong>规则</strong><br />
+- <code>showAfterDaily: true</code> → 今天必看完成后解锁（显示「还差 N 个才解锁」）。<br />
+- 单次进入放行 <code>maxMinutes</code>（默认 30，1–240）。<br />
+- 按 Home / 返回 / 超时 / 到不可用时段 → 回小剧场。<br />
+- 自动过滤桌面、设置、安装器、应用商店、可读 NAS 全量的播放器等。<br />
+- 电视本地勾选优先于清单 <code>entries</code>；新版 APK 在 <code>apps</code> 段变化时自动清本地勾选。</p>
+<p><strong>AC</strong><br />
+1. 勾选「CIBN 酷喵（优酷）」后主界面出现图标；点开前台切到优酷且 8 s 内不被误拉回。<br />
+2. 按 Home 回小剧场，放行清除。<br />
+3. <code>showAfterDaily</code> 为 true 且必看未完成时，卡片显示「还差 N 个才解锁」，点击不进。<br />
+4. 网页改 <code>apps.entries</code> 保存后，电视自动清本地勾选（无需遥控操作）。</p>
+<h4 id="fr-15-p02026-11-09">FR-15 自动刷新（P0）✅（2026-11-09 新增）</h4>
+<p><strong>描述</strong>：改完 <code>tv.json</code> 电视自己更新，不需要按遥控器。</p>
+<p><strong>规则</strong><br />
+- 轮询（主）：前台每 <code>intervalSeconds</code>（默认 15，5–3600）读全文，<strong>逐字比较</strong>，真变了才重绘；失败指数退避至 5 分钟。<br />
+- 广播（加速）：编辑器保存后 adb 发 <code>com.family.curated.PLAYLIST_CHANGED</code>，通常 8 s 内生效。<br />
+- 重绘复用 adapter：保留滚动位置、焦点、解锁状态与「先跳过必看」。<br />
+- <code>followAppList: true</code>：<code>apps</code> 指纹变化时清本地勾选。</p>
+<p><strong>AC</strong><br />
+1. 网页保存后 ≤ 20 s，电视出现新条目且不闪屏、不跳焦点。<br />
+2. 绕过编辑器直接改 NAS，≤ 20 s 同样生效（走轮询）。<br />
+3. 内容未变的重写不触发重绘。<br />
+4. 关掉 <code>autoRefresh.enabled</code> 后，冷启动与「重新读取清单」仍能读到新配置。</p>
+<h4 id="fr-16-p1">FR-16 封面与缩略图（P1）✅</h4>
+<p><strong>描述</strong>：App 只读 NAS 上现成图片；没有就显示标题占位卡。</p>
+<p><strong>查找顺序</strong><br />
+- <code>file</code>：同名 <code>.jpg</code> → 同名 <code>.png</code> → <code>&lt;名字&gt;-poster.jpg</code><br />
+- <code>folder</code>：<code>folder.jpg</code> → <code>poster.jpg</code> → <code>cover.jpg</code> → <code>封面.jpg</code></p>
+<p><strong>工具</strong>：<code>tools/make_covers.py</code>（或双击 <code>tools/make-covers.bat</code>）<br />
+- 视频 20% / 45% 各截一帧，挑信息量大的；<br />
+- 合成 480×682 竖版海报（画面居中 + 上下模糊背景）；<br />
+- 上传 <code>data/curated/covers/&lt;hash&gt;.jpg</code>，把 <code>cover</code> 合并进 NAS 清单（写前备份）；<br />
+- 幂等：同名 hash，已有 cover 跳过，<code>--force</code> 重做。</p>
+<p><strong>AC</strong><br />
+1. 运行 <code>--apply</code> 后，电视重读清单即可见真海报，卡片不再显示首字。<br />
+2. 重复运行不产生多余文件，不覆盖家长手填的 cover。<br />
+3. 封面路径写错时电视回退为占位卡，不崩溃。</p>
+<h3 id="8-3-编排与运维">8.3 编排与运维</h3>
+<h4 id="fr-17-p0">FR-17 编排工具三件套（P0）✅</h4>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>入口</th>
+<th>定位</th>
+<th>能力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简易编辑器</td>
+<td>双击 <code>start-tvjson-editor.bat</code> → <code>127.0.0.1:8787</code></td>
+<td><strong>日常主力</strong></td>
+<td>分区/条目增删改、上下移、file/folder/app 切换、SMB 浏览选路径、封面选图、应用入口、自动刷新、JSON 原文、仅校验、检查路径、电视状态、下载、保存到 NAS</td>
+</tr>
+<tr>
+<td>网页控制台</td>
+<td><code>python tools/console.py [--lan]</code> → <code>8765</code></td>
+<td>手机/远程</td>
+<td>五页签：资源浏览、片单编排、时段与密码、等待学习角、JSON 导入导出</td>
+</tr>
+<tr>
+<td>PC 桌面助手</td>
+<td>双击 <code>KidTvConfig-PC.bat</code> / <code>dist/KidTvConfig-PC.exe</code></td>
+<td>不想记端口</td>
+<td>概览/连接检测、内嵌编辑器、手机二维码、运行日志、退出程序；单实例</td>
+</tr>
+</tbody>
+</table>
+<p><strong>共同规则</strong><br />
+- 保存前备份 <code>tv.backup.json</code>；写临时文件再原子 rename；回读校验。<br />
+- 密码占位符（空 / 全星号 / <code>__KEEP_NAS_PASSWORD__</code>）= 沿用原密码，<strong>绝不写入 NAS</strong>。<br />
+- 保存时自动剥掉误写的共享名前缀与反斜杠（<code>儿童资源/儿童视频/...</code> 也能救）。</p>
+<p><strong>AC</strong><br />
+1. 双击 bat 可启动；重复双击只打开已有页面，不报端口占用。<br />
+2. 保存后 NAS 文件为合法 JSON，字节数与页面提示一致。<br />
+3. 页面任何位置都不回显 NAS 明文密码。<br />
+4. 手机与 PC 同时编辑时，后保存者不会覆盖对方刚加的条目（读-改-写合并）。</p>
+<h4 id="fr-18-p2">FR-18 外网编排（P2）✅（具备方案，待部署验收）</h4>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>安全性</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A. Tailscale</td>
+<td>不开放任何公网端口</td>
+<td>推荐，自己手机改</td>
+</tr>
+<tr>
+<td>B. UGREENlink 容器快捷方式</td>
+<td>绿联账号 + HTTPS</td>
+<td>最省事</td>
+</tr>
+<tr>
+<td>C. Cloudflare Tunnel + Access</td>
+<td>HTTPS + 邮箱二次认证</td>
+<td>有域名</td>
+</tr>
+<tr>
+<td>D. 绿联云 App 直接改文件</td>
+<td>安全但易写错</td>
+<td>应急</td>
+</tr>
+<tr>
+<td>✗ 路由器映射 8765 / DDNS 裸奔</td>
+<td>严禁</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>AC</strong>：外网经 A/B 可打开控制台并保存；不带 <code>?k=</code> 时弹访问码；连错 5 次锁 5 分钟；电视端无需任何改动。</p>
+<h4 id="fr-19-p1">FR-19 异常提示与自愈（P1）✅</h4>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SMB 首次读失败</td>
+<td><code>openRetrying</code> 重试 3 次（250/500 ms 退避），连续失败重建连接</td>
+</tr>
+<tr>
+<td>播放中读抖动</td>
+<td>同一偏移重读 3 次，必要时换句柄，不跳帧</td>
+</tr>
+<tr>
+<td>仍失败</td>
+<td>自动重建播放器最多 3 次（0.7/1.4/2.1 s），保留续播与 frontier</td>
+</tr>
+<tr>
+<td>彻底失败</td>
+<td>按错误码提示：2xxx NAS 读取 / 3xxx 文件头 / 4xxx 解码器；按 OK 手动重试</td>
+</tr>
+<tr>
+<td>列表读超时</td>
+<td>显示「读取超时，按 OK 重试」</td>
+</tr>
+<tr>
+<td>清单读不到</td>
+<td>用缓存清单，顶栏提示离线</td>
+</tr>
+</tbody>
+</table>
+<p><strong>AC</strong>：仅「文件不存在 / 没权限」直接失败；其余场景用户不手动干预即可恢复（≥ 90%）。</p>
+<h4 id="fr-20-p1">FR-20 部署与安装（P1）✅</h4>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>步骤</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直接安装</td>
+<td><code>adb connect &lt;IP&gt;:5555</code> → <code>adb install -r 小剧场.apk</code></td>
+</tr>
+<tr>
+<td>构建</td>
+<td>JDK 17 + SDK 34：<code>gradlew.bat :app:assembleDebug --offline</code></td>
+</tr>
+<tr>
+<td>控制台常驻 NAS</td>
+<td>解压 <code>dist/kidtv-console-ugospro.zip</code> → UGOS Pro「容器 → 项目」选目录 → 部署 → <code>http://&lt;NAS IP&gt;:8765/</code></td>
+</tr>
+<tr>
+<td>默认桌面</td>
+<td><code>adb shell cmd package set-home-activity --user 0 com.family.curated/.MainActivity</code></td>
+</tr>
+<tr>
+<td>撤销</td>
+<td><code>cmd package enable --user 0 app.orchard.tv</code> + <code>set-home-activity ... app.orchard.tv/.MainActivity</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>AC</strong>：全新电视按文档 30 分钟内可看到第一屏并成功播放一个视频。</p>
+<hr />
+<h2 id="9-关键业务规则-实现契约">9. 关键业务规则（实现契约）</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>规则</th>
+<th>说明 / 边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R-01</td>
+<td>条目 id 由路径派生</td>
+<td>形如 <code>p:folder</code> / <code>p:file</code> / <code>p:app</code> 加路径；<strong>不得用数组下标</strong>（会导致封面/进度错位）。旧键由 <code>migrateLegacyKeys</code> 一次性迁移</td>
+</tr>
+<tr>
+<td>R-02</td>
+<td>路径相对 <code>nas.share</code></td>
+<td>中文直接写，不 URL 编码；<code>/</code> 分隔；自动剥离 <code>共享名/</code>、<code>smb://host/share/</code> 前缀</td>
+</tr>
+<tr>
+<td>R-03</td>
+<td>不在 <code>Uri.path</code> 后再 URLDecode</td>
+<td><code>+</code> 必须保留原义，否则整目录失效</td>
+</tr>
+<tr>
+<td>R-04</td>
+<td>完成判定</td>
+<td>进度 ≥ <code>passRatio</code>（默认 0.92）；<code>passRatio</code> 以 Double 写入，避免浮点脏值</td>
+</tr>
+<tr>
+<td>R-05</td>
+<td>必看完成</td>
+<td>gate 分区内<strong>全部</strong>条目 done；随之解锁 <code>requires</code> 指向的分区</td>
+</tr>
+<tr>
+<td>R-06</td>
+<td>打卡幂等</td>
+<td>自然日唯一；连续天数按自然日；最长连击单独存</td>
+</tr>
+<tr>
+<td>R-07</td>
+<td>时长统计</td>
+<td>仅播放中累计（暂停/缓冲不计），3 s 批量落盘</td>
+</tr>
+<tr>
+<td>R-08</td>
+<td>时段判定</td>
+<td>左闭右开；结束 &lt; 开始视为跨零点；<code>weekend</code> 缺省沿用工作日，<code>[]</code> = 全天</td>
+</tr>
+<tr>
+<td>R-09</td>
+<td>放行优先级</td>
+<td>家长临时放行 &gt; 时段/时长限制；放行期间不弹锁屏、不被前台守卫拉回</td>
+</tr>
+<tr>
+<td>R-10</td>
+<td>应用入口解锁</td>
+<td><code>showAfterDaily</code> 且存在 gate 分区 → 必看完成后可用；否则一直可用</td>
+</tr>
+<tr>
+<td>R-11</td>
+<td>PIN</td>
+<td>4–8 位数字；明文存于 <code>tv.json</code>；仅防孩子随手解锁</td>
+</tr>
+<tr>
+<td>R-12</td>
+<td>密码占位符</td>
+<td>空 / 全星号 / <code>__KEEP_NAS_PASSWORD__</code> → 沿用旧密码，电视端同样保护</td>
+</tr>
+<tr>
+<td>R-13</td>
+<td>单一事实来源</td>
+<td>时段/上限/PIN/apps 以 NAS <code>tv.json</code> 为准；电视本地只存运行态（进度、打卡、勾选、放行）</td>
+</tr>
+<tr>
+<td>R-14</td>
+<td>写回必须合并</td>
+<td>读远端最新 → 只改目标字段 → 备份 → 原子写 → 回读校验</td>
+</tr>
+<tr>
+<td>R-15</td>
+<td>播放优先级</td>
+<td>播放期间暂停轮询与封面加载，避免抢 SMB 连接</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="10-数据模型">10. 数据模型</h2>
+<h3 id="10-1-tv-json-nas-data-curated-tv-json">10.1 <code>tv.json</code>（NAS：<code>data:/curated/tv.json</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>字段</th>
+<th>类型</th>
+<th>必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>顶层</td>
+<td><code>nas</code></td>
+<td>object</td>
+<td>建议</td>
+<td><code>host/port/user/password/share</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>playlistShare</code></td>
+<td>string</td>
+<td>否</td>
+<td>清单所在共享，默认 <code>data</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>pin</code></td>
+<td>string</td>
+<td>否</td>
+<td>家长密码，默认 <code>1234</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>passRatio</code></td>
+<td>number</td>
+<td>否</td>
+<td>看完比例，默认 0.92</td>
+</tr>
+<tr>
+<td></td>
+<td><code>sections</code></td>
+<td>array</td>
+<td>是</td>
+<td>分区数组，顺序即电视上下顺序</td>
+</tr>
+<tr>
+<td></td>
+<td><code>schedule</code></td>
+<td>object</td>
+<td>否</td>
+<td><code>enabled/weekday/weekend/dailyLimitMinutes/lockMessage</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>learning</code></td>
+<td>object</td>
+<td>否</td>
+<td><code>enabled/intervalSeconds/order/useBuiltin/stage/stageSize/artFolder/artShare/custom</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>kiosk</code></td>
+<td>object</td>
+<td>否</td>
+<td><code>enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>apps</code></td>
+<td>object</td>
+<td>否</td>
+<td><code>enabled/title/showAfterDaily/maxMinutes/entries</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>autoRefresh</code></td>
+<td>object</td>
+<td>否</td>
+<td><code>enabled/intervalSeconds/followAppList</code></td>
+</tr>
+<tr>
+<td>分区</td>
+<td><code>key</code></td>
+<td>string</td>
+<td>是</td>
+<td>唯一；<code>requires</code> 指向它</td>
+</tr>
+<tr>
+<td></td>
+<td><code>title</code></td>
+<td>string</td>
+<td>是</td>
+<td>行标题</td>
+</tr>
+<tr>
+<td></td>
+<td><code>gate</code></td>
+<td>bool</td>
+<td>否</td>
+<td>每日必看</td>
+</tr>
+<tr>
+<td></td>
+<td><code>requires</code></td>
+<td>string</td>
+<td>否</td>
+<td>被哪个 key 锁住</td>
+</tr>
+<tr>
+<td></td>
+<td><code>columns</code></td>
+<td>int</td>
+<td>否</td>
+<td>每行卡片数，默认 5</td>
+</tr>
+<tr>
+<td></td>
+<td><code>items</code></td>
+<td>array</td>
+<td>二选一</td>
+<td>与 <code>auto</code> 互斥</td>
+</tr>
+<tr>
+<td></td>
+<td><code>auto</code></td>
+<td>object</td>
+<td>二选一</td>
+<td><code>{folder, count}</code> 每日轮换</td>
+</tr>
+<tr>
+<td>条目</td>
+<td><code>title</code></td>
+<td>string</td>
+<td>是</td>
+<td>卡片标题</td>
+</tr>
+<tr>
+<td></td>
+<td><code>file</code> / <code>folder</code> / <code>app</code></td>
+<td>string</td>
+<td>三选一</td>
+<td>单集 / 整季 / 应用卡</td>
+</tr>
+<tr>
+<td></td>
+<td><code>subtitle</code></td>
+<td>string</td>
+<td>否</td>
+<td>副标题（如「85 集」）</td>
+</tr>
+<tr>
+<td></td>
+<td><code>cover</code></td>
+<td>string</td>
+<td>否</td>
+<td>路径或 <code>共享名:路径</code></td>
+</tr>
+<tr>
+<td></td>
+<td><code>id</code></td>
+<td>string</td>
+<td>否</td>
+<td>缺省由路径派生</td>
+</tr>
+</tbody>
+</table>
+<h3 id="10-2-电视本地存储-仅运行态">10.2 电视本地存储（仅运行态）</h3>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>位置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>playlist_cache</code> / <code>last_sync</code></td>
+<td><code>curated_prefs.xml</code></td>
+<td>离线兜底清单、最后同步时间</td>
+</tr>
+<tr>
+<td><code>nas_host/nas_user/nas_pass</code></td>
+<td>同上</td>
+<td>上次可用的连接信息（占位符保护生效点）</td>
+</tr>
+<tr>
+<td><code>pos_&lt;id&gt;</code> / <code>dur_&lt;id&gt;</code> / <code>done_&lt;id&gt;</code></td>
+<td><code>kid_extras.xml</code></td>
+<td>续播位置、时长、完成标记</td>
+</tr>
+<tr>
+<td><code>stamps</code> / <code>bestStreak</code></td>
+<td>同上</td>
+<td>打卡日期集合、最长连击</td>
+</tr>
+<tr>
+<td><code>watchMsTotal</code> / <code>watchMsToday</code></td>
+<td>同上</td>
+<td>累计/今日真实观看毫秒</td>
+</tr>
+<tr>
+<td><code>appsSelected</code></td>
+<td>同上</td>
+<td>家长勾选的应用（优先于 <code>entries</code>）</td>
+</tr>
+<tr>
+<td><code>kioskExitUntil</code></td>
+<td>同上</td>
+<td>家长放行截止时间</td>
+</tr>
+<tr>
+<td><code>auto_refresh_*</code> / <code>playlist_apps_sig</code></td>
+<td>同上</td>
+<td>轮询状态、apps 指纹</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-非功能需求">11. 非功能需求</h2>
+<h3 id="11-1-性能-实测基线-2-5-gb-ram-1080p">11.1 性能（实测基线，2.5 GB RAM / 1080p）</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>目标</th>
+<th>实测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>冷启动到首屏</td>
+<td>≤ 3 s</td>
+<td>达标</td>
+</tr>
+<tr>
+<td>剧集列表（181 集）</td>
+<td>≤ 6 s</td>
+<td>5.3 s</td>
+</tr>
+<tr>
+<td>起播时间</td>
+<td>≤ 2 s</td>
+<td>1.4 s</td>
+</tr>
+<tr>
+<td>片单轮询 CPU 占用</td>
+<td>可忽略（仅前台，15 s/次）</td>
+<td>4 s 内 +38 KB 读取，可忽略</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>常驻 &lt; 350 MB</td>
+<td>达标（视频解码另计）</td>
+</tr>
+<tr>
+<td>卡片焦点动画</td>
+<td>60 fps 不掉帧</td>
+<td>达标</td>
+</tr>
+</tbody>
+</table>
+<h3 id="11-2-兼容性">11.2 兼容性</h3>
+<ul>
+<li>电视：Android TV / 国产 Android 电视，minSdk 24，armeabi-v7a + arm64-v8a；主测海信 55E3F-MAX（Android 9，VIDAA）。</li>
+<li>屏幕：1080p 横屏；UI 采用 dp + 固定内边距，不依赖 Leanback 库。</li>
+<li>NAS：支持 SMB2/3（445）；实测绿联 UGOS Pro。</li>
+<li>浏览器：Chrome / Edge / 手机浏览器；前端零外部依赖，可离线。</li>
+<li>PC：Windows 10/11；exe 免 Python。</li>
+</ul>
+<h3 id="11-3-可靠性">11.3 可靠性</h3>
+<ul>
+<li>任一次 SMB 读挂死不得拖死全局（硬超时 + 关 socket + 重连）。</li>
+<li>播放三层自愈；仅不可恢复错误直接失败。</li>
+<li>保存片单必须原子写；禁止读到半截 JSON。</li>
+<li>电视端设置写回失败<strong>不得</strong>修改本地显示。</li>
+</ul>
+<h3 id="11-4-安全与隐私">11.4 安全与隐私</h3>
+<ul>
+<li><code>tv.json</code> 含 NAS 明文密码与 PIN，只放在自家 NAS；不入 Git、不外传。</li>
+<li>控制台默认只听 <code>127.0.0.1</code>；开 <code>--lan</code> 后所有 API 需访问码；连错 5 次锁 5 分钟。</li>
+<li>访问码存浏览器 localStorage，不进 URL / 历史 / 代理日志。</li>
+<li>禁止把 8765、5555 映射到公网；外网只用 Tailscale / UGREENlink / Cloudflare Access。</li>
+<li>APK 内凭据为兜底，仓库只留占位符。</li>
+</ul>
+<h3 id="11-5-可维护性">11.5 可维护性</h3>
+<ul>
+<li>字段手册（CONFIG.md）、JSON Schema、内置题库自检脚本、编辑器自检（<code>--self-test</code>）。</li>
+<li>所有系统级改动均附撤销命令。</li>
+<li>关键链路（轮询/广播/写回）有日志与「电视状态」可视化诊断。</li>
+</ul>
+<h3 id="11-6-成本">11.6 成本</h3>
+<ul>
+<li>零订阅、零云服务费；仅家庭 NAS 电费与带宽。</li>
+<li>外网方案 A 免费；B 依赖已有绿联账号。</li>
+</ul>
+<hr />
+<h2 id="12-约束与已知限制">12. 约束与已知限制</h2>
+<h3 id="12-1-技术约束">12.1 技术约束</h3>
+<ul>
+<li>电视只有 2.5 GB RAM，/data 可用曾低至 842 MB（装 Kodi 时 877 MB）→ APK 控制在 ~27 MB，不引入重型框架。</li>
+<li>Android 9 不支持 scrcpy 音频转发（需 11+）。</li>
+<li>smbj 的 <code>withTimeout</code> 管不住 TCP 半开与 oplock 等待 → 必须自建 deadline。</li>
+</ul>
+<h3 id="12-2-平台限制-不做承诺">12.2 平台限制（不做承诺）</h3>
+<table>
+<thead>
+<tr>
+<th>限制</th>
+<th>影响</th>
+<th>现状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Home 键由系统独占</td>
+<td>只改 App 拦不住</td>
+<td>通过“设为默认桌面 + 前台守卫”解决</td>
+</tr>
+<tr>
+<td>VIDAA 不派发 <code>BOOT_COMPLETED</code> 给第三方</td>
+<td>开机停原生桌面</td>
+<td>按一次 Home 进入；已接受</td>
+</tr>
+<tr>
+<td>输入源 / 直播 / 电源为红外/固件级</td>
+<td>应用收不到按键</td>
+<td>物理遮挡或简易遥控器</td>
+</tr>
+<tr>
+<td>电视启用 <code>FLAG_SECURE</code></td>
+<td>截屏/投屏视频层黑屏</td>
+<td>排障看 logcat，不看截图</td>
+</tr>
+<tr>
+<td>视频共享只读</td>
+<td>不能往旁边放封面</td>
+<td>封面统一放 <code>data:curated/covers/</code></td>
+</tr>
+<tr>
+<td>厂商桌面/守护会抢前台</td>
+<td>首选桌面被覆盖</td>
+<td>停用 Aerial（可逆）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="13-发布-升级与回滚">13. 发布、升级与回滚</h2>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>版本号</td>
+<td>当前 <code>versionCode 1 / versionName 1.0</code>；后续每次功能变更 +1</td>
+</tr>
+<tr>
+<td>构建</td>
+<td><code>JAVA_HOME=&lt;JDK17&gt; gradlew.bat :app:assembleDebug --offline</code>（默认 JDK8 会失败）</td>
+</tr>
+<tr>
+<td>安装</td>
+<td><code>adb install -r</code>（保留数据）；电视 <code>192.168.31.147:5555</code></td>
+</tr>
+<tr>
+<td>冒烟</td>
+<td>装完冷启动 → 首屏 → 播一集 → 菜单 → PIN → 设置页</td>
+</tr>
+<tr>
+<td>数据备份</td>
+<td>每次保存片单自动 <code>tv.backup.json</code>；编辑器本机还留 <code>.tmp/tvjson-backups/</code></td>
+</tr>
+<tr>
+<td>回滚 APK</td>
+<td>保留上一版 <code>dist/*.apk</code>，<code>adb install -r</code> 覆盖</td>
+</tr>
+<tr>
+<td>回滚配置</td>
+<td>用 <code>tv.backup.json</code> 覆盖（或编辑器「重新读取」后手改）</td>
+</tr>
+<tr>
+<td>回滚系统</td>
+<td>撤销默认桌面 / 启用 Aerial 的命令见 README</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="14-风险登记册">14. 风险登记册</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>风险</th>
+<th>影响</th>
+<th>概率</th>
+<th>对策</th>
+<th>是否已发生过</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R1</td>
+<td>SMB 单连接挂死导致全站无响应</td>
+<td>高</td>
+<td>中</td>
+<td>硬超时 + 独立短连接 + 播放期让路</td>
+<td>✅ 2 次，已修</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>scrcpy / 高负载压测卡死解码链路</td>
+<td>高（需断电）</td>
+<td>低</td>
+<td>脚本硬警告，禁止提高分辨率/帧率</td>
+<td>✅ 1 次</td>
+</tr>
+<tr>
+<td>R3</td>
+<td>密码占位符写坏导致自锁</td>
+<td>高</td>
+<td>中</td>
+<td>双层占位符保护 + 现场恢复流程</td>
+<td>✅ 1 次</td>
+</tr>
+<tr>
+<td>R4</td>
+<td>条目 id 用下标导致封面/进度错位</td>
+<td>中</td>
+<td>中</td>
+<td>路径派生 id + 迁移</td>
+<td>✅ 1 次</td>
+</tr>
+<tr>
+<td>R5</td>
+<td>路径含 <code>+</code> 被解码成空格</td>
+<td>中</td>
+<td>低</td>
+<td>删除二次 URLDecode</td>
+<td>✅ 1 次</td>
+</tr>
+<tr>
+<td>R6</td>
+<td>Aerial 守护抢默认桌面</td>
+<td>中</td>
+<td>高（若未停用）</td>
+<td>停用 Aerial（可逆）</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>R7</td>
+<td>电视存储不足导致安装失败</td>
+<td>中</td>
+<td>中</td>
+<td><code>pm trim-caches</code>；APK 控制体积</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>R8</td>
+<td>NAS 换 IP / 待机后 ADB 关闭</td>
+<td>中</td>
+<td>中</td>
+<td>自动扫描 + DHCP 保留建议</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>R9</td>
+<td>编辑器/控制台暴露到公网</td>
+<td>高（凭据泄露）</td>
+<td>低</td>
+<td>文档强禁止 + 访问码 + 限速</td>
+<td>未发生</td>
+</tr>
+<tr>
+<td>R10</td>
+<td>内置图片过多导致内存压力</td>
+<td>中</td>
+<td>低</td>
+<td>缩略图 + LruCache + 采样解码</td>
+<td>未发生</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="15-验收与测试计划">15. 验收与测试计划</h2>
+<h3 id="15-1-测试环境">15.1 测试环境</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>配置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>电视</td>
+<td>海信 55E3F-MAX，VIDAA，Android 9（SDK 28），MTK9652，2.5 GB RAM，1920×1080</td>
+</tr>
+<tr>
+<td>网络</td>
+<td>电视 <code>192.168.31.147</code>（有线 eth0）；NAS <code>192.168.31.72</code>（SMB 445）</td>
+</tr>
+<tr>
+<td>APK</td>
+<td><code>app-debug.apk</code>（26.7 MB，2026-11-10 构建）</td>
+</tr>
+<tr>
+<td>NAS 清单</td>
+<td><code>data:/curated/tv.json</code>（截至 2026-11-09：4 分区 / 27 条目 / daily 5 条）</td>
+</tr>
+<tr>
+<td>编排端</td>
+<td>Windows 11 + 简易编辑器 8787 + PC 助手 exe</td>
+</tr>
+<tr>
+<td>工具</td>
+<td>adb（<code>D:\pcsoft\adb\platform-tools</code>）、scrcpy 5.0.1（仅排障，禁止压测）、ffmpeg</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-2-冒烟测试-每次发版必跑-10-条">15.2 冒烟测试（每次发版必跑，10 条）</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>用例</th>
+<th>预期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SM-01</td>
+<td>冷启动 App</td>
+<td>≤3 s 出首屏，无崩溃</td>
+</tr>
+<tr>
+<td>SM-02</td>
+<td>左右移动焦点</td>
+<td>金边+放大+同排压暗</td>
+</tr>
+<tr>
+<td>SM-03</td>
+<td>播放 daily 第一条</td>
+<td>≤2 s 起播，有声音</td>
+</tr>
+<tr>
+<td>SM-04</td>
+<td>退出再进</td>
+<td>续播位置正确</td>
+</tr>
+<tr>
+<td>SM-05</td>
+<td>菜单键 + PIN</td>
+<td>弹出家长选项</td>
+</tr>
+<tr>
+<td>SM-06</td>
+<td>进设置页</td>
+<td>两列布局不错位</td>
+</tr>
+<tr>
+<td>SM-07</td>
+<td>改上限并保存</td>
+<td>NAS 值变化 + 生成 backup</td>
+</tr>
+<tr>
+<td>SM-08</td>
+<td>编辑器改标题保存</td>
+<td>电视 ≤20 s 更新</td>
+</tr>
+<tr>
+<td>SM-09</td>
+<td>时段外打开</td>
+<td>锁屏 + 倒计时</td>
+</tr>
+<tr>
+<td>SM-10</td>
+<td>锁屏输 PIN</td>
+<td>放行 15 分钟</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-3-功能用例-节选-p0-p1">15.3 功能用例（节选，P0/P1）</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>模块</th>
+<th>前置</th>
+<th>步骤</th>
+<th>预期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-01</td>
+<td>片单加载</td>
+<td>正常网络</td>
+<td>冷启动</td>
+<td>4 个分区全部渲染</td>
+</tr>
+<tr>
+<td>TC-02</td>
+<td>离线兜底</td>
+<td>断开 NAS</td>
+<td>冷启动</td>
+<td>显示缓存清单 + 离线提示，不白屏</td>
+</tr>
+<tr>
+<td>TC-03</td>
+<td>递归剧集</td>
+<td>数字积木目录</td>
+<td>进入卡片</td>
+<td>显示共 181 个，可滚动</td>
+</tr>
+<tr>
+<td>TC-04</td>
+<td>特殊字符</td>
+<td>目录含 <code>+</code></td>
+<td>播放该集</td>
+<td>正常起播（不报路径不存在）</td>
+</tr>
+<tr>
+<td>TC-05</td>
+<td>门禁拦截</td>
+<td>daily 未完成</td>
+<td>点动画片</td>
+<td>提示「先做完上面那 N 个」</td>
+</tr>
+<tr>
+<td>TC-06</td>
+<td>门禁解锁</td>
+<td>daily 5 条完成</td>
+<td>点动画片</td>
+<td>可进入且卡片锁标消失</td>
+</tr>
+<tr>
+<td>TC-07</td>
+<td>跳过必看</td>
+<td>未完成</td>
+<td>菜单→PIN→先跳过</td>
+<td>立即解锁；重启后恢复限制</td>
+</tr>
+<tr>
+<td>TC-08</td>
+<td>打卡盖章</td>
+<td>首次完成</td>
+<td>看奖励页</td>
+<td>今日有印章，连击 +1</td>
+</tr>
+<tr>
+<td>TC-09</td>
+<td>重复打卡</td>
+<td>当天已完成</td>
+<td>再看一遍</td>
+<td>不重复盖章</td>
+</tr>
+<tr>
+<td>TC-10</td>
+<td>勋章解锁</td>
+<td>首次完成</td>
+<td>回主界面</td>
+<td>按钮出现「1 枚新勋章」</td>
+</tr>
+<tr>
+<td>TC-11</td>
+<td>时长上限</td>
+<td>上限 1 分钟</td>
+<td>连续播放</td>
+<td>到点中断并锁屏</td>
+</tr>
+<tr>
+<td>TC-12</td>
+<td>跨零点时段</td>
+<td>22:00-01:00</td>
+<td>23:30 打开</td>
+<td>判定可用</td>
+</tr>
+<tr>
+<td>TC-13</td>
+<td>周末继承</td>
+<td>无 weekend</td>
+<td>周六打开</td>
+<td>沿用工作日时段</td>
+</tr>
+<tr>
+<td>TC-14</td>
+<td>学习角</td>
+<td>锁屏</td>
+<td>等待 20 s</td>
+<td>自动换卡，计数递增</td>
+</tr>
+<tr>
+<td>TC-15</td>
+<td>学习角子集</td>
+<td>order=["word"]</td>
+<td>锁屏</td>
+<td>只出单词</td>
+</tr>
+<tr>
+<td>TC-16</td>
+<td>防跳看</td>
+<td>daily 视频</td>
+<td>连按 6 次快进</td>
+<td>位置被拉回并提示</td>
+</tr>
+<tr>
+<td>TC-17</td>
+<td>应用入口</td>
+<td>showAfterDaily</td>
+<td>必看未完成点应用</td>
+<td>提示还差 N 个</td>
+</tr>
+<tr>
+<td>TC-18</td>
+<td>应用放行</td>
+<td>已解锁</td>
+<td>点优酷 → 按 Home</td>
+<td>回小剧场，放行清除</td>
+</tr>
+<tr>
+<td>TC-19</td>
+<td>儿童锁返回</td>
+<td>kiosk 开</td>
+<td>主界面按返回</td>
+<td>无反应</td>
+</tr>
+<tr>
+<td>TC-20</td>
+<td>前台守卫</td>
+<td>kiosk 开</td>
+<td>adb 启动别的桌面</td>
+<td>≤1 s 被拉回</td>
+</tr>
+<tr>
+<td>TC-21</td>
+<td>家长出口</td>
+<td>kiosk 开</td>
+<td>菜单→退出到桌面</td>
+<td>30 分钟内不被拉回</td>
+</tr>
+<tr>
+<td>TC-22</td>
+<td>自动刷新-广播</td>
+<td>编辑器保存</td>
+<td>观察电视</td>
+<td>≤20 s 出现新条目</td>
+</tr>
+<tr>
+<td>TC-23</td>
+<td>自动刷新-轮询</td>
+<td>直接改 NAS</td>
+<td>观察电视</td>
+<td>≤20 s 生效</td>
+</tr>
+<tr>
+<td>TC-24</td>
+<td>无变化不重绘</td>
+<td>重写同内容</td>
+<td>观察电视</td>
+<td>不闪屏、不抢焦点</td>
+</tr>
+<tr>
+<td>TC-25</td>
+<td>封面生成</td>
+<td>新条目无封面</td>
+<td>跑 make-covers.bat</td>
+<td>卡片出现海报</td>
+</tr>
+<tr>
+<td>TC-26</td>
+<td>封面缺失</td>
+<td>删 cover</td>
+<td>重读清单</td>
+<td>显示占位卡，不崩溃</td>
+</tr>
+<tr>
+<td>TC-27</td>
+<td>设置写回</td>
+<td>电视设置页</td>
+<td>改 PIN 6 位</td>
+<td>NAS pin 变化；旧 PIN 失效</td>
+</tr>
+<tr>
+<td>TC-28</td>
+<td>浮点精度</td>
+<td>改看完比例</td>
+<td>检查 NAS</td>
+<td>写入 <code>0.92</code> 而非长尾</td>
+</tr>
+<tr>
+<td>TC-29</td>
+<td>写回失败</td>
+<td>NAS 只读</td>
+<td>改设置</td>
+<td>明确报错，本地不变</td>
+</tr>
+<tr>
+<td>TC-30</td>
+<td>焦点复位</td>
+<td>任意卡</td>
+<td>进播放→返回</td>
+<td>焦点回原卡</td>
+</tr>
+<tr>
+<td>TC-31</td>
+<td>编辑器幂等</td>
+<td>连续保存 3 次</td>
+<td>检查 NAS</td>
+<td>每次生成 backup，JSON 合法</td>
+</tr>
+<tr>
+<td>TC-32</td>
+<td>密码保护</td>
+<td>密码位为占位符</td>
+<td>保存并重连</td>
+<td>沿用旧密码，不写坏</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-4-异常与恢复用例">15.4 异常与恢复用例</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>场景</th>
+<th>步骤</th>
+<th>预期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EX-01</td>
+<td>播放首次失败</td>
+<td>冷启动点视频</td>
+<td>自动重连 n/3 后成功，不弹错</td>
+</tr>
+<tr>
+<td>EX-02</td>
+<td>播放中 NAS 断网</td>
+<td>拔网线</td>
+<td>重试后提示，恢复网络可继续</td>
+</tr>
+<tr>
+<td>EX-03</td>
+<td>文件不存在</td>
+<td>清单写错路径</td>
+<td>提示文件不存在，按 OK 重试</td>
+</tr>
+<tr>
+<td>EX-04</td>
+<td>列表读超时</td>
+<td>保存大片单同时进列表</td>
+<td>显示超时提示，按 OK 可重试</td>
+</tr>
+<tr>
+<td>EX-05</td>
+<td>保存中断</td>
+<td>保存时断电</td>
+<td>NAS 上为旧版或完整新版，无半截 JSON</td>
+</tr>
+<tr>
+<td>EX-06</td>
+<td>密码写坏</td>
+<td>手工写 <code>********</code></td>
+<td>电视保留旧密码；按恢复流程可修</td>
+</tr>
+<tr>
+<td>EX-07</td>
+<td>电视离线</td>
+<td>待机后</td>
+<td>重新开机联网 + 打开网络 ADB 后可连</td>
+</tr>
+<tr>
+<td>EX-08</td>
+<td>解码链路卡死</td>
+<td>视频全部黑屏</td>
+<td>断电重启恢复（不得仅重启 App）</td>
+</tr>
+<tr>
+<td>EX-09</td>
+<td>存储不足</td>
+<td>安装 APK</td>
+<td>清理缓存后安装成功</td>
+</tr>
+<tr>
+<td>EX-10</td>
+<td>默认桌面被抢</td>
+<td>Aerial 未停用</td>
+<td>按 README 停用后 Home 回小剧场</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-5-缺陷分级">15.5 缺陷分级</h3>
+<table>
+<thead>
+<tr>
+<th>级别</th>
+<th>定义</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1 阻断</td>
+<td>无法启动 / 全部视频不可播 / 数据丢失</td>
+<td>当天修，未修不发版</td>
+</tr>
+<tr>
+<td>S2 严重</td>
+<td>主要功能不可用（门禁失效、设置写坏、锁屏不生效）</td>
+<td>48 小时内修</td>
+</tr>
+<tr>
+<td>S3 一般</td>
+<td>局部异常、文案错误、焦点跳动</td>
+<td>下个版本</td>
+</tr>
+<tr>
+<td>S4 轻微</td>
+<td>视觉细节、非关键提示</td>
+<td>排期处理</td>
+</tr>
+</tbody>
+</table>
+<h3 id="15-6-已知未闭环-不作为本次验收阻断项">15.6 已知未闭环（不作为本次验收阻断项）</h3>
+<ol>
+<li>daily 中部分 ABC Book 单集早期无封面（已批量补过，新增条目仍需跑一次封面脚本）。</li>
+<li>VIDAA 开机首启停在原生桌面，需按一次 Home（固件限制）。</li>
+<li>硬件输入源 / 电源键无法拦截（平台限制）。</li>
+<li>多娃档案、成长报告、奖励兑换等仍在 Roadmap。</li>
+<li>电视端 <code>tv.json</code> 里 <code>schedule.pin</code> 为历史冗余字段，以顶层 <code>pin</code> 为准（建议后续清理）。</li>
+</ol>
+<hr />
+<h2 id="16-路线图-按性价比">16. 路线图（按性价比）</h2>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>需求</th>
+<th>价值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td>片尾小问答</td>
+<td>防挂着不看</td>
+<td>必看播完弹 1 道 2 选 1</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>软关机提醒</td>
+<td>减少哭闹</td>
+<td>剩 5 分钟画面边缘渐变暖色</td>
+</tr>
+<tr>
+<td>P1</td>
+<td>配置版本管理</td>
+<td>改错可回滚</td>
+<td>控制台对比/回滚历史版本</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>每周任务卡</td>
+<td>增强激励</td>
+<td>一周 3–5 个小目标</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>奖励兑换</td>
+<td>时长变协商</td>
+<td>星星换「多看 10 分钟」</td>
+</tr>
+<tr>
+<td>P2</td>
+<td>成长报告</td>
+<td>家长视角</td>
+<td>每周日生成一张图</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>多娃档案</td>
+<td>二胎场景</td>
+<td>独立片单/打卡/勋章</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>成就动画音效</td>
+<td>情绪价值</td>
+<td>解锁全屏礼花</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>生日/节日彩蛋</td>
+<td>惊喜感</td>
+<td>特定日期换主题</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>观影笔记</td>
+<td>口味档案</td>
+<td>遥控器打分</td>
+</tr>
+<tr>
+<td>P3</td>
+<td>安卓原生编辑器</td>
+<td>离线编辑</td>
+<td>浏览器已够用</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-附录">17. 附录</h2>
+<h3 id="17-1-术语">17.1 术语</h3>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分区 / section</td>
+<td>海报墙上的一行，如「今天要看的」</td>
+</tr>
+<tr>
+<td>条目 / item</td>
+<td>一张海报卡：单集、整季或应用</td>
+</tr>
+<tr>
+<td>必看 / gate</td>
+<td>每天必须先完成的分区</td>
+</tr>
+<tr>
+<td>门禁 / requires</td>
+<td>被必看分区锁住的其他分区</td>
+</tr>
+<tr>
+<td>frontier</td>
+<td>必看视频「真正连续看到的最远位置」</td>
+</tr>
+<tr>
+<td>放行</td>
+<td>家长临时解除时间/儿童锁限制的一段时间</td>
+</tr>
+<tr>
+<td>单一事实来源</td>
+<td>NAS 上的 <code>tv.json</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="17-2-遥控器速查">17.2 遥控器速查</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>按键</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主界面</td>
+<td>上下选分区、左右选片、OK 进入</td>
+</tr>
+<tr>
+<td>播放</td>
+<td>OK 暂停、左右 ±15 s、返回退出</td>
+</tr>
+<tr>
+<td>锁屏</td>
+<td>数字键输 PIN、◀▶ 翻学习卡、播放键暂停轮播、菜单键输 PIN</td>
+</tr>
+<tr>
+<td>家长</td>
+<td>菜单键 → PIN</td>
+</tr>
+<tr>
+<td>奖励页</td>
+<td>信息 / 指南键直达</td>
+</tr>
+</tbody>
+</table>
+<h3 id="17-3-错误码提示">17.3 错误码提示</h3>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th>含义</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2xxx</td>
+<td>NAS 读取失败</td>
+<td>查 445、账号、共享名</td>
+</tr>
+<tr>
+<td>3xxx</td>
+<td>文件头没读完整</td>
+<td>重试；仍失败查文件完整性</td>
+</tr>
+<tr>
+<td>4xxx</td>
+<td>解码器不支持</td>
+<td>转码（如 HEVC 10bit / DTS 音轨）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="17-4-相关文件索引">17.4 相关文件索引</h3>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>README.md</code></td>
+<td>功能总览、部署、儿童锁、外网方案、排错</td>
+</tr>
+<tr>
+<td><code>docs/CONFIG.md</code></td>
+<td><code>tv.json</code> 字段手册与配方</td>
+</tr>
+<tr>
+<td><code>docs/用户使用说明书.md</code></td>
+<td>家长操作手册</td>
+</tr>
+<tr>
+<td><code>docs/tv.schema.json</code></td>
+<td>编辑器补全与校验</td>
+</tr>
+<tr>
+<td><code>docs/ART_SOURCES.md</code></td>
+<td>50 幅名画来源与许可</td>
+</tr>
+<tr>
+<td><code>docs/scrcpy-安全补充.md</code></td>
+<td>远程看画面安全须知</td>
+</tr>
+<tr>
+<td><code>examples/tv.json</code></td>
+<td>公开脱敏模板</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>变更记录</strong></p>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>日期</th>
+<th>变更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1.0</td>
+<td>2026-11-10</td>
+<td>首版：基于 <code>2e1120c</code> 整理全部已上线能力、业务规则、验收与测试计划</td>
+</tr>
+</tbody>
+</table>
+  </main>
+</div>
+<button id="top" title="回到顶部">↑</button>
+<script>
+const links=[...document.querySelectorAll('#toc a')];
+const heads=[...document.querySelectorAll('main h2,main h3')];
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    links.forEach(l=>l.classList.remove('active'));
+    const a=links.find(l=>l.getAttribute('href')==='#'+e.target.id);
+    if(a){a.classList.add('active'); a.scrollIntoView({block:'nearest'});}
+  }});
+},{rootMargin:'-10% 0px -75% 0px'});
+heads.forEach(h=>io.observe(h));
+const topBtn=document.getElementById('top');
+addEventListener('scroll',()=>topBtn.classList.toggle('show',scrollY>500));
+topBtn.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+</script>
+</body>
+</html>

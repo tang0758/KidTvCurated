@@ -7,6 +7,10 @@
 - 片单只是一份 `tv.json`，放在 NAS 上，改完在电视上按菜单键刷新即可
 - 适合 Android TV / 国产电视（海信 55E3F-MAX，Android 9，2.5GB RAM 实测通过）
 
+> **文档**：[产品需求文档 PRD](docs/PRD.md)（功能边界、业务规则、验收与测试计划） ·
+> [用户使用说明书](docs/用户使用说明书.md)（家长操作手册） · [片单字段手册](docs/CONFIG.md)。
+> 两份主文档都有排版好的 HTML 阅读版（`docs/PRD.html` / `docs/用户使用说明书.html`），浏览器打开、可直接打印为 PDF。
+
 ---
 
 ## 功能
