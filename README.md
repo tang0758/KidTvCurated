@@ -4,11 +4,12 @@
 不扫全盘、不联网刮削、不被推荐算法带跑。
 
 - 视频走 **SMB 直读**（smbj），海报墙 + 内置 ExoPlayer 播放，不依赖 Kodi / Jellyfin 服务端
-- 片单只是一份 `tv.json`，放在 NAS 上，改完在电视上按菜单键刷新即可
+- 片单只是一份 `tv.json`，放在 NAS 上，改完电视 15 秒内自动刷新（无需遥控器操作）
 - 适合 Android TV / 国产电视（海信 55E3F-MAX，Android 9，2.5GB RAM 实测通过）
 
 > **文档**：[产品需求文档 PRD](docs/PRD.md)（功能边界、业务规则、验收与测试计划） ·
-> [用户使用说明书](docs/用户使用说明书.md)（家长操作手册） · [片单字段手册](docs/CONFIG.md)。
+> [用户使用说明书](docs/用户使用说明书.md)（家长操作手册） · [片单字段手册](docs/CONFIG.md) ·
+> [优化计划](docs/ROADMAP.md)（下一步做什么、优先级与验收口径）。
 > 两份主文档都有排版好的 HTML 阅读版（`docs/PRD.html` / `docs/用户使用说明书.html`），浏览器打开、可直接打印为 PDF。
 
 ---
