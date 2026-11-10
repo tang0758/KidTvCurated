@@ -154,6 +154,7 @@ a{color:var(--brand)}
     <button data-tab="browse" class="on">资源浏览</button>
     <button data-tab="sections">片单编排</button>
     <button data-tab="rules">时段与密码</button>
+    <button data-tab="control">远程控制</button>
     <button data-tab="learning">等待学习角</button>
     <button data-tab="json">JSON / 导入导出</button>
   </div>
@@ -188,6 +189,10 @@ a{color:var(--brand)}
 
   <section id="pane-rules" class="pane hidden">
     <div id="rulesBody"></div>
+  </section>
+
+  <section id="pane-control" class="pane hidden">
+    <div id="controlBody"></div>
   </section>
 
   <section id="pane-learning" class="pane hidden">
@@ -232,11 +237,12 @@ const urlParams = new URLSearchParams(location.search);
 let TOKEN = urlParams.get("k") || localStorage.getItem("kidtv_token") || "";
 if (TOKEN) localStorage.setItem("kidtv_token", TOKEN);
 
-const START_TAB = ["browse","sections","rules","learning","json"].includes(urlParams.get("tab"))
+const START_TAB = ["browse","sections","rules","control","learning","json"].includes(urlParams.get("tab"))
   ? urlParams.get("tab") : "browse";   // 支持 ?tab=rules 直接进某一页，手机可存书签
 const S = {
   data:null, cfg:null, shares:[], share:"", path:"", items:null,
-  target:0, showCount:false, counts:{}, tab:START_TAB, source:""
+  target:0, showCount:false, counts:{}, tab:START_TAB, source:"",
+  control:null, ack:null, controlPath:"", controlError:""
 };
 
 // PC 桌面助手把控制台嵌进 iframe 时，外壳已有标题和连接设置，这里隐藏重复头部
@@ -331,6 +337,9 @@ function normalize(d){
   // 2026-11-10 实机确认：外部应用不计时等于绕过每日上限，修好后默认开。
   // 这里必须一起补 true，否则家长在网页保存一次就会把修复写关掉。
   if (F.extWatchMs === undefined) F.extWatchMs = true;
+  // Wave 1：预告是正式功能，装上就生效；远程控制是新链路，默认关，由家长自己打开
+  if (F.remainingNotice === undefined) F.remainingNotice = true;
+  if (F.remoteControl === undefined) F.remoteControl = false;
   // 文本域用这个虚拟字段；以 _ 开头，保存时会被 cleanKeys 自动剔除
   A._entriesText = A.entries.map(e => typeof e === "string" ? e :
     ((e && e.package ? e.package : "") + (e && e.label ? " | " + e.label : "")))
@@ -660,10 +669,14 @@ function renderRules(){
   h += '<div class="card"><h3>功能开关 <span class="sub">改完 15 秒生效，不用重装 APK</span></h3>' +
     chk("features.kioskPullback", "后台拉回：孩子按 Home 切走后自动拉回小剧场", F.kioskPullback !== false) +
     chk("features.extWatchMs", "外部应用计时：从「应用」分区看优酷等也计入每日上限", F.extWatchMs !== false) +
+    chk("features.remainingNotice", "剩余时间预告：播放页显示还剩几分钟，到点前提示两次", F.remainingNotice !== false) +
+    chk("features.remoteControl", "远程控制：电视每 15 秒读同目录的 control.json", F.remoteControl === true) +
     '<p class="empty">「后台拉回」关掉后按 Home / 切到别的应用不再被拉回，「主界面拦截返回键」和时段锁屏照旧；' +
     '只有在个别电视上拉回会和投屏、系统弹窗打架时才关。<br>' +
     '「外部应用计时」默认开：曾经孩子从应用入口进优酷 2 小时不进账，50 分钟上限永远触发不了。' +
-    '关掉就退回老行为，仅在排查计时异常时临时使用。电视设置页「系统 → 版本与开关」能看到当前是精确计时还是估算扣时。</p></div>';
+    '关掉就退回老行为，仅在排查计时异常时临时使用。<br>' +
+    '「远程控制」默认关：打开并<b>保存 tv.json</b> 后，才能用左边「远程控制」页发指令；' +
+    '它是独立文件，改指令碰不坏片单。出问题把开关改回 false，15 秒后电视就不再读它。</p></div>';
   body.innerHTML = h;
 }
 
@@ -728,15 +741,89 @@ function renderJson(){
   if (!S.data) return;
   Q("#jsonText").value = JSON.stringify(payload(), null, 2);
 }
+
+// ---------- 远程控制卡 control.json（OPT-06） ----------
+let controlPoll = null;
+function ackLine(){
+  const a = S.ack;
+  return a ? ("已生效 · " + (a.appliedAt || "") + " · " +
+               (Array.isArray(a.actions) ? a.actions.join("、") : "") +
+               " · " + (a.message || "")) : "还没有收到电视回执";
+}
+function cmdLine(){
+  return S.control ? JSON.stringify(S.control, null, 2) : "（还没有 control.json）";
+}
+async function loadControl(){
+  try {
+    const r = await api("/api/control");
+    S.control = r.control || null;
+    S.ack = r.ack || null;
+    S.controlPath = r.path || S.controlPath;
+    S.controlError = "";
+  } catch(e){ S.controlError = e.message; }
+  if (S.tab !== "control") return;
+  // 只改文字，不重建整页：家长可能正在输入「加时分钟数」
+  const a = Q("#ctlAck"), c = Q("#ctlCmd");
+  if (a && c){ a.textContent = ackLine(); c.textContent = cmdLine(); }
+  else renderControl();
+  const e = Q("#ctlError"); if (e) e.textContent = S.controlError || "";
+}
+function renderControl(){
+  if (!S.data || !Q("#controlBody")) return;
+  const on = !!(S.data.features && S.data.features.remoteControl);
+  Q("#controlBody").innerHTML =
+    '<div class="card"><h3>远程控制 <span class="sub">最长 15 秒在电视上生效</span></h3>' +
+    (on ? "" : '<p class="empty" style="color:#ffb4b4">⚠ 电视端还没打开远程控制：到「时段与密码 → 功能开关」勾上「远程控制」并保存到 NAS。</p>') +
+    '<p class="empty">指令写在 <span class="kbd">' + esc(S.controlPath || "data:curated/control.json") + '</span>，' +
+    '与 tv.json 分开，改指令碰不坏片单。电视执行后写同目录的 control.ack.json 回执。</p>' +
+    '<div class="toolbar btns">' +
+      '<button class="tiny" data-act="ctlSend" data-cmd="lock">立即锁屏</button>' +
+      '<button class="tiny" data-act="ctlSend" data-cmd="add">按下面分钟数加时</button>' +
+      '<button class="tiny" data-act="ctlSend" data-cmd="pause">暂停播放</button>' +
+      '<button class="tiny" data-act="ctlSend" data-cmd="unlock">解除锁定</button>' +
+      '<button class="tiny" data-act="ctlRefresh">刷新回执</button>' +
+    '</div>' +
+    '<div class="fields" style="margin-top:12px"><label>加时分钟数（1~240）' +
+      '<input type="number" id="ctlMinutes" min="1" max="240" value="15"></label></div>' +
+    '<p class="empty">当前指令：<br><pre id="ctlCmd" style="white-space:pre-wrap;word-break:break-all">' +
+      esc(cmdLine()) + '</pre></p>' +
+    '<p class="empty">电视回执：<span id="ctlAck">' + esc(ackLine()) + '</span></p>' +
+    '<p class="empty" style="color:#ffb4b4" id="ctlError">' + esc(S.controlError || "") + '</p>' +
+    '<p class="empty">「立即锁屏」会一直锁到家长解除（最长 8 小时）；' +
+    '把 lockNow 改回 false 并保存、或在这里点「解除锁定」、或在电视上临时放行，都能解除。</p></div>';
+}
+async function sendControl(kind){
+  const box = Q("#ctlMinutes");
+  const mins = Math.max(1, Math.min(240, Number(box ? box.value : 15) || 15));
+  const body = {lockNow:false, addMinutes:0, pauseNow:false};
+  if (kind === "lock") body.lockNow = true;
+  else if (kind === "add") body.addMinutes = mins;
+  else if (kind === "pause") body.pauseNow = true;
+  // unlock：显式 lockNow=false + 后端生成的新 updatedAt → 电视端解除远程锁定
+  try {
+    const r = await api("/api/control", {method:"POST", body:JSON.stringify(body)});
+    S.control = r.control || null;
+    S.controlError = "";
+    renderControl();
+    toast("指令已写入，等待电视回执…");
+    setTimeout(loadControl, 3000);
+  } catch(e){ toast(e.message, true, 5000); }
+}
+
 function switchTab(t){
   S.tab = t;
   QA(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   QA(".pane").forEach(p => p.classList.toggle("hidden", p.id !== "pane-" + t));
+  if (controlPoll){ clearInterval(controlPoll); controlPoll = null; }
   if (t === "json") renderJson();
   if (t === "sections") renderSections();
   if (t === "rules") renderRules();
   if (t === "learning") renderLearning();
   if (t === "browse") renderBrowse();
+  if (t === "control"){
+    renderControl(); loadControl();
+    controlPoll = setInterval(loadControl, 5000);
+  }
 }
 
 // ---------- 操作 ----------
@@ -897,6 +984,8 @@ document.addEventListener("click", async e => {
         S.target = S.data.sections.length - 1;
         renderAll(); break;
       }
+      case "ctlSend": await sendControl(b.dataset.cmd); break;
+      case "ctlRefresh": await loadControl(); break;
       case "gotoBrowse": S.target = i; renderBrowse(); switchTab("browse"); break;
       case "secUp": if (i > 0){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i-1,0,t); S.target=i-1; renderAll(); } break;
       case "secDown": if (i < S.data.sections.length-1){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i+1,0,t); S.target=i+1; renderAll(); } break;

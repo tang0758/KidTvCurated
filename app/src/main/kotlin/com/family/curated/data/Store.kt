@@ -114,6 +114,68 @@ object Store {
         get() = sp.getLong("local_playlist_write", 0L)
         set(v) = sp.edit().putLong("local_playlist_write", v).apply()
 
+    // ---------- 远程控制卡 control.json（OPT-06） ----------
+
+    /** 最近一次执行过的指令幂等键（control.json 的 updatedAt） */
+    var lastControlAt: String
+        get() = sp.getString("last_control_at", "") ?: ""
+        set(v) = sp.edit().putString("last_control_at", v).apply()
+
+    // ---------- 未同步的设置修改（OPT-07） ----------
+    //
+    // 写 NAS 失败时，家长以为改好了、其实 NAS 上还是旧内容。这个标记让：
+    //  - 设置页一直挂一条红色错误条，不静默回滚；
+    //  - PlaylistSync 在下发设置前先问家长，不把「上次没保存成功」的事实抹掉；
+    //  - 「重试」能用当时生成的完整 tv.json 原样覆盖回去。
+
+    var hasUnsyncedEdit: Boolean
+        get() = sp.getBoolean("unsynced_edit", false)
+        set(v) = sp.edit().putBoolean("unsynced_edit", v).apply()
+
+    /** 失败时本想写入的完整 tv.json；读 NAS 就失败时为空（没有可重放的内容） */
+    var pendingPlaylistJson: String?
+        get() = sp.getString("unsynced_json", null)
+        set(v) = sp.edit().putString("unsynced_json", v).apply()
+
+    /** 失败前读到的远端内容指纹；覆盖前比对，避免抹掉家长后来在网页上做的改动 */
+    var pendingBaseHash: String
+        get() = sp.getString("unsynced_base", "") ?: ""
+        set(v) = sp.edit().putString("unsynced_base", v).apply()
+
+    var unsyncedLabel: String
+        get() = sp.getString("unsynced_label", "设置") ?: "设置"
+        set(v) = sp.edit().putString("unsynced_label", v).apply()
+
+    var unsyncedMessage: String
+        get() = sp.getString("unsynced_message", "") ?: ""
+        set(v) = sp.edit().putString("unsynced_message", v).apply()
+
+    var unsyncedAt: Long
+        get() = sp.getLong("unsynced_at", 0L)
+        set(v) = sp.edit().putLong("unsynced_at", v).apply()
+
+    fun markUnsynced(label: String, pending: String?, baseHash: String, message: String) {
+        sp.edit()
+            .putBoolean("unsynced_edit", true)
+            .putString("unsynced_json", pending)
+            .putString("unsynced_base", baseHash)
+            .putString("unsynced_label", label)
+            .putString("unsynced_message", message)
+            .putLong("unsynced_at", System.currentTimeMillis())
+            .apply()
+    }
+
+    fun clearUnsynced() {
+        sp.edit()
+            .remove("unsynced_edit")
+            .remove("unsynced_json")
+            .remove("unsynced_base")
+            .remove("unsynced_label")
+            .remove("unsynced_message")
+            .remove("unsynced_at")
+            .apply()
+    }
+
     // ---------- 播放进度 ----------
     fun progress(key: String): Long = sp.getLong("pos_$key", 0L)
 

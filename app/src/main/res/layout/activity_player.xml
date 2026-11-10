@@ -27,6 +27,23 @@
         android:textColor="@color/text_primary"
         android:textSize="17sp" />
 
+    <!-- OPT-05：右上角常显「今天还剩 N 分钟」。不跟着片名一起淡出，
+         孩子随时抬头都能看到；features.remainingNotice 关掉时代码会隐藏它 -->
+    <TextView
+        android:id="@+id/tvRemain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="40dp"
+        android:background="@drawable/pill_bg"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:textColor="@color/accent"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/controls"
         android:layout_width="match_parent"

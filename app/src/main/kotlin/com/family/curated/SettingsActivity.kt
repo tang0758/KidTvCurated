@@ -21,6 +21,7 @@ import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.PlaylistWriter
+import com.family.curated.data.RemoteControl
 import com.family.curated.data.Repo
 import com.family.curated.data.Schedule
 import com.family.curated.data.Smb
@@ -49,6 +50,15 @@ class SettingsActivity : AppCompatActivity() {
 
     private val footer = "方向键选择 · OK 修改 · 返回键回到片单 · v${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE}) ${BuildConfig.BUILD_TIME}"
 
+    /**
+     * 「未同步的修改」重放成功后，[PlaylistWriter] 会在后台异步跑一次同步，
+     * 比弹窗的 onResolved() 晚一点才把新设置落到本地。只跟 settings 相关的同步
+     * 补一次渲染，免得家长刚点完「覆盖 NAS」还看到上一个开关状态。
+     */
+    private val syncListener = PlaylistSync.Listener { _, reason ->
+        if (reason.startsWith("settings") && !isFinishing && !isDestroyed) render()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Store.init(this)
@@ -71,10 +81,22 @@ class SettingsActivity : AppCompatActivity() {
         render()
     }
 
+    override fun onStart() {
+        super.onStart()
+        PlaylistSync.register(syncListener)
+    }
+
+    override fun onStop() {
+        PlaylistSync.unregister(syncListener)
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         // 从播放页/锁屏回来、或同步刚写完新值，都重新读一遍
         render()
+        // 家长进这一页就是要处理设置：把还没同步的修改直接摆到他面前
+        b.root.post { ParentTools.showUnsyncedConflict(this) { render() } }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -111,7 +133,27 @@ class SettingsActivity : AppCompatActivity() {
         val nas = Store.nas()
         b.tvNas.text = nas?.host ?: "未配置 NAS"
 
+        // OPT-07：写回失败不是「弹个 Toast 就过去」，错误条一直挂到家长处理完
+        if (Store.hasUnsyncedEdit) {
+            b.tvError.visibility = View.VISIBLE
+            b.tvError.text = "⚠ 「${Store.unsyncedLabel}」没能写进 NAS：" +
+                "${Store.unsyncedMessage.ifBlank { "写入失败" }}\n" +
+                "NAS 上仍是旧设置，电视本机也没有改。点下面「未同步的修改」重试。"
+        } else {
+            b.tvError.visibility = View.GONE
+        }
+
         val list = ArrayList<Entry>()
+        if (Store.hasUnsyncedEdit) {
+            list.add(Entry.Group("未同步的修改"))
+            list.add(
+                Entry.Row(
+                    "重试保存到 NAS",
+                    "上次改「${Store.unsyncedLabel}」失败了",
+                    "重试 ›"
+                ) { ParentTools.showUnsyncedConflict(this, force = true) { render() } }
+            )
+        }
         list.add(Entry.Group("时间与时长"))
         list.add(
             Entry.Row(
@@ -225,6 +267,22 @@ class SettingsActivity : AppCompatActivity() {
                 if (Extras.feature("extWatchMs")) "开启" else "关闭"
             ) { toggleExtWatch() }
         )
+        list.add(
+            Entry.Row(
+                "剩余时间预告",
+                if (Extras.feature("remainingNotice")) "播放页显示还剩几分钟，到点前提醒"
+                else "已关闭：到点前不提示",
+                if (Extras.feature("remainingNotice")) "开启" else "关闭"
+            ) { toggleRemainingNotice() }
+        )
+        list.add(
+            Entry.Row(
+                "远程控制",
+                if (Extras.feature("remoteControl")) "读 NAS 的 control.json，15 秒生效"
+                else "已关闭：不读 control.json",
+                if (Extras.feature("remoteControl")) "开启" else "关闭"
+            ) { toggleRemoteControl() }
+        )
         val anomalies = ClockGuard.anomalyCount()
         if (anomalies > 0 || ClockGuard.frozen()) {
             list.add(
@@ -312,9 +370,12 @@ class SettingsActivity : AppCompatActivity() {
     // ---------------- 写回 NAS ----------------
 
     /**
-     * 改 tv.json 里的字段。写成功才更新本机（否则会出现「界面改了、下次同步又变回去」）。
+     * 改 tv.json 里的字段。
+     *
+     * OPT-07：只有写成功才更新本机；失败时停留在原页、挂红色错误条，
+     * 并把「本想写入的内容」存下来供重试。绝不出现「界面改好了、下次同步悄悄变回去」。
      */
-    private fun save(apply: (JSONObject) -> Unit, after: () -> Unit) {
+    private fun save(apply: (JSONObject) -> Unit, after: () -> Unit, label: String = "设置") {
         if (busy) {
             Toast.makeText(this, "上一个修改还在保存，稍等一下", Toast.LENGTH_SHORT).show()
             return
@@ -327,9 +388,17 @@ class SettingsActivity : AppCompatActivity() {
                 busy = false
                 b.tvBusy.text = footer
                 if (r.ok) {
+                    val hadPending = Store.hasUnsyncedEdit
+                    Store.clearUnsynced()
                     after()
-                    Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        if (hadPending) "已保存（之前那次没同步的修改请重新设一次）" else "已保存",
+                        if (hadPending) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
+                    ).show()
                 } else {
+                    // 不调 after()：本机保持 NAS 上的旧值
+                    Store.markUnsynced(label, r.pendingText, r.baseHash, r.message)
                     Toast.makeText(this, r.message.ifBlank { "保存失败" }, Toast.LENGTH_LONG).show()
                 }
                 render()
@@ -338,7 +407,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /** 时段相关的字段都在 schedule 段里；没有就建一个 */
-    private fun updateSchedule(transform: (Schedule) -> Schedule) {
+    private fun updateSchedule(label: String, transform: (Schedule) -> Schedule) {
         val cur = Extras.schedule() ?: Schedule(enabled = false, pin = Extras.pin())
         val next = transform(cur)
         save({ root ->
@@ -349,7 +418,7 @@ class SettingsActivity : AppCompatActivity() {
             o.put("dailyLimitMinutes", next.dailyLimitMinutes)
             o.put("lockMessage", next.lockMessage)
             if (next.pin.isNotBlank()) o.put("pin", next.pin)
-        }, { Extras.saveSchedule(next) })
+        }, { Extras.saveSchedule(next) }, label)
     }
 
     // ---------------- 各设置项 ----------------
@@ -367,7 +436,7 @@ class SettingsActivity : AppCompatActivity() {
             ) { _, which ->
                 if (which == values.size) askCustomLimit(cur) else {
                     val v = values[which]
-                    updateSchedule { it.copy(dailyLimitMinutes = v, enabled = true) }
+                    updateSchedule("每日观看上限") { it.copy(dailyLimitMinutes = v, enabled = true) }
                 }
             }
             .setNegativeButton("取消", null)
@@ -394,7 +463,7 @@ class SettingsActivity : AppCompatActivity() {
                     Toast.makeText(this, "请输入 0~720 之间的分钟数", Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
-                updateSchedule { it.copy(dailyLimitMinutes = v, enabled = true) }
+                updateSchedule("每日观看上限") { it.copy(dailyLimitMinutes = v, enabled = true) }
             }
             .setNegativeButton("取消", null)
             .create()
@@ -477,7 +546,7 @@ class SettingsActivity : AppCompatActivity() {
             putWindows(o, "weekday", next.weekday)
             putWindows(o, "weekend", next.weekend)
             o.put("enabled", true)
-        }, { Extras.saveSchedule(next) })
+        }, { Extras.saveSchedule(next) }, if (weekend) "周末时段" else "平日时段")
     }
 
     private fun putWindows(o: JSONObject, key: String, w: List<TimeWindow>) {
@@ -489,7 +558,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun toggleSchedule() {
         val sch = Extras.schedule() ?: Schedule(pin = Extras.pin())
         val next = !sch.enabled
-        updateSchedule { it.copy(enabled = next) }
+        updateSchedule("时段限制") { it.copy(enabled = next) }
         if (next && sch.weekday.isEmpty() && sch.dailyLimitMinutes == 0) {
             Toast.makeText(this, "现在是全天不限，建议再设一下时段或上限", Toast.LENGTH_LONG).show()
         }
@@ -517,7 +586,7 @@ class SettingsActivity : AppCompatActivity() {
                 save({ root ->
                     root.put("pin", v)
                     root.optJSONObject("schedule")?.put("pin", v)
-                }, { Extras.savePin(v) })
+                }, { Extras.savePin(v) }, "家长密码")
             }
             .setNegativeButton("取消", null)
             .create()
@@ -533,7 +602,8 @@ class SettingsActivity : AppCompatActivity() {
         val idx = values.indexOfFirst { (it * 100).toInt() == cur }
         choose("看完判定", labels, idx) { i ->
             val v = values[i]
-            save({ root -> root.put("passRatio", v) }, { Extras.savePassRatio(v.toFloat()) })
+            save({ root -> root.put("passRatio", v) },
+                { Extras.savePassRatio(v.toFloat()) }, "看完判定")
         }
     }
 
@@ -553,7 +623,7 @@ class SettingsActivity : AppCompatActivity() {
                 }, {
                     Extras.saveApps(cfg.copy(enabled = true))
                     ParentTools.pickApps(this) { render() }
-                })
+                }, "应用入口")
             }
             .setNegativeButton("取消", null)
             .show()
@@ -582,38 +652,42 @@ class SettingsActivity : AppCompatActivity() {
             .show()
     }
 
-    /** 后台拉回是「老行为」，默认开；个别电视上会和投屏/系统弹窗打架，可以在这里关掉 */
-    private fun togglePullback() {
-        val next = !Extras.feature("kioskPullback")
+    /**
+     * 功能开关统一走这一处：写回 NAS 成功才更新电视本机。
+     * 打开远程控制时顺手 nudge 一次，不用等下一个 15 秒轮询。
+     */
+    private fun toggleFeature(name: String, label: String) {
+        val next = !Extras.feature(name)
         save({ root ->
             val o = root.optJSONObject("features") ?: JSONObject().also { root.put("features", it) }
-            o.put("kioskPullback", next)
+            o.put(name, next)
         }, {
-            Extras.saveFeatures(Features(Extras.features().on + ("kioskPullback" to next)))
-        })
+            Extras.saveFeatures(Features(Extras.features().on + (name to next)))
+            if (name == "remoteControl" && next) RemoteControl.nudge()
+        }, label)
     }
+
+    /** 后台拉回是「老行为」，默认开；个别电视上会和投屏/系统弹窗打架，可以在这里关掉 */
+    private fun togglePullback() = toggleFeature("kioskPullback", "后台拉回")
 
     /**
      * 外部应用计时默认开：2026-11-10 实机确认孩子从应用入口进优酷 2 小时不入账，
      * 等于绕过每日上限。这是修 bug 不是灰度，装上就生效；出问题在这里关掉，15 秒回滚。
      */
-    private fun toggleExtWatch() {
-        val next = !Extras.feature("extWatchMs")
-        save({ root ->
-            val o = root.optJSONObject("features") ?: JSONObject().also { root.put("features", it) }
-            o.put("extWatchMs", next)
-        }, {
-            Extras.saveFeatures(Features(Extras.features().on + ("extWatchMs" to next)))
-        })
-    }
+    private fun toggleExtWatch() = toggleFeature("extWatchMs", "外部应用计时")
+
+    private fun toggleRemainingNotice() = toggleFeature("remainingNotice", "剩余时间预告")
+
+    private fun toggleRemoteControl() = toggleFeature("remoteControl", "远程控制")
 
     /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
     private fun showAbout() {
         val names = linkedMapOf(
             "kioskPullback" to "后台拉回",
-            "autoNext" to "自动连播（占位）",
             "extWatchMs" to "外部应用计时",
-            "remoteControl" to "远程控制（占位）",
+            "remainingNotice" to "剩余时间预告",
+            "remoteControl" to "远程控制",
+            "autoNext" to "自动连播（占位）",
             "report" to "周报（占位）"
         )
         val switches = names.entries.joinToString("\n") { (k, label) ->
@@ -628,6 +702,9 @@ class SettingsActivity : AppCompatActivity() {
             append(switches)
             append("\n\n今日外部应用：${Extras.extMsToday() / 60_000L} 分钟（已计入每日上限）")
             append("\n计时模式：${ExtWatchTracker.modeText(this@SettingsActivity)}")
+            append("\n远程控制卡：${Store.playlistShare}:${RemoteControl.controlPath()}")
+            append("（最近指令 ${Store.lastControlAt.ifBlank { "无" }}）")
+            if (Extras.remoteLockActive()) append("\n家长远程锁定中：剩余 ${Extras.remoteLockRemainingMs() / 60_000L + 1} 分钟")
             if (anomalies > 0) {
                 append("\n\n系统时间被改过 $anomalies 次")
                 if (ClockGuard.frozen()) append("（当前按校正时间计算）")

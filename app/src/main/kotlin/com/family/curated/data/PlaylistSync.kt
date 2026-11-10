@@ -34,6 +34,14 @@ object PlaylistSync {
     @Volatile private var initialized = false
     @Volatile private var lastCheckAt = 0L
     @Volatile private var failStreak = 0
+    @Volatile private var appCtx: Context? = null
+    @Volatile private var lastConflictNoticeAt = 0L
+
+    /**
+     * 电视上还有「没写回 NAS 的设置修改」时，下发 NAS 配置前先问家长（OPT-07）。
+     * 由 MainActivity 注册；data 层不碰 UI。
+     */
+    @Volatile var onUnsyncedConflict: (() -> Unit)? = null
 
     fun interface Listener {
         fun onPlaylistChanged(pl: Playlist, reason: String)
@@ -46,18 +54,37 @@ object PlaylistSync {
         append(c.entries.joinToString(",") { "${it.spec}=${it.label}" })
     }
 
-    /** 冷启动时把清单里的时段 / PIN / 应用配置同步到本地，别的界面才能独立读到 */
-    fun applyToLocal(pl: Playlist) {
-        Extras.saveSchedule(pl.schedule)
-        Extras.savePin(pl.pin)
-        Extras.savePassRatio(pl.passRatio)
-        Extras.saveLearning(pl.learning ?: Learning())
-        Extras.saveKiosk(pl.kiosk)
-        Extras.saveApps(pl.apps)
-        Extras.saveFeatures(pl.features)
+    /**
+     * 冷启动时把清单里的时段 / PIN / 应用配置同步到本地，别的界面才能独立读到。
+     *
+     * [skipSettings] = true 时只更新轮询参数，不下发任何家长设置：
+     * 电视上还有一次「写 NAS 失败」的修改没处理完，这时候拿 NAS 的旧值覆盖本地，
+     * 会把家长看到的那条红色错误条悄悄抹平（OPT-07）。片单条目照常刷新，不受影响。
+     */
+    fun applyToLocal(pl: Playlist, skipSettings: Boolean = false) {
+        if (!skipSettings) {
+            Extras.saveSchedule(pl.schedule)
+            Extras.savePin(pl.pin)
+            Extras.savePassRatio(pl.passRatio)
+            Extras.saveLearning(pl.learning ?: Learning())
+            Extras.saveKiosk(pl.kiosk)
+            Extras.saveApps(pl.apps)
+            Extras.saveFeatures(pl.features)
+        }
         Store.playlistAppsSignature = appsSignature(pl.apps)
         Store.autoRefreshEnabled = pl.autoRefresh.enabled
         Store.autoRefreshIntervalMs = pl.autoRefresh.intervalSeconds * 1000L
+    }
+
+    /** 复用同一个后台单线程池：远程控制卡不额外开线程 / 定时器 */
+    fun submit(block: () -> Unit) {
+        workers.execute {
+            try {
+                block()
+            } catch (e: Exception) {
+                Log.w(TAG, "后台任务异常（已忽略）: ${e.message}")
+            }
+        }
     }
 
     fun init(ctx: Context) {
@@ -67,6 +94,7 @@ object PlaylistSync {
             // Store / Extras 由 KidApp.onCreate 先初始化；这里再兜一次，广播拉起进程时也安全
             Store.init(ctx)
             Extras.init(ctx)
+            appCtx = ctx.applicationContext
             initialized = true
 
             // 冷启动补下发：applyToLocal 平时只在「清单内容变了」时跑，升级 / 重装（保留数据）
@@ -108,8 +136,11 @@ object PlaylistSync {
         lastCheckAt = 0L
     }
 
-    /** 由 KidApp 每秒调用；只有到了间隔才真正发起一次后台检查 */
+    /** 由 KidApp 每秒调用；驱动清单轮询 + 远程控制卡，两者共用这一个节拍 */
     fun tick() {
+        // 控制卡走独立的短连接（readAllIsolated），不会碰供货中的主连接，
+        // 所以放在「播放中不轮询」之前：家长点「立即锁屏」不该等孩子退出播放才生效。
+        appCtx?.let { RemoteControl.tick(it) }
         if (!Store.autoRefreshEnabled) return
         // 播放期间不碰 NAS：同一条 SMB 连接被轮询抢走会让孩子看着看着卡住。
         // 退出播放时 PlayerActivity 会 nudge()，更新不会丢。
@@ -180,6 +211,9 @@ object PlaylistSync {
         val newAppsSig = appsSignature(fresh.apps)
         val follow = fresh.autoRefresh.followAppList
         val justWrittenHere = System.currentTimeMillis() - Store.lastLocalPlaylistWrite < 60_000L
+        // OPT-07：电视上有一次没保存成功的修改时，NAS 上的设置仍是旧内容。
+        // 这时候不能静默把旧值下发到电视，否则家长就再也看不出「上次没改成功」了。
+        val conflict = Store.hasUnsyncedEdit && !justWrittenHere
         if (follow && !justWrittenHere && oldAppsSig.isNotBlank() && oldAppsSig != newAppsSig) {
             Extras.clearSelectedApps()
             Log.i(TAG, "清单 apps 段变化，已清除电视本地应用勾选")
@@ -194,11 +228,27 @@ object PlaylistSync {
         }
 
         val applied = res.playlist
-        applyToLocal(applied)
+        applyToLocal(applied, skipSettings = conflict)
         Store.playlistAppsSignature = appsSignature(applied.apps)
         Store.autoRefreshLastApplied = System.currentTimeMillis()
         Log.i(TAG, "清单已自动更新（$reason）：${applied.sections.size} 个分区 / " +
-            "${applied.sections.sumOf { it.items.size }} 个条目")
+            "${applied.sections.sumOf { it.items.size }} 个条目" +
+            if (conflict) "（电视有未同步修改，本次跳过设置下发）" else "")
+
+        if (conflict) {
+            val n = System.currentTimeMillis()
+            // 清单没变时不会走到这里；变了也最多 1 分钟提醒一次，不刷屏
+            if (n - lastConflictNoticeAt > 60_000L) {
+                lastConflictNoticeAt = n
+                main.post {
+                    try {
+                        onUnsyncedConflict?.invoke()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "未同步冲突提示失败: ${e.message}")
+                    }
+                }
+            }
+        }
 
         main.post {
             listeners.forEach {

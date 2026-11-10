@@ -232,9 +232,40 @@ object Extras {
         // 0 分钟 = 立刻结束（远程「立即锁屏」用），不能当成"永久放行"
         if (minutes <= 0) { clearTemp(); return }
         grant("tempUntilRt", "tempUntil", minutes)
+        // 家长在电视上主动放行，就是明确的「解除远程锁定」动作
+        clearRemoteLock()
     }
 
     fun clearTemp() = p().edit().remove("tempUntil").remove("tempUntilRt").apply()
+
+    // ---------- 远程控制（OPT-06）：家长在手机上点的「立即锁屏」 ----------
+
+    /**
+     * 只清 tempUntil 是不够的：如果本来就在允许时段、当日也没超额，
+     * `GateKeeper.status()` 仍然是 open，下一秒 KidApp 会把刚弹出的锁屏 finish 掉。
+     * 所以「立即锁屏」必须是一个门禁能读到的状态。
+     *
+     * 最长 8 小时：家长点的锁要一直锁到他自己解除，但不能因为控制文件丢了、
+     * 家长忘了，让电视永久变砖。和放行倒计时一样存墙上 + 单调两份。
+     */
+    fun setRemoteLock(on: Boolean) {
+        if (on) grant("remoteLockRt", "remoteLockUntil", 8 * 60)
+        else clearRemoteLock()
+    }
+
+    fun clearRemoteLock() = p().edit()
+        .remove("remoteLockUntil").remove("remoteLockRt").apply()
+
+    fun remoteLockRemainingMs(): Long = remaining("remoteLockRt", "remoteLockUntil")
+
+    fun remoteLockActive(): Boolean = remoteLockRemainingMs() > 0L
+
+    // ---------- 剩余时间预告（OPT-05）：同一天每条阈值只提示一次 ----------
+
+    fun noticeFired(tag: String): Boolean = p().getBoolean("notice_${day()}_$tag", false)
+
+    fun markNoticeFired(tag: String) =
+        p().edit().putBoolean("notice_${day()}_$tag", true).apply()
 
     // ---------- 放行倒计时的实现 ----------
     //

@@ -464,6 +464,72 @@ def write_remote(cfg: dict, payload: bytes, backup: bool = True) -> dict:
         c.close()
 
 
+# --------------------------------------------------------------------------- 远程控制卡（OPT-06）
+# 与 console.py 里那份是同一套约定：control.json / control.ack.json 和 tv.json 同目录同共享。
+# 简版编辑器只提供 API，页面在「JSON / 导入导出」里可以直接写 control.json 原文。
+
+def control_paths(cfg: dict) -> tuple:
+    p = remote_path(cfg)
+    parent = p.rsplit("/", 1)[0] or "/"
+    return (cfg.get("playlistShare") or "data",
+            parent + "/control.json", parent + "/control.ack.json")
+
+
+def read_control(cfg: dict) -> dict:
+    share, cpath, apath = control_paths(cfg)
+    out = {"ok": True, "path": f"{share}:{cpath}", "control": None, "ack": None}
+    c = connect(cfg)
+    try:
+        for key, p in (("control", cpath), ("ack", apath)):
+            try:
+                buf = io.BytesIO()
+                c.retrieveFile(share, p, buf, timeout=20)
+                out[key] = json.loads(buf.getvalue().decode("utf-8-sig"))
+            except Exception:
+                pass   # 还没建 / 写坏了都当「没有」
+    finally:
+        c.close()
+    return out
+
+
+def write_control(cfg: dict, incoming: dict) -> dict:
+    share, cpath, _ = control_paths(cfg)
+    clean = {
+        "lockNow": bool(incoming.get("lockNow")),
+        "addMinutes": max(0, min(240, int(incoming.get("addMinutes") or 0))),
+        "pauseNow": bool(incoming.get("pauseNow")),
+        # 每次发送都换新值（带毫秒，1 秒内连点两条也不撞），电视端按它幂等去重
+        "updatedAt": dt.datetime.now().astimezone().isoformat(timespec="milliseconds"),
+    }
+    payload = (json.dumps(clean, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    c = connect(cfg)
+    try:
+        parent = cpath.rsplit("/", 1)[0] or "/"
+        try:
+            c.createDirectory(share, parent)
+        except Exception:
+            pass
+        tmp = parent + "/.control.json.tmp"
+        c.storeFile(share, tmp, io.BytesIO(payload), timeout=30)
+        try:
+            c.rename(share, tmp, cpath)
+        except Exception:
+            try:
+                c.deleteFiles(share, cpath, timeout=15)
+            except Exception:
+                pass
+            try:
+                c.rename(share, tmp, cpath)
+            except Exception:
+                c.storeFile(share, cpath, io.BytesIO(payload), timeout=30)
+    except Exception as e:
+        raise SmbError(f"写 control.json 失败：{e}")
+    finally:
+        c.close()
+    return {"ok": True, "control": clean,
+            "message": f"已写入 {share}:{cpath}，等待电视回执（最长 15 秒）"}
+
+
 def browse_dir(cfg: dict, share: str, path: str) -> dict:
     share = share or cfg.get("share") or "儿童资源"
     path = norm(path)
@@ -880,6 +946,31 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
     <div id="sections"></div>
     <button class="add" data-act="sec-add">＋ 新增分区</button>
     <div class="card" style="margin-top:16px">
+      <h2>功能开关 <small>features 段 · 保存到 NAS 后 15 秒生效</small></h2>
+      <p class="hint">出问题把对应开关改回 false 保存即可回滚，不用重装 APK。缺字段时电视用默认值。</p>
+      <div class="grid">
+        <label class="f chk"><input type="checkbox" data-path="features.kioskPullback" data-bool="1" id="ft-pullback"> 后台拉回</label>
+        <label class="f chk"><input type="checkbox" data-path="features.extWatchMs" data-bool="1" id="ft-ext"> 外部应用计时</label>
+        <label class="f chk"><input type="checkbox" data-path="features.remainingNotice" data-bool="1" id="ft-notice"> 剩余时间预告</label>
+        <label class="f chk"><input type="checkbox" data-path="features.remoteControl" data-bool="1" id="ft-remote"> 远程控制</label>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>远程控制 <small>control.json · 最长 15 秒在电视上生效</small></h2>
+      <p class="hint">先勾上「远程控制」并<b>保存 tv.json</b>，电视才会每 15 秒读同目录的 control.json。
+      指令与片单是两份文件，改指令碰不坏片单；电视执行后写 control.ack.json 回执。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+        <button data-act="ctl" data-cmd="lock">立即锁屏</button>
+        <button data-act="ctl" data-cmd="add">按左边分钟数加时</button>
+        <input type="number" id="ctl-min" min="1" max="240" value="15" style="width:100px">
+        <button data-act="ctl" data-cmd="pause">暂停播放</button>
+        <button data-act="ctl" data-cmd="unlock">解除锁定</button>
+        <button data-act="ctl-refresh">刷新回执</button>
+      </div>
+      <p class="hint" id="ctl-ack">还没有读取回执</p>
+      <p class="hint">「立即锁屏」会一直锁到家长解除（最长 8 小时）；点「解除锁定」、把 lockNow 改回 false，或在电视上临时放行都能解除。</p>
+    </div>
+    <div class="card" style="margin-top:16px">
       <h2>高级字段 <small>kiosk / 说明等，按 JSON 对象编辑</small></h2>
       <p class="hint">这里没列出的顶层字段都放在下面。改完点「应用到编辑器」；留空表示清空这些字段。</p>
       <textarea class="raw" id="extra" style="min-height:150px"></textarea>
@@ -944,7 +1035,7 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
 <script>
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("k") || "";
-const KNOWN = ["nas","playlistShare","passRatio","pin","sections","schedule","apps","autoRefresh"];
+const KNOWN = ["nas","playlistShare","passRatio","pin","sections","schedule","apps","autoRefresh","features"];
 let obj = {sections:[]}, cfg = {}, activeTab = "form", dirty = false;
 let pk = {share:"", path:"/", target:null, items:[]};
 let ap = {mode:"apps", target:null, apps:[], checked:new Set()};
@@ -1083,7 +1174,37 @@ function renderAutoRefresh(){
   $("#ar-interval").value = (typeof a.intervalSeconds==="number")?a.intervalSeconds:15;
   $("#ar-follow").checked = a.followAppList!==false;
 }
-function renderForm(){ renderGlobal(); renderAutoRefresh(); renderApps(); renderSections(); renderExtra(); }
+function renderFeatures(){
+  const f=(obj.features&&typeof obj.features==="object")?obj.features:{};
+  $("#ft-pullback").checked = f.kioskPullback!==false;
+  $("#ft-ext").checked = f.extWatchMs!==false;
+  $("#ft-notice").checked = f.remainingNotice!==false;
+  $("#ft-remote").checked = f.remoteControl===true;
+}
+function renderForm(){ renderGlobal(); renderAutoRefresh(); renderFeatures(); renderApps(); renderSections(); renderExtra(); }
+
+/* ---------- 远程控制卡 ---------- */
+async function loadCtl(){
+  try{
+    const d=await api("/api/control");
+    $("#ctl-ack").textContent = d.ack
+      ? "已生效 · "+(d.ack.appliedAt||"")+" · "+((d.ack.actions||[]).join("、"))+" · "+(d.ack.message||"")
+      : "电视还没回执（可能刚发送，或 features.remoteControl 没打开并保存）";
+  }catch(e){ $("#ctl-ack").textContent="读取失败："+e.message; }
+}
+async function sendCtl(cmd){
+  const n=Math.max(1,Math.min(240,Number($("#ctl-min").value)||15));
+  const body={lockNow:false,addMinutes:0,pauseNow:false};
+  if(cmd==="lock") body.lockNow=true;
+  else if(cmd==="add") body.addMinutes=n;
+  else if(cmd==="pause") body.pauseNow=true;
+  // unlock：显式 lockNow=false + 新 updatedAt → 电视端解除远程锁定
+  try{
+    await api("/api/control",{method:"POST",body:JSON.stringify(body)});
+    msg("指令已写入，等待电视回执…","ok");
+    setTimeout(loadCtl,3000);
+  }catch(e){ msg(e.message,"err"); }
+}
 
 /* ---------- 封面缩略图预览 ---------- */
 const IMG_RE=/\.(jpe?g|png|webp|bmp|gif)$/i;
@@ -1225,6 +1346,8 @@ document.addEventListener("click", e=>{
     catch(err){ msg("JSON 有错："+err.message,"err"); }
   }
   else if(a==="copy-raw"){ navigator.clipboard.writeText($("#raw").value).then(()=>msg("已复制","ok"),()=>msg("复制失败","err")); }
+  else if(a==="ctl"){ sendCtl(b.dataset.cmd); }
+  else if(a==="ctl-refresh"){ loadCtl(); }
   else if(a==="pk-close"){ $("#picker").classList.add("hidden"); }
   else if(a==="pk-up"){ pk.path=pk.path==="/"?"/":(pk.path.split("/").slice(0,-1).join("/")||"/"); loadDir(); }
   else if(a==="pk-folder"){ pick(pk.path.replace(/^\//,""),"folder"); }
@@ -1356,7 +1479,7 @@ function loadRemote(){
     cfg=d.cfg; obj=JSON.parse(d.text);
     $("#conn").textContent=d.cfg.host+" · "+d.cfg.playlistShare+":"+d.path+" · "+d.bytes+" 字节"+(d.mtime?" · "+d.mtime:"")+" · "+d.sectionCount+" 分区 / "+d.itemCount+" 条目";
     $("#dot").className="dot on";
-    renderForm(); $("#raw").value=d.text; setDirty(false); fillCfg();
+    renderForm(); $("#raw").value=d.text; setDirty(false); fillCfg(); loadCtl();
     msg("已读取 NAS 上的 tv.json（密码已隐藏，保存时自动保留）","ok");
   }).catch(err=>{ $("#dot").className="dot off"; $("#conn").textContent="连接失败"; msg("读取失败："+err.message,"err"); });
 }
@@ -1525,6 +1648,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True, **installed_apps()})
             if u.path == "/api/tv-status":
                 return self._json({"ok": True, **tv_status(cfg)})
+            if u.path == "/api/control":
+                return self._json(read_control(cfg))
             return self._json({"ok": False, "error": "未知接口 " + u.path}, 404)
         except Exception as e:
             return self._json({"ok": False, "error": str(e)}, 400)
@@ -1554,6 +1679,9 @@ class Handler(BaseHTTPRequestHandler):
                 if body.get("persist"):
                     persist_cfg(new)
                 return self._json({"ok": True, "cfg": public_cfg(new)})
+
+            if u.path == "/api/control":
+                return self._json(write_control(cfg, body))
 
             text = body.get("text")
             if not isinstance(text, str):

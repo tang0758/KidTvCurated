@@ -326,6 +326,81 @@ def write_remote(cfg: dict, text: str) -> str:
         c.close()
 
 
+# --------------------------------------------------------------------------- 远程控制卡（OPT-06）
+# control.json 与 tv.json 同目录同共享，但**是独立文件**：家长改指令碰不坏片单。
+# 电视端每 15 秒读一次，执行后写 control.ack.json 回执，网页据此显示「已生效」。
+
+def control_paths(cfg: dict) -> tuple[str, str, str]:
+    p = norm(cfg.get("playlistPath") or "curated/tv.json")
+    parent = p.rsplit("/", 1)[0] or "/"
+    return (cfg.get("playlistShare") or "data",
+            parent + "/control.json", parent + "/control.ack.json")
+
+
+def _now_iso() -> str:
+    t = time.localtime()
+    off = time.strftime("%z", t) or "+0000"
+    # 带毫秒：家长 1 秒内连点「锁屏」「解除」，两条 updatedAt 也必须不同
+    ms = f".{int(time.time() * 1000) % 1000:03d}"
+    return time.strftime("%Y-%m-%dT%H:%M:%S", t) + ms + off[:3] + ":" + off[3:]
+
+
+def read_control(cfg: dict) -> dict:
+    share, cpath, apath = control_paths(cfg)
+    out = {"ok": True, "path": f"{share}:{cpath}", "control": None, "ack": None}
+    c = smb(cfg)
+    try:
+        for key, p in (("control", cpath), ("ack", apath)):
+            try:
+                buf = io.BytesIO()
+                c.retrieveFile(share, p, buf, timeout=20)
+                out[key] = json.loads(buf.getvalue().decode("utf-8-sig"))
+            except Exception:
+                pass   # 文件还没建、或写坏了，都当「没有」，不阻断页面
+    finally:
+        c.close()
+    return out
+
+
+def write_control(cfg: dict, incoming: dict) -> dict:
+    share, cpath, _ = control_paths(cfg)
+    clean = {
+        "lockNow": bool(incoming.get("lockNow")),
+        "addMinutes": max(0, min(240, int(incoming.get("addMinutes") or 0))),
+        "pauseNow": bool(incoming.get("pauseNow")),
+        # 每次发送都换新值：电视端按 updatedAt 幂等去重，不改就永远不会再执行一次
+        "updatedAt": _now_iso(),
+    }
+    payload = (json.dumps(clean, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    c = smb(cfg)
+    try:
+        parent = cpath.rsplit("/", 1)[0] or "/"
+        try:
+            c.createDirectory(share, parent)
+        except Exception:
+            pass
+        # 临时文件 + 原子改名：电视可能正好在轮询，别让它读到半截 JSON
+        tmp = parent + "/.control.json.tmp"
+        c.storeFile(share, tmp, io.BytesIO(payload), timeout=30)
+        try:
+            c.rename(share, tmp, cpath)
+        except Exception:
+            try:
+                c.deleteFiles(share, cpath, timeout=15)
+            except Exception:
+                pass
+            try:
+                c.rename(share, tmp, cpath)
+            except Exception:
+                c.storeFile(share, cpath, io.BytesIO(payload), timeout=30)
+    except Exception as e:
+        raise SmbError(f"写 control.json 失败：{e}")
+    finally:
+        c.close()
+    return {"ok": True, "control": clean,
+            "message": f"已写入 {share}:{cpath}，等待电视回执（最长 15 秒）"}
+
+
 # --------------------------------------------------------------------------- 业务
 
 def browse(cfg: dict, share: str, path: str) -> dict:
@@ -675,6 +750,9 @@ class Handler(BaseHTTPRequestHandler):
                         "warning": f"NAS 上还没有清单（{e}），已载入公开模板，改完点「保存到 NAS」即可",
                     })
 
+            if path == "/api/control":
+                return self.json_out(read_control(cfg))
+
             if path == "/api/template":
                 return self.json_out({"ok": True, "data": load_template(), "source": "template"})
 
@@ -785,6 +863,9 @@ class Handler(BaseHTTPRequestHandler):
                 if path.endswith("scan"):
                     return self.json_out(scan(cfg, share, data.get("path", "")))
                 return self.json_out(browse(cfg, share, data.get("path", "")))
+
+            if path == "/api/control":
+                return self.json_out(write_control(current_cfg(), data))
 
             if path == "/api/config":
                 payload = data.get("data")

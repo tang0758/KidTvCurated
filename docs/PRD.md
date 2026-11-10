@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.0 |
-| 撰写日期 | 2026-11-10 |
+| 文档版本 | V1.3（Wave 1 落地后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-10 深夜） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main` @ `2e1120c`（家长控制 + 电视端设置页） |
-| 对应交付物 | `app-debug.apk`（26.7 MB，versionCode 1 / versionName 1.0）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 1 完成，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（26.5 MB，versionCode 4 / versionName 1.3）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -574,12 +574,13 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 
 **规则**
 - 开关集合：`kioskPullback`（默认开，老行为）、`extWatchMs`（默认开，已确认的 bug 修复，见 FR-22）、
-  `autoNext` / `remoteControl` / `report`（默认关，新功能）。
+  `remainingNotice`（默认开，见 FR-23）、`remoteControl`（默认关，见 FR-24）、
+  `autoNext` / `report`（默认关，Wave 2 / 3 前仍为占位）。
 - `applyToLocal()` 把 `features` 写进本地；业务代码统一 `if (Extras.feature("xxx"))`，缺字段/类型错都读默认值，不抛异常。
 - **每次冷启动**用缓存清单幂等重放一次 `applyToLocal()`：它原先只在清单内容变化时跑，升级 / 重装（保留数据）
   后本地会缺 `kiosk` / `features` 键，`Kiosk.enabled` 取默认 `false` 导致「被切走后拉回」全程不工作。
 - 改完 15 秒内经轮询生效，不重装 APK；网页控制台「规则」页可直接勾选，也可手改 JSON。
-- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.2(3) 11-10 21:05`。
+- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.3(4) 11-10 23:33`。
 
 **AC**
 1. 把 `features.kioskPullback` 改为 `false`，15 秒内按 Home 切走后不再被拉回；改回 `true` 同样 15 秒恢复。
@@ -621,6 +622,75 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 6. 外部应用启动失败（已卸载）时预扣全额退还。
 7. 时段到点瞬间退出外部应用，该段时长完整落账，不因 `clearAppLaunch()` 丢失。
 
+#### FR-23 剩余时间预告（P1）✅（2026-11-10 新增，Wave 1）
+
+**描述**：播放页右上角常显「今天还剩 X 分钟」，在剩 5 分钟、1 分钟两个阈值各提示一次；
+孩子在第三方 App 的放行窗口结束前 2 分钟同样提醒。
+
+**规则**
+- 取「最早会锁住孩子」的约束，而不是只看每日限额：每日限额、当前时段结束（含跨零点窗口）、
+  临时放行结束、远程锁定结束四者取最小值；`TimeNoticeMath` 为纯函数，不依赖 Android。
+- 文案按实际剩余时间说（剩 2 分钟不能写「还剩 5 分钟」）；到点仍走既有 `stopForLock()`，预告不参与门禁。
+- 阈值提示按 `ClockGuard.day()` + tag 记 `notice_<day>_<tag>`，同一天同一阈值只提示一次，不刷屏。
+- 日期键必须走 `ClockGuard.day()`，不能另起一份今天（见 R-16）。
+- `features.remainingNotice=false` 时播放页不显示、不提示，15 秒回滚；默认 **开**。
+
+**AC**
+1. 30 分钟限额下，剩 12 / 5 / 1 分钟分别显示对应文案；5 分钟与 1 分钟各一次 Toast。
+2. 重复进入同一阈值不再弹提示；跨天后阈值可再次触发。
+3. 临时放行 / 远程锁定生效时显示对应来源的剩余时间，且不会比实际到点时间更长。
+4. 关掉开关后播放页无角标、无 Toast。
+
+#### FR-24 远程控制卡 `control.json`（P0）✅（2026-11-10 新增，Wave 1）
+
+**描述**：家长在网页控制台点按钮，电视 15 秒内响应「立即锁屏 / 解锁 / 加时 / 暂停」，并回写回执。
+
+**规则**
+- 文件与 `tv.json` **分开**：`data:curated/control.json`（指令）、`data:curated/control.ack.json`（回执）。
+  家长手改控制指令不可能碰到片单。
+- 字段：`lockNow`（bool）、`addMinutes`（int，0–240）、`pauseNow`（bool）、`updatedAt`（ISO 8601 带毫秒）。
+  **`lockNow` 字段存在且为 `false` = 显式解锁**；字段缺失不等于解锁，避免旧指令误解锁。
+- 幂等键 `updatedAt`，缺字段时退化为原文 hash；同一条指令重复轮询不重复执行。
+- `lockNow` 必须落到 `GateKeeper.Reason.REMOTE`，否则全局 1 秒守卫会在下一秒把锁屏 finish 掉。
+- `addMinutes` 同时清掉远程锁定并 `grantTemp(n)`；倒计时仍按「墙上 + `elapsedRealtime` 取小者」（R-18）。
+- `pauseNow` 用单调版本号 `RemoteControl.pauseVersion`，播放页 ticker 比对后 `pause()`；
+  播放器不在前台时也不丢指令。
+- 坏 JSON / 文件不存在：忽略、不崩、**不影响片单同步**；同一份坏内容只打一条日志（EX-21）。
+- 播放期间也照常轮询；复用 `PlaylistSync` 的后台单线程池，不新增线程或服务。
+- `features.remoteControl=false` 时完全不读 `control.json`；默认 **关**，家长在编辑器「规则」页打开。
+
+**AC**
+1. 发 `lockNow=true`，15 秒内前台变 `LockActivity`，`control.ack.json` 的 `actions` 为 `["lockNow"]`。
+2. 20 秒后重复轮询，执行日志仍只有 1 条。
+3. 发 `lockNow=false` 解锁；发 `addMinutes=10` 加时且播放页显示「临时放行还剩 10 分钟」。
+4. 发 `pauseNow=true` 时播放暂停；`control.json` 写坏 JSON 时片单仍能自动更新（EX-21）。
+
+#### FR-25 设置写回失败阻断 + 未同步标记（P1）✅（2026-11-10 新增，Wave 1）
+
+**描述**：电视上改设置写不进 NAS 时，必须阻断并明确告知，绝不出现「界面改好了、下次同步悄悄变回去」。
+
+**规则**
+- `PlaylistWriter.patch()` 失败时返回 `pendingText`（当时本想写入的完整 `tv.json`）与
+  `baseHash`（失败前读到的远端指纹）；连读都没读到时 `pendingText` 为空。
+- 失败时**不调用 `after()`**：本机保持 NAS 上的旧值；设置页停留原页、顶部挂红色错误条，
+  并置 `Store.unsynced_edit=true`（PRD EX-22）。
+- 错误条一直挂到家长处理完；新增「未同步的修改 / 重试保存到 NAS」入口，弹窗三选
+  「覆盖 NAS / 放弃这次修改 / 稍后再说」（30 秒节流，主动点重试可跳过）。
+- 重放前**重新读一次 NAS**，与 `pendingBaseHash` 比对：期间家长在网页上改过片单就拒绝覆盖，
+  宁可让他重设一次，也不能抹掉别人的改动。
+- 有未同步修改时 `PlaylistSync.applyToLocal(skipSettings=true)`：**片单条目照常刷新，
+  但家长设置不下发**，否则红色错误条会被静默抹平；清单变化时最多 1 分钟提醒一次。
+- 放弃 / 重放成功后清 `unsynced_*`；成功后只针对 `reason=settings*` 补一次设置页渲染，
+  避免异步同步晚于弹窗渲染导致家长看到旧开关值。
+
+**AC**
+1. NAS 写保护时在电视上改时段：留在原页、红色错误条可见、`unsynced_*` 六键齐全，
+   本机与 NAS 的设置都保持旧值。
+2. 未同步期间从网页改片单：日志显示「跳过设置下发」，本机家长设置不变、错误条仍在。
+3. NAS 期间被改过后点「覆盖 NAS」：重放被拒且 NAS 内容不被覆盖。
+4. 点「放弃这次修改」：错误条与重试行消失、`unsynced_*` 清空。
+5. 写保护解除后重放成功：NAS 与本机同时变为新值，错误条消失，设置页即时显示新值。
+
 ---
 
 ## 9. 关键业务规则（实现契约）
@@ -651,6 +721,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-22 | 宁可多扣不漏记 | 无 usage 授权时先预扣 `maxMinutes` 再按实测退还；精确模式结算的负差额不强退（dayMax 只增不减） |
 | R-23 | 门禁不能被体验开关关掉 | `kioskPullback` 只管「防切走」体验；限额 / 时段的兜底拉回独立执行，且点应用入口前必须先查门禁 |
 | R-24 | 冷启动补下发 | `PlaylistSync.init()` 用缓存清单幂等重放 `applyToLocal()`，不读 SMB；防止升级后本地缺 `kiosk` / `features` |
+| R-25 | 预告不参与门禁 | `TimeNotice` 只读账本算文案；到点仍由 `GateKeeper` + `stopForLock()` 决定锁不锁，预告不得成为第二条计时或放行动作 |
+| R-26 | 远程指令幂等且分文件 | 控制指令在 `control.json`、回执在 `control.ack.json`，不碰 `tv.json`；`updatedAt` 去重；`lockNow` 必须落成 `GateKeeper.Reason.REMOTE`，否则守卫会拆掉自己的锁屏 |
+| R-27 | 写回失败不静默 | 失败即置 `unsynced_edit` 并留原页；有未同步修改时片单可刷新但设置不下发；重放前必须比对远端基线指纹，指纹不符就拒绝覆盖 |
 
 ---
 
@@ -670,7 +743,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
-| | `features` | object | 否 | 远程功能开关，见 FR-21 / FR-22；缺字段 = 默认值（`kioskPullback` / `extWatchMs` 开，其余关） |
+| | `features` | object | 否 | 远程功能开关，见 FR-21 / FR-22 / FR-23 / FR-24；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` 开，`remoteControl` / `autoNext` / `report` 关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
 | | `title` | string | 是 | 行标题 |
 | | `gate` | bool | 否 | 每日必看 |
@@ -871,6 +944,12 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-30 | 焦点复位 | 任意卡 | 进播放→返回 | 焦点回原卡 |
 | TC-31 | 编辑器幂等 | 连续保存 3 次 | 检查 NAS | 每次生成 backup，JSON 合法 |
 | TC-32 | 密码保护 | 密码位为占位符 | 保存并重连 | 沿用旧密码，不写坏 |
+| TC-33 | 剩余预告 | 30 分钟限额 | 看到剩 12 / 5 / 1 分钟 | 对应文案 + 两个阈值各一次 Toast，不刷屏（FR-23） |
+| TC-34 | 预告来源 | 临时放行 10 分钟 | 进播放页 | 显示「临时放行还剩 10 分钟」，取最早到点的约束 |
+| TC-35 | 远程锁定 | 控制台点「立即锁屏」 | 15 秒内观察电视 | 前台变锁屏，回执 `["lockNow"]`，重复轮询不重复执行（FR-24） |
+| TC-36 | 远程加时 / 暂停 | 控制台加 10 分钟、点暂停 | 观察播放页 | `tempUntil` 写入且显示剩余 10 分钟；`pauseVersion` 触发 `pause()` |
+| TC-37 | 写回失败阻断 | NAS 写保护 | 电视上改时段 | 红色错误条 + `unsynced_*`，本机与 NAS 都不变（EX-22 / FR-25） |
+| TC-38 | 重放与放弃 | 解除写保护 | 分别点「覆盖 NAS」「放弃这次修改」 | 前者写成功并清标记，后者清标记且保持 NAS 旧值；NAS 中途被改过时覆盖被拒 |
 
 ### 15.4 异常与恢复用例
 
@@ -896,6 +975,11 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-18 | 时段到点瞬间退出 | 外部会话中跨过时间窗边界 | 先结算再清放行再拉锁屏，该段时长完整落账 |
 | EX-19 | 限额用尽后点应用入口 | 已看满当日上限 | 入口直接拒绝；已在第三方 App 内则被拉回并盖锁屏 |
 | EX-20 | 外部会话中跨零点 | 23:59 进入外部应用 | 按 `ClockGuard.day()` 分账到两天，`ext_<day>` 同步 |
+| EX-21 | `control.json` 写坏 JSON | 写 `{ broken json oops`，同时改 `tv.json` 的限额 | 忽略坏指令、只记一条日志、不崩；片单限额仍在 15 秒内正常下发（FR-24） |
+| EX-22 | NAS 写保护时改设置 | 给 `tv.json` 加只读属性后在电视上改「时段限制」 | 留在原页 + 红色错误条 + `unsynced_*`；本机与 NAS 都是旧值，不静默回滚；解除保护后可重放或放弃（FR-25） |
+
+> 编号说明：ROADMAP 第 10 节最初的提案把 EX-14 / EX-15 预留给 Wave 1，但 OPT-04 提前落地时
+> 本表已用 EX-14～EX-20 登记外部应用计时的用例。V1.5 起以本表为准，Wave 1 顺延为 EX-21 / EX-22。
 
 ### 15.5 缺陷分级
 

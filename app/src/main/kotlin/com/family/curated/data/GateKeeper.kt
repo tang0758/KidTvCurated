@@ -8,7 +8,7 @@ import java.util.Calendar
  */
 object GateKeeper {
 
-    enum class Reason { OK, TEMP, OUTSIDE, LIMIT }
+    enum class Reason { OK, TEMP, OUTSIDE, LIMIT, REMOTE }
 
     data class Status(
         val open: Boolean,
@@ -25,6 +25,17 @@ object GateKeeper {
         // 含还没落盘的零头：否则「到点」最多会晚 10 秒，孩子能多看一眼
         val usedMs = WatchClock.todayMs()
         val usedMin = (usedMs / 60_000L).toInt()
+
+        // 家长在手机上点了「立即锁屏」：优先级最高，时段 / 临时放行都不能盖过它。
+        // 只清 tempUntil 不留下这个状态的话，下一秒 KidApp 就会把刚弹出的锁屏 finish 掉。
+        val remoteLeft = Extras.remoteLockRemainingMs()
+        if (remoteLeft > 0L) {
+            return Status(
+                false, Reason.REMOTE, "家长已暂停观看",
+                "家长点了「立即锁屏」。在电视上按菜单键 → PIN → 临时放行，即可解除",
+                remoteLeft / 1000L, usedMin, sch?.dailyLimitMinutes ?: 0
+            )
+        }
 
         if (sch == null || !sch.enabled) {
             return Status(true, Reason.OK, "", "", 0L, usedMin, 0)

@@ -98,6 +98,7 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
     val autoNext: Boolean get() = value("autoNext")
     val extWatchMs: Boolean get() = value("extWatchMs")
     val remoteControl: Boolean get() = value("remoteControl")
+    val remainingNotice: Boolean get() = value("remainingNotice")
     val report: Boolean get() = value("report")
     val kioskPullback: Boolean get() = value("kioskPullback")
 
@@ -117,7 +118,8 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
             // 2026-11-10 实机确认：孩子从应用入口进优酷 2 小时不进账，等于绕过每日上限。
             // 这是修 bug 不是灰度新功能，装上就得生效；出问题改回 false，15 秒回滚。
             "extWatchMs" to true,     // OPT-04 外部应用计时
-            "remoteControl" to false, // OPT-06 远程控制卡
+            "remoteControl" to false, // OPT-06 远程控制卡：新链路，先由家长在编辑器打开
+            "remainingNotice" to true, // OPT-05 剩余时间预告，正式功能，装上即生效
             "report" to false,        // OPT-08 周报页
             "kioskPullback" to true   // 儿童锁「被切走后拉回」，老行为，默认开
         )

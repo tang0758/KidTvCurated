@@ -21,10 +21,12 @@ import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.PlaylistSync
+import com.family.curated.data.RemoteControl
 import com.family.curated.data.Smb
 import com.family.curated.data.SmbDataSource
 import com.family.curated.data.SmbPlaybackContext
 import com.family.curated.data.Store
+import com.family.curated.data.TimeNotice
 import com.family.curated.data.WatchClock
 import com.family.curated.databinding.ActivityPlayerBinding
 
@@ -64,6 +66,8 @@ class PlayerActivity : AppCompatActivity() {
     private var resumeOverride: Long? = null
     private var lastReadyAt = 0L
     private var tickerStarted = false
+    /** 已经消费过的远程暂停指令版本，避免重放历史指令 */
+    private var seenPauseVersion = 0L
 
     private val ui = Handler(Looper.getMainLooper())
     private var hideUi = Runnable { b.controls.visibility = View.GONE }
@@ -75,6 +79,7 @@ class PlayerActivity : AppCompatActivity() {
         b = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(b.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        seenPauseVersion = RemoteControl.pauseVersion
 
         file = intent.getStringExtra(EXTRA_FILE) ?: ""
         key = intent.getStringExtra(EXTRA_KEY) ?: file
@@ -267,6 +272,19 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 val nowRt = SystemClock.elapsedRealtime()
 
+                // 家长在手机上点了「暂停」：版本号变化就暂停当前播放
+                val pv = RemoteControl.pauseVersion
+                if (pv != seenPauseVersion) {
+                    seenPauseVersion = pv
+                    try { p.pause() } catch (e: Exception) { }
+                    Log.i(TAG, "远程暂停指令已执行（version=$pv）")
+                    Toast.makeText(this@PlayerActivity, "家长暂停了播放", Toast.LENGTH_LONG).show()
+                    showControls()
+                }
+
+                // 剩余时间预告（OPT-05）：右上角常显 + 5 分钟 / 1 分钟各一次 Toast
+                updateRemaining()
+
                 // 计时不在播放页做：统一交给 WatchClock（它只认「主人令牌 + 单调时间」），
                 // 播放页只负责在 onStart / onPause 里 start / stop
                 val pos = p.currentPosition.coerceAtLeast(0)
@@ -312,6 +330,33 @@ class PlayerActivity : AppCompatActivity() {
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
         )
         finish()
+    }
+
+    /**
+     * 右上角「今天还剩 N 分钟」。取「最早会锁住孩子」的那条约束
+     * （时段结束 / 每日限额 / 临时放行），不是只看限额，免得说错话。
+     * 到 5 分钟、1 分钟各弹一次，同一天去重，暂停或重进页面都不重复刷屏。
+     */
+    private fun updateRemaining() {
+        if (!TimeNotice.enabled()) {
+            if (b.tvRemain.visibility != View.GONE) b.tvRemain.visibility = View.GONE
+            return
+        }
+        val left = TimeNotice.remaining()
+        val text = TimeNotice.label(left)
+        // 文案变了才落一条日志：家长说「没看到提示」时能查到电视上到底显示了什么
+        if (b.tvRemain.text.toString() != text) Log.i(TAG, "剩余时间预告：$text")
+        if (text.isBlank()) {
+            b.tvRemain.visibility = View.GONE
+        } else {
+            b.tvRemain.text = text
+            b.tvRemain.visibility = View.VISIBLE
+        }
+        val notice = TimeNotice.tickPlayer(left)
+        if (notice != null) {
+            Toast.makeText(this, notice, Toast.LENGTH_LONG).show()
+            Log.i(TAG, "阈值提示：$notice")
+        }
     }
 
     private fun checkNearingEnd(pos: Long, dur: Long) {

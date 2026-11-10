@@ -92,6 +92,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         PlaylistSync.register(syncListener)
+        // OPT-07：清单同步撞上「电视上有没写回 NAS 的修改」时，别静默下发旧设置
+        PlaylistSync.onUnsyncedConflict = {
+            if (!isFinishing && !isDestroyed && hasWindowFocus()) {
+                ParentTools.showUnsyncedConflict(this) { updateHeader() }
+            }
+        }
         loadPlaylist()
     }
 
@@ -388,6 +394,10 @@ class MainActivity : AppCompatActivity() {
         }
         ui.removeCallbacks(clockTick)
         ui.postDelayed(clockTick, 5000)
+        // 回到主界面时也提醒一次，不必等下一次清单变化（内部有 30 秒节流）
+        if (Store.hasUnsyncedEdit) {
+            b.root.post { ParentTools.showUnsyncedConflict(this) { updateHeader() } }
+        }
     }
 
     override fun onPause() {
@@ -397,6 +407,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         PlaylistSync.unregister(syncListener)
+        PlaylistSync.onUnsyncedConflict = null
         ui.removeCallbacks(clockTick)
         super.onDestroy()
     }

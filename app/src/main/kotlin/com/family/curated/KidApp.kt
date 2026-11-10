@@ -14,6 +14,7 @@ import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Store
+import com.family.curated.data.TimeNotice
 import com.family.curated.data.WatchClock
 
 /**
@@ -39,6 +40,9 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 // 外部应用会话也必须在 clearAppLaunch() 之前结算，同样的理由
                 ExtWatchTracker.tick(this@KidApp)
                 val st = GateKeeper.status()
+                // 孩子在第三方应用里时播放页不在前台，剩余时间预告由守卫代发
+                // （放行窗口 / 每日限额结束前 2 分钟各一次，见 OPT-05）
+                TimeNotice.tickExternal(this@KidApp)
                 // 到了不可用时段，孩子即使正在家长允许的应用里也要收回来锁屏
                 if (!st.open && Extras.appLaunchActive()) Extras.clearAppLaunch()
                 val a = current

@@ -126,7 +126,8 @@
         "kioskPullback": { "type": "boolean", "default": true, "description": "孩子按 Home 切走后自动拉回小剧场（老行为，默认开）" },
         "autoNext": { "type": "boolean", "default": false, "description": "自动连播下一集（规划中）" },
         "extWatchMs": { "type": "boolean", "default": true, "description": "外部应用观看也计入每日上限（默认开；无 usage 授权时降级为预扣+退还）" },
-        "remoteControl": { "type": "boolean", "default": false, "description": "远程控制卡 control.json（规划中）" },
+        "remainingNotice": { "type": "boolean", "default": true, "description": "播放页右上角显示剩余时间，剩 5 分钟 / 1 分钟各提示一次；外部应用放行结束前 2 分钟提示" },
+        "remoteControl": { "type": "boolean", "default": false, "description": "每 15 秒读同目录的 control.json，执行立即锁屏 / 加时 / 暂停，并写 control.ack.json 回执" },
         "report": { "type": "boolean", "default": false, "description": "周报页（规划中）" }
       }
     },

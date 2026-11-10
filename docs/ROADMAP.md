@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 |---|---|
 | 产品 | 小剧场 · KidTvCurated |
-| 文档 | 优化计划 V1.4 |
+| 文档 | 优化计划 V1.5 |
 | 日期 | 2026-11-10 |
 | 基线 | `main` @ `3e7193b` |
 | 输入 | [PRD](PRD.md) 的风险与待办、[用户使用说明书](用户使用说明书.md) 的常见问题、一次代码评审结论、[外部应用计时方案对比](外部应用计时方案对比.md) 与 [ADR-01](ADR-外部应用计时.md) |
@@ -18,6 +18,11 @@
 每日上限**从未触发**。这不是「以后再优化」的体验问题，而是核心承诺已经失效，
 因此 **OPT-04 从 Wave 2 之后提前到 Wave 0 之后立刻实施**，发 `versionCode 3 / v1.2`。
 V1–V5 验证门同批跑完（见第 14 节），Wave 1 顺延。
+
+**V1.5 变更（2026-11-10 深夜）**：Wave 1 的 OPT-05 / OPT-06 / OPT-07 全部落地并实机验收通过，
+发 `versionCode 4 / versionName 1.3`（见第 14 节）。同时修正第 10 节异常用例的编号：
+PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1 的 EX-14 / EX-15
+与 PRD 冲突，统一改为 **EX-21 / EX-22**，以 PRD 为准。
 
 **V1.3 进度（2026-11-10）**：**Wave 0（OPT-00 / OPT-01 / OPT-02）+ OPT-03 已落地，`versionCode 2`**。
 落地范围与偏差见第 14 节「落地记录」。可绕过路径：**3 → 2**（「改时钟」已闭合；「外部应用不计时」待 OPT-04、「重装清零」待 OPT-09）。
@@ -88,10 +93,10 @@ V1–V5 验证门同批跑完（见第 14 节），Wave 1 顺延。
 
 | 编号 | 项 | 依赖 | 估时 | 优先级 |
 |---|---|---|---|---|
-| OPT-03 | 版本可见 | — | 0.2 | P0 |
-| OPT-05 | 剩余时间预告 | OPT-01 | 1 | P1 |
-| OPT-06 | 远程控制卡 `control.json` | OPT-00 | 1.5 | P0 |
-| OPT-07 | 设置写回失败阻断 + 未同步标记 | — | 0.8 | P1 |
+| OPT-03 | 版本可见 ✅ | — | 0.2 | P0 |
+| OPT-05 | 剩余时间预告 ✅ | OPT-01 | 1 | P1 |
+| OPT-06 | 远程控制卡 `control.json` ✅ | OPT-00 | 1.5 | P0 |
+| OPT-07 | 设置写回失败阻断 + 未同步标记 ✅ | — | 0.8 | P1 |
 
 > OPT-04（外部应用计时）不放在本波，也不插到 Wave 2 之前——避免把已经提前的「孩子体验」再往后推 1.5 人日。它的位置见第 8 节。
 
@@ -101,13 +106,13 @@ V1–V5 验证门同批跑完（见第 14 节），Wave 1 顺延。
 - **理由**：排障第一句永远是「电视上装的是哪版」。现在答不上来。
 - **验收**：设置页底部可见；APK 属性里版本一致。
 
-### OPT-05 剩余时间预告
+### OPT-05 剩余时间预告 ✅
 
 - **做法**：播放页右上角小字「还剩 12 分钟」；剩 5 分钟一次 Toast；剩 1 分钟再提示；到点走现有 `stopForLock()`。外部应用在放行结束前 2 分钟同样提示（`Toast` + 守卫倒计时）。
 - **理由**：低龄产品的体验差异不在「能不能锁」，在「锁得有没有预期」。
 - **验收**：限额 30 分钟，三个时点各提示一次，不重复刷屏。
 
-### OPT-06 远程控制卡 `control.json`
+### OPT-06 远程控制卡 `control.json` ✅
 
 - **做法**：新增 `data/RemoteControl.kt`，用现成的 `Smb.readAllIsolated()` 每 15 秒读 `data:curated/control.json`（与 `PlaylistSync` 共用同一次轮询周期，不额外开连接）：
   ```json
@@ -120,7 +125,7 @@ V1–V5 验证门同批跑完（见第 14 节），Wave 1 顺延。
 - **验收**：在电脑上改文件，电视 15 秒内响应；重复轮询不重复执行。
 - **注意**：`control.json` 与 `tv.json` 分开文件，避免家长手改控制指令时碰坏片单。
 
-### OPT-07 设置写回失败阻断
+### OPT-07 设置写回失败阻断 ✅
 
 - **做法**：`PlaylistWriter.patch()` 返回失败时，设置页停留在原页 + 明显错误条，并置 `hasUnsyncedEdit=true`；下次 `applyToLocal()` 前若发现未同步，弹「NAS 上仍是你上次保存的内容，是否用电视上的覆盖」。
 - **理由**：现在「以为改好了、下次同步被回滚」是最伤信任的失败方式。
@@ -272,24 +277,21 @@ graph LR
 | Wave | 必测 | 手段 |
 |---|---|---|
 | 0 | 功能开关远程生效/失效；3 分钟计时准确；时间回拨不重置 | 实机 + 手工改 `tv.json` |
-| 1 | control 三条指令幂等；写回失败提示；剩余预告三个时点 | 实机 + EX-14、EX-15 |
+| 1 | control 三条指令幂等；写回失败提示；剩余预告三个时点 | 实机 + EX-21、EX-22（已全部通过，见第 14 节） |
 | 2 | 连播受限额/门禁约束；占位封面不卡顿；继续看不错位 | 实机 10 集连播 |
-| OPT-04 | 10 分钟误差 ≤ 60 秒；无授权降级 C；时段到点不丢时长；静置不误判退出 | 实机 + ADR 第 10 节 A-01～A-08、EX-16～EX-20 |
+| OPT-04 | 10 分钟误差 ≤ 60 秒；无授权降级 C；时段到点不丢时长；静置不误判退出 | 实机 + ADR 第 10 节 A-01～A-08、PRD EX-14～EX-20 |
 | 3 | `pm clear` 后恢复；周报数字与 prefs 一致；外部应用分段 | 实机 + `run-as` 读 prefs 对账 |
 | 4 | 纯函数单测；CI 在 PR 上跑 | GitHub Actions |
 
-异常用例（补进 PRD 的 EX 表）：
+异常用例（**以 [PRD 15.4](PRD.md) 的编号为唯一事实来源**）：
 
-- EX-11 改系统时间绕过限额 → 应仍锁定（Wave 0）
-- EX-12 从应用入口看外部 App 30 分钟 → 应计入并到点锁（OPT-04）
-- EX-13 `pm clear` 后重开 → 打卡可恢复（Wave 3）
-- EX-14 `control.json` 写坏 JSON → 忽略，不崩、不影响片单同步（Wave 1）
-- EX-15 NAS 写保护时在电视上改时段 → 应阻断并提示，不静默回滚（Wave 1）
-- EX-16 `queryEvents` 长时间返回空 → 不结算、不漏记、不崩（OPT-04）
-- EX-17 `appops` 授权被系统回收 → 自动降级 C，不出现少扣（OPT-04）
-- EX-18 外部应用已卸载 / 启动失败 → 预扣全额退还（OPT-04）
-- EX-19 时段到点瞬间退出 → 时长完整落账，不因 `clearAppLaunch()` 丢失（OPT-04）
-- EX-20 外部应用会话中跨零点 → 按 `ClockGuard.day()` 正确分账（OPT-04）
+> 本节最初的提案占用了 EX-11～EX-20，但 OPT-04 提前落地时 PRD 已用这组编号登记了它的用例，
+> 造成 EX-14 / EX-15 一号两义。V1.5 统一纠正：PRD EX-11～EX-20 保持不动，
+> Wave 1 新增的两条顺延为 **EX-21 / EX-22**。
+
+- EX-21 `control.json` 写坏 JSON → 忽略，不崩、不影响片单同步（Wave 1，原提案 EX-14）
+- EX-22 NAS 写保护时在电视上改时段 → 应阻断并提示，不静默回滚（Wave 1，原提案 EX-15）
+- Wave 3 的 `pm clear` 后重开 → 打卡可恢复，编号在 PRD 里顺延，不在此预设
 
 ---
 
@@ -330,9 +332,13 @@ graph LR
 1. ~~落 Wave 0 三项 + OPT-03（约 2.2 人日），发 `versionCode 2`~~ ✅ 已完成，见第 14 节。
 2. ~~电视开机后跑 V1–V5~~ ✅ 已完成（V1/V2 授权通过、V3 事件流完整、V5 累计值可读但实时不刷新），见第 14 节。
 3. ~~按 [ADR-01](ADR-外部应用计时.md) 实施 OPT-04~~ ✅ **提前完成**（实机缺陷驱动，发 `versionCode 3 / v1.2`），见第 14 节。
-4. Wave 1 的 OPT-05 / OPT-06 / OPT-07 现在开始；OPT-06（远程控制）与 Wave 2 的 OPT-11（自动连播）仍可并行。
-5. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
+4. ~~Wave 1 的 OPT-05 / OPT-06 / OPT-07~~ ✅ 已完成并实机验收，发 `versionCode 4 / v1.3`，见第 14 节。
+5. **下一步 = Wave 2（孩子体验）**：OPT-11 自动连播、占位封面不卡顿、继续看不错位；
+   连播必须继续受 `GateKeeper` / 限额约束，不能绕过第 1 波的闭环。
+6. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
    结算实际走的是 `elapsedRealtime` 估算（ADR 第 13 节未决事项 1 已有实测结论）。
+7. 待补（非阻塞）：换一个长视频补验「主动按 OK 暂停」不计时（当前短片在任何一次 OK 前不是缓冲就是已退出）；
+   A-02 / A-06「已在第三方 App 内被拉回盖锁屏」在允许时段内补跑。
 
 ---
 
@@ -364,6 +370,8 @@ graph LR
   但那需要进系统设置再断电，不在本期威胁模型内（README 与 PRD 都已写明）。
 - `features` 里的 `autoNext` / `remoteControl` / `report` 目前只是占位，改了不影响行为。
   `extWatchMs` 已随 OPT-04 提前落地（见下）。
+  > 以上是 **Wave 0 当时**的状态：Wave 1 之后 `remoteControl` / `remainingNotice` 已生效，
+  > 仍占位的只剩 `autoNext` / `report`，见第 14 节。
 
 ---
 
@@ -420,3 +428,72 @@ graph LR
 当前处于时段外且靠家长临时放行才进得去应用入口，而 TEMP 优先级高于限额判定（R-09），
 造不出「门禁不可用但能点入口」的组合。逻辑已覆盖（`KidApp.pullbackForGate()`），
 下次在允许时段内补跑 A-02 / A-06。其余 A-01 / A-04 / A-05 / A-07 已实测通过。
+
+---
+
+### 2026-11-10 深夜 · Wave 1（`versionCode 4` / `versionName 1.3`）
+
+| 项 | 落地内容 | 新增 / 改动 |
+|---|---|---|
+| OPT-05 | `TimeNoticeMath` 纯计算取「最早会锁住孩子」的约束（限额 / 时段结束 / 跨零点 / 临时放行 / 远程锁定）；播放页右上角常显「今天还剩 12 分钟」；剩 5 分钟、1 分钟各一次 Toast，用 `notice_<day>_<tag>` 当天去重；外部应用放行结束前 2 分钟提醒 | 新增 `data/TimeNoticeMath.kt`、`data/TimeNotice.kt`、`TimeNoticeMathTest.kt`（13 条）；`PlayerActivity.kt`、`activity_player.xml`、`KidApp.kt` |
+| OPT-06 | `control.json` / `control.ack.json` 分文件；15 秒轮询、独立短连接、播放期间也生效；`updatedAt` 幂等；`lockNow` 走 `GateKeeper.Reason.REMOTE`（否则下一秒守卫会 finish 掉锁屏）；`lockNow=false` 解锁；`addMinutes` 加时；`pauseNow` 用单调版本号让播放页暂停；坏 JSON 只打一次日志且不阻断片单同步 | 新增 `data/RemoteControl.kt`、`data/RemoteCommand.kt`、`RemoteCommandTest.kt`（6 条）；`PlaylistSync.kt`、`Store.kt`、`Extras.kt`、`GateKeeper.kt`、`PlayerActivity.kt`、`SettingsActivity.kt` |
+| OPT-07 | `PlaylistWriter.Result` 带 `pendingText` / `baseHash`；失败时留在原页、挂红色错误条、`Store.unsynced_*` 六个键；弹窗三选「覆盖 NAS / 放弃 / 稍后」；重放前重读 NAS 比对基线，被改过就拒绝覆盖；`PlaylistSync` 在有未同步修改时跳过设置下发（片单照常刷新） | `PlaylistWriter.kt`、`Store.kt`、`PlaylistSync.kt`、`ParentTools.kt`、`SettingsActivity.kt`、`MainActivity.kt`、`activity_settings.xml` |
+| 编排侧 | 网页控制台与极简编辑器都加「远程控制」页与 `/api/control`；`updatedAt` 带毫秒，保证连点两次也不是同一条指令 | `tools/static/index.html`、`tools/console.py`、`tools/tvjson_simple.py`、`docs/tv.schema.json` |
+
+`features` 新增 `remainingNotice`（默认 **开**，装上即生效）与 `remoteControl`（默认 **关**，
+家长需在编辑器打开）；`tv.schema.json` / 编辑器 normalize / 电视端默认值三处保持一致。
+
+**构建**：`gradlew assembleDebug testDebugUnitTest --offline` 通过，
+`ClockMath 6 + ExtClockMath 5 + RemoteCommand 6 + TimeNoticeMath 13 = 30` 条，
+`failures=0 errors=0 skipped=0`；两处内嵌 JS `node --check`、两个 Python 文件 `py_compile` 均通过。
+APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versionName=1.3`），
+工作区 `小剧场.apk` 同步更新。
+
+**实机验收**（22:55–23:36，沿用「备份 NAS 原字节 → 临时测试配置 → 原字节还原」策略）：
+
+| 用例 | 结果 |
+|---|---|
+| 剩余预告三个时点 | limit 28 → 「今天还剩 12 分钟」；21 → 「还剩 5 分钟」+ Toast；17 → 「还剩 1 分钟」+ Toast；临时放行 → 「临时放行还剩 10 分钟」 |
+| 阈值不刷屏 | 重复进入同一阈值只有预告日志，`grep -c "阈值提示"` = 0；`notice_2026-11-10_5min / _1min` 各写一次 |
+| `lockNow=true` | ack `["lockNow"]`；前台变 `LockActivity`；`kid_extras.xml` 出现 `remoteLockUntil/remoteLockRt`；20 秒后重复轮询仍只有 1 条执行日志 |
+| `lockNow=false` | ack `["unlock"]`；前台回 `MainActivity`；`remoteLock*` 无残留 |
+| `addMinutes=10` | ack `["addMinutes:10"]`；`tempUntil*` 写入、无 `remoteLockUntil`；播放页显示「临时放行还剩 10 分钟」 |
+| `pauseNow=true` | ack `["pauseNow"]`；播放页 `远程暂停指令已执行（version=1）` |
+| **EX-21 坏 JSON** | 写 `{ broken json oops`，同时把 tv.json limit 改 27；20 秒后坏 JSON 警告只有 1 条，`dailyLimitMinutes:27` 正常下发、App 存活、片单同步不受影响 |
+| **EX-22 写保护** | 用 SMB 只读属性造「读得到、写不回」（不是改密码、不是删文件）：`STATUS_ACCESS_DENIED (0xc0000022)`；设置页停留原页 + 红色错误条 + 「重试保存到 NAS」入口；`unsynced_*` 六键齐全；`Extras.schedule` 与 NAS 都仍是旧值，**没有静默回滚** |
+| 同步不抹平 | 未同步期间从 PC 改 `lockMessage`，日志 `清单已自动更新（poll）…（电视有未同步修改，本次跳过设置下发）`，本地 `Extras.schedule` 保持旧值、红色错误条仍在 |
+| 基线防覆盖 | NAS 期间被改过后点「覆盖 NAS」：重放被拒，`enabled` 仍为 true、`unsynced_edit` 仍为 true，不会抹掉家长在网页上的改动 |
+| 放弃修改 | 点「放弃这次修改」→ `unsynced_*` 清空、错误条与重试行消失 |
+| 重放成功 | 写保护解除后重新生成一份待重放记录，点「覆盖 NAS」→ `未同步的修改已重新写入 NAS` → `清单已自动更新（settings）` → NAS 与本地同时变为新值、错误条消失 |
+
+**与计划的偏差（有意的）**
+
+1. **`lockNow` 做成 `GateKeeper` 的一个 reason，而不是只跳 `LockActivity`**：全局守卫每秒都在按
+   `status()` 决定要不要 finish 锁屏，不加 `REMOTE` 的话远程锁屏会在下一秒被自己拆掉。
+2. **`lockNow=false` 且字段存在 = 解锁**：只靠 `addMinutes` 无法表达「撤销刚才的锁屏」，
+   但必须区分「字段缺失」与「显式 false」，否则每份不含 `lockNow` 的旧指令都会误解锁。
+3. **`pauseNow` 用单调版本号而不是广播**：播放器可能不在前台，直接发 Intent 会丢；
+   `RemoteControl.pauseVersion` 由播放页 ticker 比对，回到播放页也能补执行。
+4. **预告取「最早锁住」的约束，不是只看每日限额**：时段结束、临时放行结束、远程锁定都可能比
+   限额更早到点，只说「还剩 X 分钟」会骗孩子；跨零点窗口在 `TimeNoticeMath` 里单独算。
+5. **写回失败时存「完整 tv.json + 远端指纹」**：只存改动字段，重放时 NAS 已被别人改过就无从判断；
+   指纹不一致时宁可让家长重设一次，也不能覆盖。
+6. **补了 `SettingsActivity` 的同步监听**：重放成功后 `PlaylistWriter` 是异步触发同步的，
+   原先弹窗 `onResolved()` 先渲染，家长会短暂看到旧开关值；现在只对 `reason=settings*` 补一次渲染。
+
+**已知限制**
+
+- `remoteControl` 默认关，需在编辑器「规则」页勾选后 15 秒生效；控制文件不存在 / 坏 JSON 都是静默忽略
+  （坏 JSON 只记一条日志），不会在电视上提示家长。
+- `addMinutes` 上限 240 分钟；`lockNow` 的远程锁定固定 8 小时后自动失效，也可显式发 `lockNow:false`
+  或在电视上用 PIN 临时放行解除。
+- `control.ack.json` 是电视单向写的回执，网页端只轮询读取；控制卡依赖 NAS 时钟与 `updatedAt` 字符串，
+  同一毫秒内连点两次会被当成同一条指令（编辑器已带毫秒时间戳）。
+- EX-22 的失败点选在「写 tv.json」；若连读都读不到，`pendingText` 为空，弹窗只提供「放弃 / 稍后」，
+  需要家长重新设置一次。
+
+**现场还原**：NAS `tv.json` 逐字节还原到 `e4cb4d445f903d6e…`（8125 字节，
+`weekday 17:30-20:30`、`weekend 09:00-11:30 / 16:00-23:30`、50 分钟），`tv.backup.json` 同步写成正式内容，
+`tv.json` 只读属性已清除，`control.json` / `control.ack.json` / `.control.json.tmp` 已删除；
+电视 `curated_prefs.xml` / `kid_extras.xml` 还原为装 v1.3 之前的备份，重启后无崩溃、无测试残留键，
+前台按正式时段规则停在 `LockActivity`（当天周二 23:36，属时段外，属预期行为）。

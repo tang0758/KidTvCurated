@@ -64,6 +64,21 @@
             android:textSize="17sp" />
     </LinearLayout>
 
+    <!-- OPT-07：写 NAS 失败时一直挂着的红色错误条，家长处理完才消失 -->
+    <TextView
+        android:id="@+id/tvError"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="#40E53935"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:textColor="#FFFFCDD2"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvSettings"
         android:layout_width="match_parent"
