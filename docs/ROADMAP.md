@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 |---|---|
 | 产品 | 小剧场 · KidTvCurated |
-| 文档 | 优化计划 V1.5 |
-| 日期 | 2026-11-10 |
+| 文档 | 优化计划 V1.6 |
+| 日期 | 2026-11-10（最后更新 2026-11-11 凌晨） |
 | 基线 | `main` @ `3e7193b` |
 | 输入 | [PRD](PRD.md) 的风险与待办、[用户使用说明书](用户使用说明书.md) 的常见问题、一次代码评审结论、[外部应用计时方案对比](外部应用计时方案对比.md) 与 [ADR-01](ADR-外部应用计时.md) |
 | 目标 | 从「能用」到「可信 + 有反馈」：规则绕不过、数据丢不了、家长看得见 |
@@ -23,6 +23,11 @@ V1–V5 验证门同批跑完（见第 14 节），Wave 1 顺延。
 发 `versionCode 4 / versionName 1.3`（见第 14 节）。同时修正第 10 节异常用例的编号：
 PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1 的 EX-14 / EX-15
 与 PRD 冲突，统一改为 **EX-21 / EX-22**，以 PRD 为准。
+
+**V1.6 变更（2026-11-11 凌晨）**：Wave 2 孩子体验四项（OPT-11 / OPT-12 / OPT-13 / OPT-14）全部落地并实机验收，
+发 `versionCode 5 / versionName 1.4`（见第 14 节）。与计划的偏差：**连播队列由剧集页整串传给播放页**，
+播完不再回 SMB 列目录（避免刚播完时连接半死、也避免播放期间抢主连接）；
+另新增 `features.continueWatching` 作为「继续看」的远程回滚闸门。下一步改为 Wave 3。
 
 **V1.3 进度（2026-11-10）**：**Wave 0（OPT-00 / OPT-01 / OPT-02）+ OPT-03 已落地，`versionCode 2`**。
 落地范围与偏差见第 14 节「落地记录」。可绕过路径：**3 → 2**（「改时钟」已闭合；「外部应用不计时」待 OPT-04、「重装清零」待 OPT-09）。
@@ -140,28 +145,52 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 
 | 编号 | 项 | 依赖 | 估时 |
 |---|---|---|---|
-| OPT-11 | 自动连播下一集 | OPT-00、OPT-01 | 2 |
-| OPT-12 | 首页「继续看」 | — | 1.5 |
-| OPT-13 | 占位封面（缺图不再灰块） | — | 1.5 |
-| OPT-14 | 分区图标 + 今日任务进度条 | — | 2 |
+| OPT-11 | 自动连播下一集 ✅ | OPT-00、OPT-01 | 2 |
+| OPT-12 | 首页「继续看」 ✅ | — | 1.5 |
+| OPT-13 | 占位封面（缺图不再灰块） ✅ | — | 1.5 |
+| OPT-14 | 分区图标 + 今日任务进度条 ✅ | — | 2 |
 
 ### OPT-11 自动连播
 
 - **做法**：`PlayerActivity` 监听 `Player.STATE_ENDED`（现在完全没有处理）→ 5 秒倒计时浮层「下一集：xx（取消）」→ 取同目录下一集（`Repo` 已能列目录）→ 复用现有 `EXTRA_*` 启动自身。受三件事约束：门禁未解锁 / 当日限额用尽 / `features.autoNext` 关闭 → 不连播，回到剧集列表。
 - **验收**：一季 10 集，从第 1 集点开能连到第 10 集；第 5 集时限额到点则停止并锁屏。
 - **风险**：连播会加快时长消耗，家长可能觉得「怎么比以前看得多」——上线时在说明书写一句。
+- **落地（V1.6）**：新增 `data/AutoNext.kt`。**与计划的偏差**：队列由 `EpisodesActivity` 一次编码好
+  （≤200 集，URL 编码的纯文本协议，不用 `org.json` 才能在纯 JVM 单测里跑），播放页 `STATE_ENDED`
+  只做数组取下一个，**不再回 SMB 列目录** —— 一集刚播完时连接最容易半死，播放期间主连接也本该全留给视频读。
+  倒计时 5 秒浮层可取消（返回）/ 立即播（确认）；`features.autoNext`（默认关）、`GateKeeper` 门禁、
+  家长远程暂停三道闸门；启动时 `finish()` 自身，连播 10 集也只占一层 Activity。
+- **实机**：ABC Book 26 集目录，第 1 集播完 → `自动连播倒计时：lv01-002…（5s）` → 自动进第 2 集；
+  第 2 集倒计时按返回 → `自动连播已取消` 回剧集页；关开关后 `不连播：autoNext=false`；
+  把限额压到已用量以下，清单同步后 1 秒内前台变 `LockActivity`。
 
 ### OPT-12 首页「继续看」
 
-- **做法**：动态分区 `__continue`，key 固定为 `p:continue`（守住「id 必须路径派生」的原则，不能用下标），取 `Store.progress` 最近 5 条，封面复用现有缓存；无进度则不显示。
+- **做法**：动态分区 key 固定为 `p:continue`（守住「id 必须路径派生」的原则，不能用下标），取 `Store.progress` 最近 5 条，封面复用现有缓存；无进度则不显示。
+- **落地（V1.6）**：新增 `data/ContinueMath.kt`；`Store.notePlayed()` 单独记「点开过」的时间，
+  不拿进度落盘时间当排序依据（暂停 / 自动重连都会写进度，会把老片刷到最前）。
+  分区内的条目一律沿用原路径派生 key；剧集页动态列出的单集按路径现造，但必须仍落在当前片单的
+  `file` / `folder` 范围内，片单删了内容首页就不会留下打不开的卡。新增 `features.continueWatching` 默认开，可远程关掉。
+- **实机**：播 20 秒返回首页出现「继续看 · 1 个」；把片单前两项对调后仍指向同一张卡；
+  快速滚动后诊断日志 `继续看: recent=3 eligible=1 items=1`（分区始终存在，
+  UI dump 偶发看不到只是 RecyclerView 把上方分区滚出屏幕后不再创建 ViewHolder）。
 
 ### OPT-13 占位封面
 
 - **做法**：`Covers` 在 `markNoCover()` 分支不再返回 null，而用 `Canvas` 画一张「渐变色 + 标题大字」的 Bitmap（按条目 key 取稳定色相），进同一个 LRU。零 SMB 请求、零额外内存峰值。
+- **落地（V1.6）**：新增 `data/PlaceholderMath.kt`（色相 / 折行纯函数）；`Covers.placeholder()`
+  按卡片实际尺寸画 `RGB_565` 渐变 + 同心圆 + 标题，`cachedOrPlaceholder()` 收进同一个 24MB LRU，
+  `load()` 找不到图时也不再回调 null。播放中 8 次探测仍腾不出 SMB 连接时同样先给占位图，不让孩子看灰块。
+- **实机**：强制缺图卡片下 `ivCover` 全部 `V.ED`（可见）、`tvFallback` 全部 `G.ED`（隐藏）；
+  海报墙连续左右移动 30 次无 ANR / OOM / 崩溃，进程存活、首页继续响应。
 
 ### OPT-14 分区图标与任务进度条
 
 - **做法**：`Section` 增加可选 `icon` 字段（内置几套矢量图标，家长在编辑器选）；首页顶部一条「今天任务 2/5」进度条，替代现在只靠文案提示的 `gateRemaining()`。
+- **落地（V1.6）**：`Section.icon` + 6 个内置矢量（`star / play / book / heart / game / moon`），
+  只传名字不传图片路径，不认识的名字当「不显示」；两个编辑器都加了下拉、schema 加了枚举。
+  首页 `taskBar` 进度条用 `gateTotal() / gateRemaining()`，没有必修分区就整行隐藏。
+- **实机**：`ivSectionIcon` 出现在 view hierarchy 且 `V.ED`，`tvTask` 显示「今天任务 0/3」、`pbTask` 可见。
 
 ---
 
@@ -278,7 +307,7 @@ graph LR
 |---|---|---|
 | 0 | 功能开关远程生效/失效；3 分钟计时准确；时间回拨不重置 | 实机 + 手工改 `tv.json` |
 | 1 | control 三条指令幂等；写回失败提示；剩余预告三个时点 | 实机 + EX-21、EX-22（已全部通过，见第 14 节） |
-| 2 | 连播受限额/门禁约束；占位封面不卡顿；继续看不错位 | 实机 10 集连播 |
+| 2 | 连播受限额/门禁约束；占位封面不卡顿；继续看不错位 | 实机 + 51 条单测（2026-11-11 全部通过，见第 14 节） |
 | OPT-04 | 10 分钟误差 ≤ 60 秒；无授权降级 C；时段到点不丢时长；静置不误判退出 | 实机 + ADR 第 10 节 A-01～A-08、PRD EX-14～EX-20 |
 | 3 | `pm clear` 后恢复；周报数字与 prefs 一致；外部应用分段 | 实机 + `run-as` 读 prefs 对账 |
 | 4 | 纯函数单测；CI 在 PR 上跑 | GitHub Actions |
@@ -333,12 +362,15 @@ graph LR
 2. ~~电视开机后跑 V1–V5~~ ✅ 已完成（V1/V2 授权通过、V3 事件流完整、V5 累计值可读但实时不刷新），见第 14 节。
 3. ~~按 [ADR-01](ADR-外部应用计时.md) 实施 OPT-04~~ ✅ **提前完成**（实机缺陷驱动，发 `versionCode 3 / v1.2`），见第 14 节。
 4. ~~Wave 1 的 OPT-05 / OPT-06 / OPT-07~~ ✅ 已完成并实机验收，发 `versionCode 4 / v1.3`，见第 14 节。
-5. **下一步 = Wave 2（孩子体验）**：OPT-11 自动连播、占位封面不卡顿、继续看不错位；
-   连播必须继续受 `GateKeeper` / 限额约束，不能绕过第 1 波的闭环。
-6. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
+5. ~~Wave 2（孩子体验）~~ ✅ 已完成并实机验收，发 `versionCode 5 / v1.4`，见第 14 节。
+6. **下一步 = Wave 3（家长可感）**：OPT-08 周报页（电视端）、OPT-09 打卡与进度备份 `state.json`、
+   OPT-10 完成必看自动奖励加时。OPT-09 收口「重装清零」这条绕过路径，优先级最高。
+7. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
    结算实际走的是 `elapsedRealtime` 估算（ADR 第 13 节未决事项 1 已有实测结论）。
-7. 待补（非阻塞）：换一个长视频补验「主动按 OK 暂停」不计时（当前短片在任何一次 OK 前不是缓冲就是已退出）；
-   A-02 / A-06「已在第三方 App 内被拉回盖锁屏」在允许时段内补跑。
+8. 待补（非阻塞）：换一个长视频补验「主动按 OK 暂停」不计时；
+   A-02 / A-06「已在第三方 App 内被拉回盖锁屏」在允许时段内补跑；
+   连播「恰好在第 5 集播完那一秒限额到点」未做端到端构造（5 秒倒计时窗口短于 15 秒同步周期，
+   已由 `AutoNext.allowed` 单测 + 实机「限额到点 1 秒内切锁屏」覆盖）。
 
 ---
 
@@ -371,7 +403,7 @@ graph LR
 - `features` 里的 `autoNext` / `remoteControl` / `report` 目前只是占位，改了不影响行为。
   `extWatchMs` 已随 OPT-04 提前落地（见下）。
   > 以上是 **Wave 0 当时**的状态：Wave 1 之后 `remoteControl` / `remainingNotice` 已生效，
-  > 仍占位的只剩 `autoNext` / `report`，见第 14 节。
+  > Wave 2 之后 `autoNext` / `continueWatching` 也已生效，仍占位的只剩 `report`（Wave 3），见第 14 节。
 
 ---
 
@@ -497,3 +529,45 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 `tv.json` 只读属性已清除，`control.json` / `control.ack.json` / `.control.json.tmp` 已删除；
 电视 `curated_prefs.xml` / `kid_extras.xml` 还原为装 v1.3 之前的备份，重启后无崩溃、无测试残留键，
 前台按正式时段规则停在 `LockActivity`（当天周二 23:36，属时段外，属预期行为）。
+
+---
+
+### 2026-11-11 凌晨 · Wave 2 孩子体验（`versionCode 5` / `versionName 1.4`）
+
+| 项 | 落地内容 | 新增 / 改动 |
+|---|---|---|
+| OPT-11 | 自动连播：剧集页整季队列 → 播放页 `STATE_ENDED` → 5 秒可取消倒计时 → 复用 `EXTRA_*` 启动自身；`autoNext` / 门禁 / 远程暂停三道闸门 | 新增 `data/AutoNext.kt`；`EpisodesActivity.kt`、`PlayerActivity.kt`、`activity_player.xml`、`next_overlay_bg.xml` |
+| OPT-12 | 首页「继续看」动态分区，最近 5 条未看完进度，路径派生 key 不错位 | 新增 `data/ContinueMath.kt`；`Store.notePlayed/recentPlayed`、`MainActivity.kt`；新增 `features.continueWatching` |
+| OPT-13 | 缺图不再灰块：稳定色相渐变 + 标题大字占位图进同一 LRU | 新增 `data/PlaceholderMath.kt`；`Covers.kt`、`ui/PosterAdapter.kt` |
+| OPT-14 | 分区图标（6 套内置矢量）+ 首页「今天任务 n/m」进度条 | 新增 `ui/SectionIcons.kt` 与 6 个 `ic_sec_*.xml`；`Model.kt`（`Section.icon`）、`ui/SectionsAdapter.kt`、`item_section.xml`、`activity_main.xml` |
+| 配置层 | schema 加 `sections[].icon` 枚举与两个新开关；两个编辑器加分区图标下拉与功能开关；设置页加「首页继续看 / 自动连播」 | `docs/tv.schema.json`、`tools/static/index.html`、`tools/tvjson_simple.py`、`SettingsActivity.kt`、`Model.kt` |
+| 测试 | 51 条单测全绿（新增 AutoNext 9 / ContinueMath 8 / PlaceholderMath 4） | `app/src/test/kotlin` 三个新测试类 |
+
+**与计划的偏差（都是有意的）**
+
+1. **连播队列不回 SMB 列目录**：由 `EpisodesActivity` 用纯文本协议编码整季（≤200 集）交给播放页。
+   一集刚播完时 SMB 连接最容易半死，而且播放期间主连接要留给视频读。纯文本而非 `org.json`
+   是为了让这段闸门逻辑能在纯 JVM 单测里真跑（`org.json` 在单测里是 Android 桩类，一调用就抛异常）。
+2. **新增 `features.continueWatching`**：项目约定「新功能要有远程回滚闸门」，OPT-12 原计划没写开关，
+   这里按约定补上，默认开（纯展示、不改变计时）；`autoNext` 仍按计划默认关。
+3. **`Store.notePlayed()` 独立记「点开过」**：不复用 `setProgress()` 的落盘时间，
+   否则暂停 / 自动重连会把刚翻过的老片刷到继续看最前面。
+
+**实机验证（沿用「备份 NAS → 测试片单 → 还原」策略）**
+
+- 连播：ABC Book 26 集，第 1 集播完 → `自动连播倒计时：lv01-002…（5s）` → 自动进第 2 集；
+  第 2 集倒计时按返回 → `自动连播已取消` 回剧集页；队列下标正确递增到第 3 集。
+- 约束：`autoNext=false` 时 `不连播：autoNext=false 有下一集=true`；限额压到已用量以下，
+  清单同步后 1 秒内前台变 `LockActivity`；`AutoNext.allowed(gateOpen=false)` 单测覆盖。
+- 继续看：播 20 秒返回首页出现「继续看 · 1 个」；片单前两项对调后仍指向同一张卡。
+- 占位封面：强制缺图卡下 `ivCover` 全 `V.ED`、`tvFallback` 全 `G.ED`；
+  海报墙连续左右 30 次无 ANR / OOM / 崩溃。
+- 图标与进度条：`ivSectionIcon` 可见，首页显示「今天任务 0/3」，`pbTask` 可见。
+- **已知限制**：`uiautomator dump` 在 RecyclerView 滚到下方后会只输出当前创建的 ViewHolder，
+  曾误判「继续看消失」；诊断日志 `继续看: recent=3 eligible=1 items=1` 与重启后的首页确认分区始终存在，
+  不是功能 bug。连播「恰好在第 5 集播完那一秒到点」未端到端构造，见第 13 节第 8 条。
+
+**现场还原**：NAS `tv.json` 逐字节还原到 `e4cb4d445f903d6e…`（8125 字节），`tv.backup.json` 同步写成正式内容，
+只读属性清除，`curated/` 只剩 `tv.json` / `tv.backup.json` / `covers`；电视三份 prefs
+（`curated_prefs` / `kid_extras` / `kid_clock`）还原为装 v1.4 之前的备份，`played_*` 与
+`continueWatching` 无残留，重启无崩溃，前台按正式时段规则停在 `LockActivity`（周二 00:30，时段外，预期）。

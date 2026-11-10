@@ -340,6 +340,9 @@ function normalize(d){
   // Wave 1：预告是正式功能，装上就生效；远程控制是新链路，默认关，由家长自己打开
   if (F.remainingNotice === undefined) F.remainingNotice = true;
   if (F.remoteControl === undefined) F.remoteControl = false;
+  // Wave 2：继续看是正式功能默认开；自动连播会加快时长消耗，默认关，由家长自己打开
+  if (F.continueWatching === undefined) F.continueWatching = true;
+  if (F.autoNext === undefined) F.autoNext = false;
   // 文本域用这个虚拟字段；以 _ 开头，保存时会被 cleanKeys 自动剔除
   A._entriesText = A.entries.map(e => typeof e === "string" ? e :
     ((e && e.package ? e.package : "") + (e && e.label ? " | " + e.label : "")))
@@ -373,6 +376,7 @@ function payload(){
     });
     if (!s.requires) delete s.requires;
     if (!s.gate) delete s.gate;
+    if (!s.icon || s.icon === "none") delete s.icon;
     if (s.auto) delete s.items;
   });
   if (d.kiosk){
@@ -533,6 +537,8 @@ function renderBrowse(){
   Q("#browseBody").innerHTML = h;
 }
 
+// OPT-14：分区图标只给内置名字，电视端直接映射到矢量资源，不让家长填图片路径
+const ICON_OPTS = [["none","不显示图标"],["star","星星"],["play","播放"],["book","书本"],["heart","爱心"],["game","游戏"],["moon","月亮"]];
 function renderSections(){
   const body = Q("#sectionsBody");
   if (!S.data) { body.innerHTML = ""; return; }
@@ -551,6 +557,9 @@ function renderSections(){
         "<label>key<input data-bind=\"sections." + i + ".key\" value=\"" + esc(s.key) + "\"></label>" +
         "<label>解锁条件<select data-bind=\"sections." + i + ".requires\">" + reqOpts + "</select></label>" +
         "<label>每行海报数<input type=\"number\" data-type=\"number\" data-bind=\"sections." + i + ".columns\" value=\"" + esc(s.columns || 5) + "\"></label>" +
+        "<label>分区图标<select data-bind=\"sections." + i + ".icon\">" +
+          ICON_OPTS.map(function(o){ return "<option value=\"" + o[0] + "\"" + ((s.icon || "none") === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
+        "</select></label>" +
         "<label class=\"chk\"><input type=\"checkbox\" data-type=\"bool\" data-bind=\"sections." + i + ".gate\"" + (s.gate ? " checked" : "") + "> 每日必看（gate）</label>" +
       "</div>";
     if (s.auto){
@@ -671,12 +680,16 @@ function renderRules(){
     chk("features.extWatchMs", "外部应用计时：从「应用」分区看优酷等也计入每日上限", F.extWatchMs !== false) +
     chk("features.remainingNotice", "剩余时间预告：播放页显示还剩几分钟，到点前提示两次", F.remainingNotice !== false) +
     chk("features.remoteControl", "远程控制：电视每 15 秒读同目录的 control.json", F.remoteControl === true) +
+    chk("features.continueWatching", "继续看：首页顶部显示最多 5 条没看完的进度", F.continueWatching !== false) +
+    chk("features.autoNext", "自动连播：剧集页点开后，一集播完 5 秒倒计时接着播下一集", F.autoNext === true) +
     '<p class="empty">「后台拉回」关掉后按 Home / 切到别的应用不再被拉回，「主界面拦截返回键」和时段锁屏照旧；' +
     '只有在个别电视上拉回会和投屏、系统弹窗打架时才关。<br>' +
     '「外部应用计时」默认开：曾经孩子从应用入口进优酷 2 小时不进账，50 分钟上限永远触发不了。' +
     '关掉就退回老行为，仅在排查计时异常时临时使用。<br>' +
     '「远程控制」默认关：打开并<b>保存 tv.json</b> 后，才能用左边「远程控制」页发指令；' +
-    '它是独立文件，改指令碰不坏片单。出问题把开关改回 false，15 秒后电视就不再读它。</p></div>';
+    '它是独立文件，改指令碰不坏片单。出问题把开关改回 false，15 秒后电视就不再读它。<br>' +
+    '「自动连播」默认关：打开后孩子看完整季只需按一次遥控器，但时长消耗会明显变快；' +
+    '到每日上限 / 时段结束时仍会停下并锁屏。</p></div>';
   body.innerHTML = h;
 }
 

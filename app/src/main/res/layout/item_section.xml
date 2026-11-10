@@ -12,6 +12,15 @@
         android:gravity="center_vertical"
         android:paddingBottom="12dp">
 
+        <!-- OPT-14：可选分区图标。没配 icon 时整个 View 收起，标题位置与旧版一致 -->
+        <ImageView
+            android:id="@+id/ivSectionIcon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/tvSectionTitle"
             android:layout_width="wrap_content"

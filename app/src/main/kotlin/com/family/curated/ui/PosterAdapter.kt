@@ -102,6 +102,11 @@ class PosterAdapter(
                     holder.fallback.visibility = View.VISIBLE
                 }
             }
+        } else {
+            // NAS 还没配好：也画占位图，不要留一排灰块
+            holder.cover.setImageBitmap(Covers.cachedOrPlaceholder(item, coverW, coverH))
+            holder.cover.visibility = View.VISIBLE
+            holder.fallback.visibility = View.GONE
         }
 
         val done = showDone && Store.isDoneToday(item.key())

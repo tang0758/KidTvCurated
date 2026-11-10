@@ -104,6 +104,52 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- OPT-11：一集播完后的 5 秒连播倒计时。按返回键取消、按确认键马上播 -->
+    <LinearLayout
+        android:id="@+id/nextOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal|bottom"
+        android:layout_marginBottom="150dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:background="@drawable/next_overlay_bg"
+        android:paddingStart="48dp"
+        android:paddingEnd="48dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvNextTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="@color/text_primary"
+            android:textSize="23sp" />
+
+        <TextView
+            android:id="@+id/tvNextCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/accent"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnCancelNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:text="返回键取消 · 确认键马上播"
+            android:textColor="@color/text_secondary"
+            android:textSize="15sp" />
+    </LinearLayout>
+
     <ProgressBar
         android:id="@+id/pbLoading"
         android:layout_width="44dp"

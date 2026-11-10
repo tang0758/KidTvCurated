@@ -84,6 +84,36 @@
                 android:textSize="16sp" />
         </LinearLayout>
 
+        <!-- OPT-14：今日任务进度条。没有「每日必看」分区时整行隐藏，不占首页空间 -->
+        <LinearLayout
+            android:id="@+id/taskBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvTask"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="15sp" />
+
+            <ProgressBar
+                android:id="@+id/pbTask"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="0dp"
+                android:layout_height="7dp"
+                android:layout_weight="1"
+                android:layout_marginStart="16dp"
+                android:max="100"
+                android:progressTint="@color/done_green"
+                android:progressBackgroundTint="#33FFFFFF" />
+        </LinearLayout>
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvSections"
             android:layout_width="match_parent"

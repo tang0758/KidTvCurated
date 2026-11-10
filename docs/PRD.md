@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.3（Wave 1 落地后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-10 深夜） |
+| 文档版本 | V1.4（Wave 2 落地后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 凌晨） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 1 完成，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（26.5 MB，versionCode 4 / versionName 1.3）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 2 完成，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（26.6 MB，versionCode 5 / versionName 1.4）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -575,12 +575,13 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 **规则**
 - 开关集合：`kioskPullback`（默认开，老行为）、`extWatchMs`（默认开，已确认的 bug 修复，见 FR-22）、
   `remainingNotice`（默认开，见 FR-23）、`remoteControl`（默认关，见 FR-24）、
-  `autoNext` / `report`（默认关，Wave 2 / 3 前仍为占位）。
+  `continueWatching`（默认开，见 FR-27）、`autoNext`（默认关，见 FR-26）、
+  `report`（默认关，Wave 3 前仍为占位）。
 - `applyToLocal()` 把 `features` 写进本地；业务代码统一 `if (Extras.feature("xxx"))`，缺字段/类型错都读默认值，不抛异常。
 - **每次冷启动**用缓存清单幂等重放一次 `applyToLocal()`：它原先只在清单内容变化时跑，升级 / 重装（保留数据）
   后本地会缺 `kiosk` / `features` 键，`Kiosk.enabled` 取默认 `false` 导致「被切走后拉回」全程不工作。
 - 改完 15 秒内经轮询生效，不重装 APK；网页控制台「规则」页可直接勾选，也可手改 JSON。
-- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.3(4) 11-10 23:33`。
+- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.4(5)` 加构建时间。
 
 **AC**
 1. 把 `features.kioskPullback` 改为 `false`，15 秒内按 Home 切走后不再被拉回；改回 `true` 同样 15 秒恢复。
@@ -691,6 +692,56 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 4. 点「放弃这次修改」：错误条与重试行消失、`unsynced_*` 清空。
 5. 写保护解除后重放成功：NAS 与本机同时变为新值，错误条消失，设置页即时显示新值。
 
+#### FR-26 自动连播下一集（P1）✅（2026-11-11 新增，Wave 2）
+
+**描述**：从剧集页点开一集后，播完自动接着播下一集，孩子看完整季只需按一次遥控器；
+开关默认关，任何情况下都不得绕过门禁。
+
+**规则**
+- `EpisodesActivity` 把整季队列（≤200 集）编码进 Intent，`PlayerActivity` 在 `Player.STATE_ENDED`
+  只做数组取下一个；**播放结束后不回 SMB 列目录**（连接半死、且会抢视频主连接）。
+- 5 秒倒计时浮层显示下一集片名；返回键（及任意方向键）取消并回剧集列表，确认键立即播。
+- 三道闸门：`features.autoNext` 开启、`AutoNext.next()` 确实有下一集、`GateKeeper.status().open`；
+  倒计时期间每秒重查门禁与 `RemoteControl.pauseVersion`，家长暂停 / 限额到点立即中止。
+- 启动下一集时 `finish()` 当前页，不叠 Activity 栈；`EXTRA_SEEK_LOCK` 与门禁分区原样传递。
+- 队列协议用 URL 编码纯文本，坏数据一律当「没有下一集」，不得抛异常。
+
+**AC**：从第 1 集能连到第 2、3 集；倒计时可取消；`autoNext=false` 时播完回剧集列表；
+限额到点时播放 / 连播都被锁屏接管。
+
+#### FR-27 首页「继续看」（P1）✅（2026-11-11 新增，Wave 2）
+
+**描述**：首页最上方显示最多 5 条没看完的进度，点开直接接着播。
+
+**规则**
+- 动态分区 key 固定 `p:continue`；分区内条目**沿用原路径派生 key**，不得用下标，
+  家长调整片单顺序后仍指向同一视频、接得上同一段进度。
+- `Store.notePlayed()` 单独记「点开过」的时间；只保留有进度（>5 秒）且没看完的，
+  剧集页动态列出的单集按路径还原，但必须仍落在当前片单的 `file` / `folder` 范围内。
+- `features.continueWatching` 默认开，可远程关闭；无合格进度时整个分区不显示。
+
+**AC**：播 20 秒返回首页出现「继续看」；对调片单前两项后仍指向原条目；片单删掉内容后卡片消失。
+
+#### FR-28 占位封面（P1）✅（2026-11-11 新增，Wave 2）
+
+**描述**：找不到封面图时不再显示灰块 / 两个大字，改画一张有辨识度的占位海报。
+
+**规则**：`PlaceholderMath.hueOf(key)` 取稳定色相；`Covers.placeholder()` 按卡片尺寸画
+`RGB_565` 渐变 + 标题大字，进同一个 24MB LRU；零 SMB 请求。播放中 8 次探测仍腾不出连接时
+也先给占位图。不认识的配置不得让列表崩溃。
+
+**AC**：缺图卡 `ivCover` 可见、`tvFallback` 隐藏；快速滚动无 ANR / OOM。
+
+#### FR-29 分区图标与今日任务进度条（P2）✅（2026-11-11 新增，Wave 2）
+
+**描述**：分区标题可配内置图标；首页用一条进度条直观显示「今天任务 n/m」。
+
+**规则**：`Section.icon` 只接受 `none/star/play/book/heart/game/moon`，未知名字当不显示；
+两个编辑器提供下拉，schema 用枚举约束。进度条取 `gateTotal()` / `gateRemaining()`，
+没有必修分区时整行隐藏。
+
+**AC**：配了 icon 的分区图标可见；有 3 个必修条目时显示「今天任务 0/3」与进度条。
+
 ---
 
 ## 9. 关键业务规则（实现契约）
@@ -724,6 +775,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-25 | 预告不参与门禁 | `TimeNotice` 只读账本算文案；到点仍由 `GateKeeper` + `stopForLock()` 决定锁不锁，预告不得成为第二条计时或放行动作 |
 | R-26 | 远程指令幂等且分文件 | 控制指令在 `control.json`、回执在 `control.ack.json`，不碰 `tv.json`；`updatedAt` 去重；`lockNow` 必须落成 `GateKeeper.Reason.REMOTE`，否则守卫会拆掉自己的锁屏 |
 | R-27 | 写回失败不静默 | 失败即置 `unsynced_edit` 并留原页；有未同步修改时片单可刷新但设置不下发；重放前必须比对远端基线指纹，指纹不符就拒绝覆盖 |
+| R-28 | 连播不得绕开门禁 | `autoNext` 只是体验开关；`maybeAutoNext()` 与倒计时每秒都查 `GateKeeper`，家长暂停 / 限额到点立刻停，`stopForLock()` 优先于连播 |
+| R-29 | 队列不占用 SMB 主连接 | 整季队列在剧集页一次编码、随 Intent 传递；播放结束不再列目录，避免半死连接把剧集页和播放一起挂住 |
+| R-30 | 动态分区的 key 仍路径派生 | 「继续看」分区 key 固定 `p:continue`，但分区内条目一律沿用原 key；`Store.notePlayed()` 与进度落盘分开，避免排序错位 |
 
 ---
 
@@ -743,8 +797,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
-| | `features` | object | 否 | 远程功能开关，见 FR-21 / FR-22 / FR-23 / FR-24；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` 开，`remoteControl` / `autoNext` / `report` 关） |
+| | `features` | object | 否 | 远程功能开关，见 FR-21～FR-29；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` / `continueWatching` 开，`remoteControl` / `autoNext` / `report` 关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
+| | `icon` | string | 否 | 内置图标名 `none/star/play/book/heart/game/moon`，见 FR-29；不写 = 不显示 |
 | | `title` | string | 是 | 行标题 |
 | | `gate` | bool | 否 | 每日必看 |
 | | `requires` | string | 否 | 被哪个 key 锁住 |
@@ -950,6 +1005,12 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-36 | 远程加时 / 暂停 | 控制台加 10 分钟、点暂停 | 观察播放页 | `tempUntil` 写入且显示剩余 10 分钟；`pauseVersion` 触发 `pause()` |
 | TC-37 | 写回失败阻断 | NAS 写保护 | 电视上改时段 | 红色错误条 + `unsynced_*`，本机与 NAS 都不变（EX-22 / FR-25） |
 | TC-38 | 重放与放弃 | 解除写保护 | 分别点「覆盖 NAS」「放弃这次修改」 | 前者写成功并清标记，后者清标记且保持 NAS 旧值；NAS 中途被改过时覆盖被拒 |
+| TC-39 | 自动连播 | 整季目录，开 `autoNext` | 播完第 1 集 | 5 秒倒计时浮层 → 自动进第 2 集，Activity 栈不叠加（FR-26） |
+| TC-40 | 取消连播 | 倒计时窗口 | 按返回键 | 日志「自动连播已取消」，回到剧集列表（FR-26） |
+| TC-41 | 连播闸门 | 关 `autoNext` / 压低限额 | 播完一集 | 分别回列表 / 1 秒内切锁屏，都不连播（FR-26 / R-28） |
+| TC-42 | 继续看不错位 | 播 20 秒后返回，再对调片单前两项 | 看首页 | 「继续看」仍指向同一张卡，key 不变（FR-27） |
+| TC-43 | 占位封面 | 给条目配不存在的 cover | 首页 + 快速左右 30 次 | `ivCover` 可见、`tvFallback` 隐藏，无 ANR / OOM（FR-28） |
+| TC-44 | 图标与进度条 | 分区配 `icon`、有 3 个必修条目 | 看首页 | 图标可见，显示「今天任务 0/3」与进度条（FR-29） |
 
 ### 15.4 异常与恢复用例
 
@@ -977,6 +1038,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-20 | 外部会话中跨零点 | 23:59 进入外部应用 | 按 `ClockGuard.day()` 分账到两天，`ext_<day>` 同步 |
 | EX-21 | `control.json` 写坏 JSON | 写 `{ broken json oops`，同时改 `tv.json` 的限额 | 忽略坏指令、只记一条日志、不崩；片单限额仍在 15 秒内正常下发（FR-24） |
 | EX-22 | NAS 写保护时改设置 | 给 `tv.json` 加只读属性后在电视上改「时段限制」 | 留在原页 + 红色错误条 + `unsynced_*`；本机与 NAS 都是旧值，不静默回滚；解除保护后可重放或放弃（FR-25） |
+| EX-23 | 连播途中限额到点 | 开着 `autoNext`，把 `dailyLimitMinutes` 改到小于已用量 | 清单同步后 1 秒内前台变 `LockActivity`，不启动下一集；`AutoNext.allowed(gateOpen=false)` 单测覆盖（FR-26 / R-28） |
 
 > 编号说明：ROADMAP 第 10 节最初的提案把 EX-14 / EX-15 预留给 Wave 1，但 OPT-04 提前落地时
 > 本表已用 EX-14～EX-20 登记外部应用计时的用例。V1.5 起以本表为准，Wave 1 顺延为 EX-21 / EX-22。

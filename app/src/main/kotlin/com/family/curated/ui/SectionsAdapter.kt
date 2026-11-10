@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -71,6 +72,7 @@ class SectionsAdapter(
 
     inner class SectionVH(v: View) : RecyclerView.ViewHolder(v) {
         val title: TextView = v.findViewById(R.id.tvSectionTitle)
+        val icon: ImageView = v.findViewById(R.id.ivSectionIcon)
         val badge: TextView = v.findViewById(R.id.tvBadge)
         val row: RecyclerView = v.findViewById(R.id.rvRow)
         var boundKey: String? = null
@@ -80,6 +82,15 @@ class SectionsAdapter(
         val section = playlist.sections[position]
         holder.title.text = section.title
         holder.title.setTextColor(ctx.getColor(R.color.text_primary))
+
+        val iconRes = SectionIcons.resId(section.icon)
+        if (iconRes == null) {
+            holder.icon.visibility = View.GONE
+            holder.icon.setImageDrawable(null)
+        } else {
+            holder.icon.setImageResource(iconRes)
+            holder.icon.visibility = View.VISIBLE
+        }
 
         val unlocked = isUnlocked(section)
         val doneCount = section.items.count { Store.isDoneToday(it.key()) }

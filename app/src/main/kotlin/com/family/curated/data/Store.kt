@@ -189,6 +189,26 @@ object Store {
         sp.edit().putLong("dur_$key", ms.coerceAtLeast(0L)).apply()
     }
 
+    // ---------- 最近看过（OPT-12 首页「继续看」） ----------
+    /**
+     * 记一次「真的点开看过」。不复用 setProgress 的写入时间：进度在暂停、退出、
+     * 自动重连时都会落盘，拿它当「最近看」会把刚翻过的老片刷到最前面。
+     */
+    fun notePlayed(key: String) {
+        if (key.isBlank()) return
+        sp.edit().putLong("played_$key", System.currentTimeMillis()).apply()
+    }
+
+    /** 按最近点开时间倒序，多取一些交给 ContinueMath 过滤掉已看完 / 已不在片单的 */
+    fun recentPlayed(limit: Int = 30): List<String> =
+        sp.all.entries
+            .mapNotNull { (k, v) ->
+                if (k.startsWith("played_") && v is Long) k.removePrefix("played_") to v else null
+            }
+            .sortedByDescending { it.second }
+            .take(limit)
+            .map { it.first }
+
     // ---------- 今日完成 ----------
     // 走 ClockGuard：这一套 done_ 键也是「日期派生」的，改电视日期同样不该让它清零
     fun today(): String = ClockGuard.day()
@@ -250,7 +270,8 @@ object Store {
     fun resetAllProgress() {
         val e = sp.edit()
         sp.all.keys.forEach { k ->
-            if (k.startsWith("done_") || k.startsWith("pos_") || k.startsWith("dur_")) e.remove(k)
+            if (k.startsWith("done_") || k.startsWith("pos_") || k.startsWith("dur_") ||
+                k.startsWith("played_")) e.remove(k)
         }
         e.apply()
     }

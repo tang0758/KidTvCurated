@@ -124,10 +124,11 @@
       "description": "远程功能开关：改完 15 秒生效，出问题改回 false 即可回滚，不用重装 APK。缺字段 = 默认值",
       "properties": {
         "kioskPullback": { "type": "boolean", "default": true, "description": "孩子按 Home 切走后自动拉回小剧场（老行为，默认开）" },
-        "autoNext": { "type": "boolean", "default": false, "description": "自动连播下一集（规划中）" },
+        "autoNext": { "type": "boolean", "default": false, "description": "剧集页点开后，一集播完显示 5 秒倒计时自动播下一集；受时段 / 每日限额 / 远程锁定约束，按返回键可取消" },
         "extWatchMs": { "type": "boolean", "default": true, "description": "外部应用观看也计入每日上限（默认开；无 usage 授权时降级为预扣+退还）" },
         "remainingNotice": { "type": "boolean", "default": true, "description": "播放页右上角显示剩余时间，剩 5 分钟 / 1 分钟各提示一次；外部应用放行结束前 2 分钟提示" },
         "remoteControl": { "type": "boolean", "default": false, "description": "每 15 秒读同目录的 control.json，执行立即锁屏 / 加时 / 暂停，并写 control.ack.json 回执" },
+        "continueWatching": { "type": "boolean", "default": true, "description": "首页顶部显示「继续看」动态分区，最多 5 条未看完的进度；关掉即回到旧版片单首页" },
         "report": { "type": "boolean", "default": false, "description": "周报页（规划中）" }
       }
     },
@@ -187,6 +188,7 @@
         "gate": { "type": "boolean", "default": false, "description": "true = 每日必看，全部看完才解锁 requires 指向本分区的其它分区" },
         "requires": { "type": "string", "description": "被哪个 key 的 gate 分区锁住" },
         "columns": { "type": "integer", "minimum": 1, "default": 5 },
+        "icon": { "type": "string", "enum": ["none", "star", "play", "book", "heart", "game", "moon"], "default": "none", "description": "分区标题前的内置矢量图标；不写或 none = 不显示" },
         "items": { "type": "array", "items": { "$ref": "#/definitions/item" } },
         "auto": {
           "type": "object",

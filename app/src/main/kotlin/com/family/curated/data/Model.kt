@@ -54,6 +54,8 @@ data class Section(
     val requires: String? = null,
     val columns: Int = 5,
     val items: List<Item> = emptyList(),
+    /** 可选分区图标名（内置矢量，见 ui.SectionIcons）；空 = 不显示 */
+    val icon: String? = null,
     /** 自动轮换：从这个文件夹里每天取 count 个，按天推进 */
     val autoFolder: String? = null,
     val autoCount: Int = 2
@@ -99,6 +101,7 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
     val extWatchMs: Boolean get() = value("extWatchMs")
     val remoteControl: Boolean get() = value("remoteControl")
     val remainingNotice: Boolean get() = value("remainingNotice")
+    val continueWatching: Boolean get() = value("continueWatching")
     val report: Boolean get() = value("report")
     val kioskPullback: Boolean get() = value("kioskPullback")
 
@@ -120,6 +123,7 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
             "extWatchMs" to true,     // OPT-04 外部应用计时
             "remoteControl" to false, // OPT-06 远程控制卡：新链路，先由家长在编辑器打开
             "remainingNotice" to true, // OPT-05 剩余时间预告，正式功能，装上即生效
+            "continueWatching" to true, // OPT-12 首页「继续看」，装上即生效
             "report" to false,        // OPT-08 周报页
             "kioskPullback" to true   // 儿童锁「被切走后拉回」，老行为，默认开
         )
@@ -241,6 +245,7 @@ object PlaylistParser {
                     requires = s.optString("requires").ifBlank { null },
                     columns = s.optInt("columns", 5),
                     items = items,
+                    icon = s.optString("icon").ifBlank { null },
                     autoFolder = auto?.optString("folder")?.ifBlank { null },
                     autoCount = auto?.optInt("count", 2) ?: 2
                 )

@@ -953,6 +953,8 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
         <label class="f chk"><input type="checkbox" data-path="features.extWatchMs" data-bool="1" id="ft-ext"> 外部应用计时</label>
         <label class="f chk"><input type="checkbox" data-path="features.remainingNotice" data-bool="1" id="ft-notice"> 剩余时间预告</label>
         <label class="f chk"><input type="checkbox" data-path="features.remoteControl" data-bool="1" id="ft-remote"> 远程控制</label>
+        <label class="f chk"><input type="checkbox" data-path="features.continueWatching" data-bool="1" id="ft-continue"> 首页「继续看」</label>
+        <label class="f chk"><input type="checkbox" data-path="features.autoNext" data-bool="1" id="ft-autonext"> 自动连播下一集</label>
       </div>
     </div>
     <div class="card" style="margin-top:16px">
@@ -1036,6 +1038,8 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("k") || "";
 const KNOWN = ["nas","playlistShare","passRatio","pin","sections","schedule","apps","autoRefresh","features"];
+// OPT-14：分区图标只用内置名字，电视端映射到矢量资源
+const ICON_OPTS = [["none","不显示图标"],["star","星星"],["play","播放"],["book","书本"],["heart","爱心"],["game","游戏"],["moon","月亮"]];
 let obj = {sections:[]}, cfg = {}, activeTab = "form", dirty = false;
 let pk = {share:"", path:"/", target:null, items:[]};
 let ap = {mode:"apps", target:null, apps:[], checked:new Set()};
@@ -1072,6 +1076,12 @@ function f(label, path, opts){
   const v=getPath(obj,path);
   if(opts.type==="bool") return '<label class="f chk"><input type="checkbox" data-path="'+path+'" data-bool="1" '+(v?"checked":"")+'>'+esc(label)+'</label>';
   if(opts.json) return '<label class="f">'+esc(label)+'<input data-path="'+path+'" data-json="1" value="'+esc(v===undefined?"":JSON.stringify(v))+'"></label>';
+  if(opts.type==="select"){
+    const cur=String(v===undefined||v===null?"":v);
+    return '<label class="f">'+esc(label)+'<select data-path="'+path+'">'+
+      (opts.options||[]).map(o=>'<option value="'+esc(o[0])+'"'+(cur===o[0]?" selected":"")+'>'+esc(o[1])+'</option>').join("")+
+      '</select></label>';
+  }
   const t=opts.type==="number"?"number":"text";
   return '<label class="f">'+esc(label)+'<input type="'+t+'" data-path="'+path+'" value="'+esc(v===undefined?"":v)+'"></label>';
 }
@@ -1122,6 +1132,7 @@ function renderSections(){
         f("每日必看 gate","sections."+si+".gate",{type:"bool"})+
         f("解锁依赖 requires","sections."+si+".requires")+
         f("列数 columns","sections."+si+".columns",{type:"number"})+
+        f("分区图标 icon","sections."+si+".icon",{type:"select",options:ICON_OPTS})+
         f("说明 _说明","sections."+si+"._说明")+
         f("自动轮换 auto（JSON）","sections."+si+".auto",{json:true})+
       '</div>'+
@@ -1180,6 +1191,8 @@ function renderFeatures(){
   $("#ft-ext").checked = f.extWatchMs!==false;
   $("#ft-notice").checked = f.remainingNotice!==false;
   $("#ft-remote").checked = f.remoteControl===true;
+  $("#ft-continue").checked = f.continueWatching!==false;
+  $("#ft-autonext").checked = f.autoNext===true;
 }
 function renderForm(){ renderGlobal(); renderAutoRefresh(); renderFeatures(); renderApps(); renderSections(); renderExtra(); }
 
@@ -1269,6 +1282,8 @@ document.addEventListener("change", e=>{
     $("#ap-tip").textContent=ap.mode==="item"?"分区条目只能选 1 个应用":"已选 "+ap.checked.size+" 个";
     return;
   }
+  // 普通下拉（分区图标）：input 事件已经写过一次，change 再兜一次，老浏览器也能生效
+  if(t.tagName==="SELECT" && t.dataset.path){ setPath(obj,t.dataset.path,t.value); markDirty(); return; }
   if(t.dataset.bool){ setPath(obj,t.dataset.path,t.checked); markDirty(); return; }
   if(t.dataset.json){
     if(!t.value.trim()){ delPath(obj,t.dataset.path); t.classList.remove("bad"); markDirty(); return; }

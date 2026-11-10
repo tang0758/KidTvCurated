@@ -17,8 +17,10 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.family.curated.data.AutoNext
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
+import com.family.curated.data.QueueItem
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.RemoteControl
@@ -72,6 +74,41 @@ class PlayerActivity : AppCompatActivity() {
     private val ui = Handler(Looper.getMainLooper())
     private var hideUi = Runnable { b.controls.visibility = View.GONE }
 
+    // ---------- OPT-11 自动连播 ----------
+    private var queueRaw = ""
+    private var queue: List<QueueItem> = emptyList()
+    private var queueIndex = -1
+    private var endedHandled = false
+    private var autoNextRunning = false
+    private var autoNextCancelled = false
+    private var nextCountdown = 0
+    private var pendingNext: QueueItem? = null
+
+    /** 5 秒里家长仍可喊停：暂停 / 锁屏 / 限额到点都在这一秒级检查里拦下来 */
+    private val nextTick = object : Runnable {
+        override fun run() {
+            if (!autoNextRunning || isFinishing || isDestroyed) return
+            if (RemoteControl.pauseVersion != seenPauseVersion) {
+                // 家长只点了「暂停」，不是锁屏：取消连播、回到列表就够了，别误弹锁屏
+                Log.i(TAG, "连播倒计时被家长暂停打断")
+                cancelAutoNext()
+                return
+            }
+            if (!GateKeeper.status().open) {
+                Log.i(TAG, "连播倒计时期间门禁关闭，交给锁屏")
+                stopForLock()
+                return
+            }
+            nextCountdown--
+            if (nextCountdown <= 0) {
+                playNext()
+                return
+            }
+            b.tvNextCount.text = "${nextCountdown}s"
+            ui.postDelayed(this, 1000)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Store.init(this)
@@ -95,6 +132,12 @@ class PlayerActivity : AppCompatActivity() {
             fail("没有指定要播放的文件")
             return
         }
+
+        queueRaw = intent.getStringExtra(AutoNext.EXTRA_QUEUE) ?: ""
+        queue = AutoNext.decode(queueRaw)
+        queueIndex = intent.getIntExtra(AutoNext.EXTRA_QUEUE_INDEX, -1)
+        // OPT-12：只在真的点开一次时记「最近看过」，不拿进度落盘时间当排序依据
+        Store.notePlayed(key)
 
         val cfg = Store.nas()
         if (cfg == null) {
@@ -146,9 +189,13 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     Player.STATE_BUFFERING -> b.pbLoading.visibility = View.VISIBLE
                     Player.STATE_ENDED -> {
+                        if (endedHandled) return
+                        endedHandled = true
                         markDone()
                         savePosition()
-                        finish()
+                        // 自动重试会重建播放器，STATE_ENDED 只认第一次；
+                        // 没有队列 / 开关没开时仍是原来的「播完回到剧集列表」
+                        maybeAutoNext()
                     }
                 }
             }
@@ -319,9 +366,72 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * OPT-11：一集播完，先过三道闸门再决定要不要连下一集。
+     * 门禁不开放（时段到点 / 限额用尽 / 家长远程锁屏）时不停在倒计时上，
+     * 直接交给锁屏——这正是「第 5 集时限额到点则停止并锁屏」的验收点。
+     */
+    private fun maybeAutoNext() {
+        val next = AutoNext.next(queue, queueIndex)
+        if (!GateKeeper.status().open) {
+            Log.i(TAG, "不连播：门禁已关闭")
+            stopForLock()
+            return
+        }
+        val featureOn = Extras.feature("autoNext")
+        if (!AutoNext.allowed(featureOn, true, next != null, autoNextCancelled)) {
+            Log.i(TAG, "不连播：autoNext=$featureOn 有下一集=${next != null} 已取消=$autoNextCancelled")
+            finish()
+            return
+        }
+        val n = next ?: return
+        pendingNext = n
+        autoNextRunning = true
+        nextCountdown = AutoNext.COUNTDOWN_SECONDS
+        b.nextOverlay.visibility = View.VISIBLE
+        b.tvNextTitle.text = "下一集：${n.title}"
+        b.tvNextCount.text = "${nextCountdown}s"
+        b.btnCancelNext.setOnClickListener { cancelAutoNext() }
+        ui.postDelayed(nextTick, 1000)
+        Log.i(TAG, "自动连播倒计时：${n.title}（${nextCountdown}s）")
+    }
+
+    /** 复用现有 EXTRA_* 启动自身；队列和下标原样带过去，就能一路连到最后一集 */
+    private fun playNext() {
+        val n = pendingNext ?: return
+        autoNextRunning = false
+        ui.removeCallbacks(nextTick)
+        b.nextOverlay.visibility = View.GONE
+        Log.i(TAG, "自动连播 → ${n.title}")
+        startActivity(
+            android.content.Intent(this, PlayerActivity::class.java)
+                .putExtra(EXTRA_FILE, n.file)
+                .putExtra(EXTRA_TITLE, n.title)
+                .putExtra(EXTRA_KEY, n.key)
+                .putExtra(EXTRA_SEEK_LOCK, seekLock)
+                .putExtra(EXTRA_GATE_SECTION, intent.getStringExtra(EXTRA_GATE_SECTION))
+                .putExtra(AutoNext.EXTRA_QUEUE, queueRaw)
+                .putExtra(AutoNext.EXTRA_QUEUE_INDEX, queueIndex + 1)
+        )
+        // 不叠 Activity 栈：10 集连播结束后，返回键仍只回一次剧集列表
+        finish()
+    }
+
+    private fun cancelAutoNext() {
+        autoNextRunning = false
+        autoNextCancelled = true
+        ui.removeCallbacks(nextTick)
+        b.nextOverlay.visibility = View.GONE
+        Log.i(TAG, "自动连播已取消（家长/孩子按了返回）")
+        finish()
+    }
+
     private fun stopForLock() {
         if (lockLaunched) return
         lockLaunched = true
+        autoNextRunning = false
+        ui.removeCallbacks(nextTick)
+        b.nextOverlay.visibility = View.GONE
         flushWatch()
         Extras.setFrontier(key, frontier)
         try { player?.pause() } catch (e: Exception) { }
@@ -411,6 +521,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // 连播倒计时期间遥控器完全交给这层浮层：确认 = 马上播，其余（含返回）= 取消
+        if (autoNextRunning) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    playNext()
+                    return true
+                }
+                else -> {
+                    cancelAutoNext()
+                    return true
+                }
+            }
+        }
         if (KioskKeys.systemBlocked(keyCode)) return true
         // 失败页上按「确认」可以手动重来一次，并重新给满自动重试额度
         if (b.tvError.visibility == View.VISIBLE && !retrying) {
@@ -474,6 +598,13 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        // 页面被盖住（家长锁屏、切走）时不许后台继续倒计时启动下一集
+        if (autoNextRunning) {
+            autoNextRunning = false
+            autoNextCancelled = true
+            ui.removeCallbacks(nextTick)
+            b.nextOverlay.visibility = View.GONE
+        }
         SmbPlaybackContext.playing = false
         PlaylistSync.nudge()
         flushWatch()

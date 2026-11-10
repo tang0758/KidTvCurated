@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
@@ -15,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.family.curated.data.AppCatalog
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.Badges
+import com.family.curated.data.ContinueMath
 import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
@@ -29,6 +31,8 @@ import com.family.curated.databinding.ActivityMainBinding
 import com.family.curated.ui.SectionsAdapter
 
 class MainActivity : AppCompatActivity() {
+
+    companion object { private const val TAG = "MainActivity" }
 
     private lateinit var b: ActivityMainBinding
     private var playlist: Playlist? = null
@@ -162,11 +166,49 @@ class MainActivity : AppCompatActivity() {
         return Section(key = "__apps", title = cfg.title, requires = requires, items = items)
     }
 
+    /**
+     * OPT-12「继续看」动态分区：取最近点开过、且确实有未看完进度的条目。
+     * 条目 key 一律沿用原路径派生的 key，家长在编辑器里调顺序也不会错位；
+     * 剧集页动态列出的单集不在清单里，按路径现造一个（ContinueMath 会确认它还在片单范围内）。
+     */
+    private fun buildContinueSection(pl: Playlist): Section? {
+        if (!Extras.feature("continueWatching")) return null
+        val recent = Store.recentPlayed(30)
+        if (recent.isEmpty()) return null
+        val eligible = ContinueMath.eligible(
+            recent, { Store.progress(it) }, { Store.duration(it) }
+        )
+        if (eligible.isEmpty()) return null
+
+        val all = pl.sections.flatMap { it.items }
+        val known = HashMap<String, Item>()
+        all.forEach { known[it.key()] = it }
+        val exactFiles = all.mapNotNull { it.file }.toHashSet()
+        val folders = all.mapNotNull { it.folder }
+        val items = eligible.mapNotNull {
+            ContinueMath.itemFor(it, known, exactFiles, folders)
+        }
+        Log.i(TAG, "继续看: recent=${recent.size} eligible=${eligible.size} items=${items.size}")
+        if (items.isEmpty()) return null
+        return Section(
+            key = ContinueMath.SECTION_KEY,
+            title = ContinueMath.SECTION_TITLE,
+            items = items,
+            icon = "play"
+        )
+    }
+
     private fun render(error: String?) {
         val pl = playlist ?: return
         val cfg = pl.nas
         val appSection = buildAppsSection(pl)
-        val shown = if (appSection != null) pl.copy(sections = pl.sections + appSection) else pl
+        val continueSection = buildContinueSection(pl)
+        // 继续看放在最上面：孩子回来第一眼就是没看完的那集；应用分区仍在最后
+        val sections = ArrayList<Section>(pl.sections.size + 2)
+        if (continueSection != null) sections.add(continueSection)
+        sections.addAll(pl.sections)
+        if (appSection != null) sections.add(appSection)
+        val shown = pl.copy(sections = sections)
 
         if (shown.sections.isEmpty()) {
             b.tvEmpty.visibility = View.VISIBLE
@@ -279,6 +321,17 @@ class MainActivity : AppCompatActivity() {
             else -> "必修还剩 $left 个"
         }
 
+        // OPT-14：把「还差几个」画成一条进度条，不用孩子自己去数打勾
+        if (total > 0) {
+            val done = total - left
+            b.taskBar.visibility = View.VISIBLE
+            b.tvTask.text = "今天任务 $done/$total"
+            b.pbTask.max = total
+            b.pbTask.progress = done
+        } else {
+            b.taskBar.visibility = View.GONE
+        }
+
         // 今天观看时长 / 每日上限
         val st = GateKeeper.status()
         b.tvTime.text = if (st.limitMinutes > 0)
@@ -378,10 +431,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        adapter?.let {
-            it.notifyDataSetChanged()
-            updateHeader()
-        }
+        // 从播放页回来时进度变了，「继续看」这一行要重算；render 复用同一个 adapter，
+        // 不重建 RecyclerView，焦点与横向滚动位置都留着。
+        if (playlist != null) render(null)
+        else adapter?.notifyDataSetChanged()
+        updateHeader()
         // 从播放页/剧集页回来时，重绘会让焦点掉到「我的奖励」按钮上，
         // 这里把它还给离开前那张卡，孩子不用重新找位置。
         if (focusParentOnResume) {

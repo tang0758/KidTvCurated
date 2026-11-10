@@ -283,6 +283,22 @@ class SettingsActivity : AppCompatActivity() {
                 if (Extras.feature("remoteControl")) "开启" else "关闭"
             ) { toggleRemoteControl() }
         )
+        list.add(
+            Entry.Row(
+                "首页继续看",
+                if (Extras.feature("continueWatching")) "顶部显示没看完的 5 条"
+                else "已关闭：不显示继续看",
+                if (Extras.feature("continueWatching")) "开启" else "关闭"
+            ) { toggleContinueWatching() }
+        )
+        list.add(
+            Entry.Row(
+                "自动连播",
+                if (Extras.feature("autoNext")) "播完 5 秒接下一集，限额到点停"
+                else "已关闭：播完回剧集列表",
+                if (Extras.feature("autoNext")) "开启" else "关闭"
+            ) { toggleAutoNext() }
+        )
         val anomalies = ClockGuard.anomalyCount()
         if (anomalies > 0 || ClockGuard.frozen()) {
             list.add(
@@ -680,6 +696,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun toggleRemoteControl() = toggleFeature("remoteControl", "远程控制")
 
+    private fun toggleContinueWatching() = toggleFeature("continueWatching", "首页继续看")
+
+    /** 默认关：连播会让时长消耗明显变快，家长要自己决定要不要打开 */
+    private fun toggleAutoNext() = toggleFeature("autoNext", "自动连播")
+
     /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
     private fun showAbout() {
         val names = linkedMapOf(
@@ -687,7 +708,8 @@ class SettingsActivity : AppCompatActivity() {
             "extWatchMs" to "外部应用计时",
             "remainingNotice" to "剩余时间预告",
             "remoteControl" to "远程控制",
-            "autoNext" to "自动连播（占位）",
+            "continueWatching" to "首页继续看",
+            "autoNext" to "自动连播",
             "report" to "周报（占位）"
         )
         val switches = names.entries.joinToString("\n") { (k, label) ->

@@ -12,6 +12,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.family.curated.data.AutoNext
 import com.family.curated.data.Item
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.Repo
@@ -31,6 +32,8 @@ class EpisodesActivity : AppCompatActivity() {
     private var episodes: List<Item> = emptyList()
     private var seekLock = false
     private var loadFailed = false
+    /** 整季队列一次性交给播放页，播完一集不必再回 SMB 列目录 */
+    private var queueJson = ""
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (KioskKeys.systemBlocked(keyCode)) return true
@@ -73,6 +76,7 @@ class EpisodesActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 episodes = list
+                queueJson = AutoNext.encode(list)
                 loadFailed = failed
                 b.tvSub.text = when {
                     failed -> "读取超时，按遥控器 OK 重试"
@@ -130,6 +134,9 @@ class EpisodesActivity : AppCompatActivity() {
                         .putExtra(PlayerActivity.EXTRA_TITLE, ep.title)
                         .putExtra(PlayerActivity.EXTRA_KEY, ep.key())
                         .putExtra(PlayerActivity.EXTRA_SEEK_LOCK, seekLock)
+                        // OPT-11：同一分区内的剧集队列，连播时原样传给下一集
+                        .putExtra(AutoNext.EXTRA_QUEUE, queueJson)
+                        .putExtra(AutoNext.EXTRA_QUEUE_INDEX, position)
                 )
             }
 
