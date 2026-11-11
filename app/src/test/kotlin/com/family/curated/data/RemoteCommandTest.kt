@@ -51,4 +51,42 @@ class RemoteCommandTest {
             RemoteCommand.actions(true, true, 10, true)
         )
     }
+
+    @Test
+    fun `SHA-256 与标准向量一致`() {
+        // NIST 官方向量：sha256("abc")
+        assertEquals(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            RemoteCommand.sha256Hex("abc".toByteArray(Charsets.UTF_8))
+        )
+        assertEquals(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            RemoteCommand.sha256Hex(ByteArray(0))
+        )
+    }
+
+    @Test
+    fun `内容指纹不受 32 位哈希碰撞影响`() {
+        // "Aa" 与 "BB" 的 String.hashCode() 都是 2112，旧的 hashCode 指纹在这里必然相撞。
+        // 这个指纹决定「能不能覆盖 NAS 上的 tv.json」，撞一次就是抹掉家长的改动。
+        assertEquals("Aa".hashCode(), "BB".hashCode())
+        assertNotEquals(
+            RemoteCommand.sha256Hex("Aa".toByteArray(Charsets.UTF_8)),
+            RemoteCommand.sha256Hex("BB".toByteArray(Charsets.UTF_8))
+        )
+    }
+
+    @Test
+    fun `没写 updatedAt 时的指纹就是内容 SHA-256`() {
+        val raw = "{\"lockNow\":true}"
+        assertEquals(
+            RemoteCommand.sha256Hex(raw.toByteArray(Charsets.UTF_8)),
+            RemoteCommand.idempotencyKey("", raw)
+        )
+        // 首尾空白不该改变身份，否则同一张卡会被当成两张
+        assertEquals(
+            RemoteCommand.idempotencyKey("", raw),
+            RemoteCommand.idempotencyKey("", "  $raw\n")
+        )
+    }
 }

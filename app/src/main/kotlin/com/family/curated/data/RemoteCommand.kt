@@ -1,5 +1,7 @@
 package com.family.curated.data
 
+import java.security.MessageDigest
+
 /**
  * 远程控制卡 control.json 的纯逻辑部分（OPT-06）。
  * 不依赖 Android / org.json，方便单测；JSON 解析留在 [RemoteControl]。
@@ -16,8 +18,29 @@ object RemoteCommand {
 
     fun clampMinutes(v: Int): Int = v.coerceIn(0, MAX_MINUTES)
 
+    /**
+     * 内容指纹（SHA-256 十六进制）。
+     *
+     * 以前用 `hashCode()`（String / ByteArray 都是 32 位多项式哈希）当指纹，两段
+     * 不同内容撞同一个数的概率并不低 —— 清单几十 KB，生日问题下几万分之一的量级，
+     * 而这个指纹决定了「能不能覆盖 NAS 上的 tv.json」，撞一次就是悄悄抹掉家长的改动。
+     * 纯 JVM 实现，不引 Android 依赖，单测能直接跑。
+     */
+    fun sha256Hex(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+        val sb = StringBuilder(digest.size * 2)
+        for (b in digest) {
+            val v = b.toInt() and 0xFF
+            sb.append(Character.forDigit(v ushr 4, 16))
+            sb.append(Character.forDigit(v and 0x0F, 16))
+        }
+        return sb.toString()
+    }
+
     fun idempotencyKey(updatedAt: String, rawText: String): String =
-        updatedAt.trim().ifBlank { rawText.trim().hashCode().toString() }
+        updatedAt.trim().ifBlank {
+            sha256Hex(rawText.trim().toByteArray(Charsets.UTF_8))
+        }
 
     /**
      * 这一纸指令会执行哪些动作（写回执、排障日志都用这份）。

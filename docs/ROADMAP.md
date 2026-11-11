@@ -1065,3 +1065,27 @@ Windows 下会抛 `ConnectionAbortedError` 刷一屏红字。按「三个工具�
    三份 prefs 无测试键值、`tempUntil` 与 `watch_` 回到基线、`kid_extras.xml` 逐字节一致；
    前台回 `LockActivity`。清单目前 30 条：**通过 10 / 部分通过 11 / 失败 0 / 待验证 9**。
    剩下的多是 `pm clear`、周报空态、断网这类破坏性或要构造环境的用例，按约定留周末。
+
+### 2026-11-11 深夜 · PR #1（`v1.4` 时代旧分支）评估与真缺口移植（`v1.9.2(12)`，**未上电视**）
+
+`fix/smb-watchdog-sha256-ui-async` 基于 tag `v1.4`（`d85607e`）的 1 个提交，main 已前进 14 个提交，
+直接 merge 会把 Wave 3/4 的工作整片退回去，冲突面覆盖 12 个文件。逐条比对「现在还需不需要」后按下面处理：
+
+| PR #1 里的改动 | 现在还需要吗 | 处理 |
+|---|---|---|
+| `PlaylistWriter` 用 SHA-256 取代 `contentHashCode()` | **需要**：main 仍拿 32 位哈希当「能不能覆盖 `tv.json`」的判据，撞一次就是抹掉家长的改动 | 移植：`RemoteCommand.sha256Hex()` + `PlaylistWriter.contentHash()`，`restorePending()` 兼容旧指纹 |
+| `idempotencyKey` 兜底改内容 SHA-256 | 需要（同一处根因） | 移植 |
+| 握手期 `pendingClient` / `pendingConnection` | **需要**：`client`/`connection` 只在握手全成功后才赋值，卡在 `connect()` 的那一次 `closeQuietly()` 手上没句柄，超时形同虚设 | 移植；同时去掉 `ensureConnected` / `shareNamed` 的对象监视器（卡在握手里会连监视器一起占着，看门狗根本走不到关 socket） |
+| 隔离读写超时只关 `SMBClient` | 需要：不关 `Connection` 时阻塞中的读不保证抛得出来 | 三条隔离路径统一 `connHolder`（读 / 写 / `withIsolatedShare`） |
+| 状态字段 `@Volatile` + 共享 map 换 `ConcurrentHashMap` | 需要（看门狗在另一线程读写） | 移植 |
+| `ArtImages` daemon 线程 + 并发 `missing` | 需要：`HashSet` 只做部分加锁，`clear()` 与加载线程有竞态 | 移植 |
+| `UiAsync`（协程调度 + 销毁检查） | 不需要 | **不采纳**：6 个 Activity 全是等价的 `Thread` + `runOnUiThread` 机械替换，现有回调已逐处判 `isFinishing`/`isDestroyed`；收益只是样式统一，却要动 6 个界面文件，而这轮没法上电视回归 |
+| 线程池上限 16 + 拒绝策略 | 暂不需要 | **不采纳**：拒绝时要给家长一句中文提示，Data 层没有 `Context`，只能硬编码，撞 `check_strings.py` 的「只降不升」；超时真能掐断 socket 后挂死线程会自行退出，风险已大幅下降 |
+
+**验证**：Android 单测 138（新增 8 条：SHA-256 标准向量、`"Aa"`/`"BB"` 同 `hashCode` 但指纹不同、
+幂等指纹即内容 SHA-256，以及 `PlaylistWriter.baseMatches()` 的新旧指纹与空指纹五条）、PC 单测 28、文案守卫 270 处（与基线持平）、`assembleDebug` 通过
+（`BUILD_TIME 11-11 23:20`）。**本轮没装包**：用户不在电脑/电视旁，`v1.9.2(12)` 只是构建产出，
+电视上仍是 `v1.9.1(11)`；下次上电视装 12，并把 `待实机验证.md` 第 7.2 节三条待验跑掉。
+
+**PR #1 处置**：本机没有 `gh` 也没有 token，无法代为评论或关闭。分支保留作历史参考，
+建议在网页上直接 close —— 有价值的部分已按上表吸收，剩下的两条是上面写明的不采纳项。

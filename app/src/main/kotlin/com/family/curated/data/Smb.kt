@@ -37,12 +37,24 @@ object Smb {
 
     private const val TAG = "Smb"
 
-    private var client: SMBClient? = null
-    private var connection: Connection? = null
-    private var session: Session? = null
-    private var share: DiskShare? = null
-    private var current: NasConfig? = null
-    private val extraShares = HashMap<String, DiskShare>()
+    // 这些字段会被「另开一条线程的看门狗」读/清，不能只靠 lock —— 看门狗在被要求
+    // 强行掐断时是不能去抢 lock 的（抢不到就一起卡死），所以状态本身得是可见的。
+    @Volatile private var client: SMBClient? = null
+    @Volatile private var connection: Connection? = null
+    @Volatile private var session: Session? = null
+    @Volatile private var share: DiskShare? = null
+    @Volatile private var current: NasConfig? = null
+    private val extraShares = java.util.concurrent.ConcurrentHashMap<String, DiskShare>()
+
+    /**
+     * 握手阶段的临时引用。
+     *
+     * `client` / `connection` 只在 connect / authenticate / connectShare **全部成功之后**
+     * 才赋值 —— 也就是说，正好卡在握手里的那一次，[closeQuietly] 手上什么都没有，
+     * 掐不断 socket，超时形同虚设。这两个引用在真正发起握手前就挂上，超时才掐得动。
+     */
+    private val pendingClient = AtomicReference<SMBClient?>(null)
+    private val pendingConnection = AtomicReference<Connection?>(null)
 
     private val lock = ReentrantLock()
 
@@ -56,6 +68,11 @@ object Smb {
      *
      * 所以每个对外操作都套一层硬上限：超时就强制关闭连接（关闭 socket 会让卡住的
      * 读抛异常并释放锁），下一次调用自动重连。
+     *
+     * 注：曾想给这个池加上限（16 并用拒绝策略报「繁忙」），没做 —— 拒绝时要给家长
+     * 一句中文提示，而 Data 层拿不到 Context，只能把文案写死在代码里，撞上
+     * `check_strings.py` 的「只降不升」。超时真正生效后挂死的线程会随 socket 断开
+     * 自行退出，池子失控的风险已经小得多，不值得为它开口子。
      */
     private val ioPool = Executors.newCachedThreadPool { r ->
         Thread(r, "smb-io").apply { isDaemon = true }
@@ -113,7 +130,14 @@ object Smb {
         }
     }
 
-    @Synchronized
+    /**
+     * 注意这里只拿 [lock]，不再加 `@Synchronized`（对象监视器）。
+     *
+     * 之前两道锁都要：卡在 `connect()` 里的线程既不还 lock 也不还监视器，
+     * 而 [closeQuietly] 是 `@Synchronized` 的 —— 看门狗来掐连接时先卡在监视器上，
+     * 根本走不到「关 socket」那一步，于是超时彻底失效，只能重启 App。
+     * 现在握手期用 [pendingClient] / [pendingConnection] 给看门狗留了把手。
+     */
     fun ensureConnected(cfg: NasConfig): DiskShare = lock.withLock {
         val existing = share
         // 只判断 TCP 还活着不够：NAS 把空闲会话踢掉后 TCP 往往还挂着，
@@ -132,18 +156,35 @@ object Smb {
             .build()
 
         val c = SMBClient(conf)
-        val conn = c.connect(cfg.host, cfg.port)
-        val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
-        val sess = conn.authenticate(ac)
-        val sh = sess.connectShare(cfg.share) as DiskShare
+        pendingClient.set(c)
+        var connRef: Connection? = null
+        var sessRef: Session? = null
+        try {
+            val conn = c.connect(cfg.host, cfg.port)
+            connRef = conn
+            pendingConnection.set(conn)
+            val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
+            val sess = conn.authenticate(ac)
+            sessRef = sess
+            val sh = sess.connectShare(cfg.share) as DiskShare
 
-        client = c
-        connection = conn
-        session = sess
-        share = sh
-        current = cfg
-        Log.i(TAG, "connected to ${cfg.host}/${cfg.share}")
-        return sh
+            client = c
+            connection = conn
+            session = sess
+            share = sh
+            current = cfg
+            Log.i(TAG, "connected to ${cfg.host}/${cfg.share}")
+            return sh
+        } catch (e: Throwable) {
+            // 握手中途失败（或已被看门狗掐断）：把自己开的这几层关干净，别留半条连接
+            try { sessRef?.close() } catch (_: Exception) { }
+            try { connRef?.close() } catch (_: Exception) { }
+            try { c.close() } catch (_: Exception) { }
+            throw e
+        } finally {
+            pendingConnection.set(null)
+            pendingClient.set(null)
+        }
     }
 
     fun path(p: String): String {
@@ -177,8 +218,8 @@ object Smb {
     /**
      * 连到同一个 NAS 上的另一个共享。
      * 视频共享通常被设成只读，清单就得放在另一个可写共享里。
+     * 同理不再加 `@Synchronized`，只走 [lock]。
      */
-    @Synchronized
     fun shareNamed(cfg: NasConfig, name: String): DiskShare = lock.withLock {
         if (name == cfg.share) return ensureConnected(cfg)
         ensureConnected(cfg)
@@ -350,12 +391,13 @@ object Smb {
         timeoutMs: Long = 12_000
     ): ByteArray {
         val holder = AtomicReference<SMBClient?>(null)
+        val connHolder = AtomicReference<Connection?>(null)
         return withDeadline("isolated($file)", timeoutMs, onTimeout = {
-            // 只掐这条临时连接，绝不动正在供货的主连接
-            try {
-                holder.get()?.close()
-            } catch (e: Exception) {
-            }
+            // 只掐这条临时连接，绝不动正在供货的主连接。
+            // 连接和客户端都掐：只关客户端在部分 smbj 版本上不会顺手关掉已建立的传输层，
+            // 那样卡在 read 里的调用照样回不来。
+            try { connHolder.getAndSet(null)?.close() } catch (_: Exception) { }
+            try { holder.getAndSet(null)?.close() } catch (_: Exception) { }
         }) {
             val conf = SmbConfig.builder()
                 .withTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
@@ -365,6 +407,7 @@ object Smb {
             val c = SMBClient(conf)
             holder.set(c)
             val conn = c.connect(cfg.host, cfg.port)
+            connHolder.set(conn)
             try {
                 val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
                 val sess = conn.authenticate(ac)
@@ -390,6 +433,8 @@ object Smb {
                     out.toByteArray()
                 }
             } finally {
+                connHolder.set(null)
+                holder.set(null)
                 try {
                     conn.close()
                 } catch (e: Exception) {
@@ -416,11 +461,10 @@ object Smb {
         timeoutMs: Long = 25_000
     ) {
         val holder = AtomicReference<SMBClient?>(null)
+        val connHolder = AtomicReference<Connection?>(null)
         withDeadline("isolatedWrite($file)", timeoutMs, onTimeout = {
-            try {
-                holder.get()?.close()
-            } catch (e: Exception) {
-            }
+            try { connHolder.getAndSet(null)?.close() } catch (_: Exception) { }
+            try { holder.getAndSet(null)?.close() } catch (_: Exception) { }
         }) {
             val conf = SmbConfig.builder()
                 .withTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
@@ -430,6 +474,7 @@ object Smb {
             val c = SMBClient(conf)
             holder.set(c)
             val conn = c.connect(cfg.host, cfg.port)
+            connHolder.set(conn)
             try {
                 val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
                 val sess = conn.authenticate(ac)
@@ -451,6 +496,8 @@ object Smb {
                 }
                 Log.i(TAG, "已写入 $shareName:$file (${bytes.size} 字节)")
             } finally {
+                connHolder.set(null)
+                holder.set(null)
                 try {
                     conn.close()
                 } catch (e: Exception) {
@@ -484,13 +531,12 @@ object Smb {
         block: (DiskShare) -> T
     ): T {
         val holder = AtomicReference<SMBClient?>(null)
+        val connHolder = AtomicReference<Connection?>(null)
         return withDeadline(
             label, timeoutMs,
             onTimeout = {
-                try {
-                    holder.get()?.close()
-                } catch (e: Exception) {
-                }
+                try { connHolder.getAndSet(null)?.close() } catch (_: Exception) { }
+                try { holder.getAndSet(null)?.close() } catch (_: Exception) { }
             }
         ) {
             val conf = SmbConfig.builder()
@@ -501,12 +547,15 @@ object Smb {
             val c = SMBClient(conf)
             holder.set(c)
             val conn = c.connect(cfg.host, cfg.port)
+            connHolder.set(conn)
             try {
                 val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
                 val sess = conn.authenticate(ac)
                 val sh = sess.connectShare(shareName) as DiskShare
                 block(sh)
             } finally {
+                connHolder.set(null)
+                holder.set(null)
                 try {
                     conn.close()
                 } catch (e: Exception) {
@@ -519,15 +568,33 @@ object Smb {
         }
     }
 
+    /**
+     * 强制断开。可以从任意线程调用 —— 包括「另一个线程正卡在 ensureConnected 里」
+     * 的这一刻：先掐握手期的临时连接，socket 一断，卡住的 connect/authenticate
+     * 就会抛出来并释放 [lock]，watchdog 才真的收得回现场。
+     */
     @Synchronized
     fun closeQuietly() {
-        extraShares.values.forEach { try { it.close() } catch (e: Exception) { } }
+        val pConn = pendingConnection.getAndSet(null)
+        val pClient = pendingClient.getAndSet(null)
+        try { pConn?.close() } catch (_: Exception) { }
+        try { pClient?.close() } catch (_: Exception) { }
+
+        val extras = extraShares.values.toList()
         extraShares.clear()
-        try { share?.close() } catch (e: Exception) { }
-        try { session?.close() } catch (e: Exception) { }
-        try { connection?.close() } catch (e: Exception) { }
-        try { client?.close() } catch (e: Exception) { }
+
+        // 先把引用摘下来再关：关闭动作本身可能阻塞，不能让别的线程一直看到半死状态
+        val sh = share
+        val sess = session
+        val conn = connection
+        val c = client
         share = null; session = null; connection = null; client = null; current = null
+
+        extras.forEach { try { it.close() } catch (_: Exception) { } }
+        try { sh?.close() } catch (_: Exception) { }
+        try { sess?.close() } catch (_: Exception) { }
+        try { conn?.close() } catch (_: Exception) { }
+        try { c?.close() } catch (_: Exception) { }
     }
 
     fun reset() {

@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import android.widget.ImageView
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
@@ -17,11 +19,16 @@ import java.util.concurrent.Executors
  */
 object ArtImages {
 
-    private val pool = Executors.newSingleThreadExecutor()
+    // 线程带上名字和 daemon：不给电视留下「App 退出了线程还在」的尾巴，排障时也认得出是谁
+    private val pool = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "art-images").apply { isDaemon = true }
+    }
     private val cache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
-    private val missing = HashSet<String>()
+    // 以前是 HashSet + synchronized(missing)：加载线程写、主线程 clear() 读，
+    // 中间隔着 SMB 的等待，锁不住就抛 ConcurrentModificationException
+    private val missing: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "webp", "bmp")
 
     fun isImage(name: String): Boolean =
@@ -93,7 +100,7 @@ object ArtImages {
                 null
             }
             val bmp = bytes?.let { decode(it, reqW, reqH) }
-            if (bmp != null) cache.put(tag, bmp) else synchronized(missing) { missing.add(tag) }
+            if (bmp != null) cache.put(tag, bmp) else missing.add(tag)
             iv.post {
                 if (iv.tag == tag) onLoaded(bmp)
             }
@@ -122,6 +129,6 @@ object ArtImages {
 
     fun clear() {
         cache.evictAll()
-        synchronized(missing) { missing.clear() }
+        missing.clear()
     }
 }

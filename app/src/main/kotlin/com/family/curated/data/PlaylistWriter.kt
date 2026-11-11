@@ -20,6 +20,28 @@ object PlaylistWriter {
 
     private const val TAG = "PlaylistWriter"
 
+    /**
+     * 远端清单内容的指纹。
+     *
+     * 必须用 SHA-256，不能用 `contentHashCode()`：这个值存在 `pendingBaseHash` 里，
+     * 重放前拿它判断「NAS 上的 tv.json 这段时间有没有被别人改过」。32 位哈希一旦撞上，
+     * 就会在家长已经改过片单的情况下判定「没变」并覆盖写，把人的改动抹掉。
+     */
+    fun contentHash(bytes: ByteArray): String = RemoteCommand.sha256Hex(bytes)
+
+    /**
+     * 现在读到的内容，还算不算「当初失败时的那一份」。
+     *
+     * 除了 SHA-256，还得认旧版本存下的 32 位哈希：升级后 `pendingBaseHash` 里
+     * 躺着的仍是上一个版本写下的数字。只认新格式的话，家长正好碰上「没保存成功」，
+     * 一升级就变成「提示被改过、不让重放」，比撞哈希更常见也更烦人。
+     * 抽成纯函数是为了能单测 —— 这段判据错了就是「抹掉家长改动」或「永远重放不了」。
+     */
+    fun baseMatches(stored: String, before: ByteArray): Boolean {
+        if (stored.isBlank()) return false
+        return contentHash(before) == stored || before.contentHashCode().toString() == stored
+    }
+
     data class Result(
         val ok: Boolean,
         val message: String = "",
@@ -44,7 +66,7 @@ object PlaylistWriter {
             // 连读都没读到，没有可重放的完整内容；只标记「没同步」，不提供覆盖按钮
             return Result(false, "读不到 NAS 上的清单：${e.message ?: e.javaClass.simpleName}")
         }
-        val baseHash = before.contentHashCode().toString()
+        val baseHash = contentHash(before)
 
         val root = try {
             JSONObject(before.toString(Charsets.UTF_8).trimStart('\uFEFF'))
@@ -90,7 +112,9 @@ object PlaylistWriter {
         } catch (e: Exception) {
             return Result(false, "现在还是读不到 NAS 上的清单：${e.message ?: e.javaClass.simpleName}")
         }
-        if (before.contentHashCode().toString() != Store.pendingBaseHash) {
+        // 旧版本存的是 32 位 hashCode，升级后那一次重放还得认，否则家长刚碰上的
+        // 「没保存成功」在升级后直接变成「说被改过、不让重放」，比撞哈希更常见也更烦人。
+        if (!baseMatches(Store.pendingBaseHash, before)) {
             return Result(
                 false,
                 "NAS 上的清单在这期间被改过（可能你在网页上动过片单）。" +
