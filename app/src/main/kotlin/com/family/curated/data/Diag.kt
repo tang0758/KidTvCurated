@@ -284,17 +284,25 @@ object Diag {
                 SMB2CreateDisposition.FILE_OPEN,
                 null
             ).use { f ->
+                // 只读尾部：文件比上限大时必须从后面读。
+                // 从头部读会被截断在中间，合并后保留的反而是「中间那段旧内容」，
+                // 真正较新的日志被永久丢掉，末尾还留一条半行残句（1.4 MB 实测复现）。
+                val limit = DiagMath.MAX_BYTES.toLong() * 2
+                val size = runCatching { f.fileInformation.standardInformation.endOfFile }
+                    .getOrDefault(0L)
+                var off = if (size > limit) size - limit else 0L
                 val out = ByteArrayOutputStream()
                 val buf = ByteArray(32 * 1024)
-                var off = 0L
                 while (true) {
                     val n = f.read(buf, off, 0, buf.size)
                     if (n <= 0) break
                     out.write(buf, 0, n)
                     off += n
-                    if (out.size() > DiagMath.MAX_BYTES * 2) break
+                    if (out.size() > limit) break
                 }
-                out.toString("UTF-8")
+                val text = out.toString("UTF-8")
+                // 从中间开始读时第一行必然不完整，丢掉它
+                if (size > limit) DiagMath.trimLeadingPartial(text) else text
             }
         } catch (e: Exception) {
             // 第一次写日志时文件本来就不存在，这是正常情况；

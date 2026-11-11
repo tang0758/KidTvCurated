@@ -173,6 +173,18 @@ object DiagMath {
 
     private fun utf8Len(s: String): Int = s.toByteArray(Charsets.UTF_8).size
 
+    /**
+     * 丢掉第一行（多半是不完整的那行）。
+     *
+     * 远端日志超过读取上限时只读**尾部**，起点落在任意字节上：第一行必然是半行，
+     * 还可能把一个 UTF-8 字符劈成两半变成 `�`。留着就是一条读不懂的残句。
+     * 没有换行（整段都不完整）时返回空串，宁可少一条也别写残句。
+     */
+    fun trimLeadingPartial(text: String): String {
+        val i = text.indexOf('\n')
+        return if (i >= 0) text.substring(i + 1) else ""
+    }
+
     /** 一个文件里有多少条记录（每条的第一行以「日期 时间」开头） */
     private val ENTRY_RE = Regex("(?m)^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} ")
 

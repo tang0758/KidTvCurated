@@ -194,4 +194,31 @@ class DiagMathTest {
         assertEquals(2, DiagMath.countEntries(text))
         assertEquals(0, DiagMath.countEntries(""))
     }
+
+    @Test
+    fun `读尾部时丢掉开头那半行`() {
+        // 1.4 MB 文件实测：从中间开始读，第一行是「2026-11-11 10:01:3481 W/probe �」
+        val partial = "2026-11-11 10:01:3481 W/probe \uFFFD\n2026-11-12 07:11:00 W/probe 完整的一行\n"
+        assertEquals(
+            "2026-11-12 07:11:00 W/probe 完整的一行\n",
+            DiagMath.trimLeadingPartial(partial)
+        )
+    }
+
+    @Test
+    fun `整段都不完整时宁可返回空`() {
+        assertEquals("", DiagMath.trimLeadingPartial("没有换行的半行\uFFFD"))
+        assertEquals("", DiagMath.trimLeadingPartial(""))
+    }
+
+    @Test
+    fun `丢掉半行后仍然只剩最新内容`() {
+        val partialHead = "半行残句\uFFFD\n" +
+            "2026-11-11 10:00:00 W/probe 旧\n" +
+            "2026-11-12 07:11:00 W/probe 新\n"
+        val merged = DiagMath.append(DiagMath.trimLeadingPartial(partialHead), "2026-11-12 07:12:00 W/probe 更新\n")
+        assertTrue(merged.endsWith("2026-11-12 07:12:00 W/probe 更新\n"))
+        assertTrue(!merged.contains("\uFFFD"))
+        assertTrue(!merged.contains("半行残句"))
+    }
 }

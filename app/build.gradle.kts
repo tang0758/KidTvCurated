@@ -43,8 +43,9 @@ android {
         // 实机修复：维护分组两个对话框被 message 挤没 + 家长选项菜单末尾项够不到 → 11
         // PR #1 真缺口移植：SHA-256 清单指纹、握手期可强关、SMB 线程池有界 → 12
         // 实机发现：NAS 不可达时记录备份退化成每秒重连一次 → 13
-        versionCode = 13
-        versionName = "1.9.3"
+        // 实机发现：远端日志超 400 KB 时从头部读、截断处留残句 → 14
+        versionCode = 14
+        versionName = "1.9.4"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
         // 默认 NAS 账号：来自 local.properties / 环境变量，缺失时是空串（见文件上方说明）
         buildConfigField("String", "NAS_USER", "\"$nasUser\"")
