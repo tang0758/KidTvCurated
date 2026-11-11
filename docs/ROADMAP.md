@@ -280,7 +280,7 @@ CI 新增第三个 job。本次**零 APK 改动、不新增版本号**（PC 侧�
 
 | 编号 | 项 | 估时 | 说明 |
 |---|---|---|---|
-| OPT-15 | 单测 + CI ✅ | 2 | 加 `testImplementation("junit:junit:4.13.2")` 与 `src/test/kotlin`；先覆盖纯函数：`Schedule` 时段解析与跨零点、`GateKeeper.nextOpening`、`Badges` 判定、`PlaylistParser` 路径解码（`+` 号事故回归）、`Kiosk` 解析。已落地：`junit` 早在 OPT-02 就引入，`src/test/kotlin` 现有 **130 条**（本轮新增 `WindowMathTest` 18 条：时段解析 / 跨零点 / 全角符号 / 缺分钟返回 `null`）；`.github/workflows/android.yml` 跑 `check_strings.py` + `testDebugUnitTest assembleDebug`，两 job 并行。`Schedule.parse` 的 JSON 分支上不了纯 JVM 单测（`org.json` 是桩），解析与判定改由 `WindowMath` + `TimeWindow.contains` 覆盖。见第 14 节 |
+| OPT-15 | 单测 + CI ✅ | 2 | 加 `testImplementation("junit:junit:4.13.2")` 与 `src/test/kotlin`；先覆盖纯函数：`Schedule` 时段解析与跨零点、`GateKeeper.nextOpening`、`Badges` 判定、`PlaylistParser` 路径解码（`+` 号事故回归）、`Kiosk` 解析。已落地：`junit` 早在 OPT-02 就引入，`src/test/kotlin` 现有 **130 条**（本轮新增 `WindowMathTest` 18 条：时段解析 / 跨零点 / 全角符号 / 缺分钟返回 `null`）；`.github/workflows/android.yml` 跑 `check_strings.py` + `testDebugUnitTest assembleDebug`，现为**三个 job 并行**（OPT-19 增 `python-tools`：PC 单测 + 启动器自检）。`Schedule.parse` 的 JSON 分支上不了纯 JVM 单测（`org.json` 是桩），解析与判定改由 `WindowMath` + `TimeWindow.contains` 覆盖。见第 14 节 |
 | OPT-16 | 文案收口 `strings.xml` ✅ | 1.5 | 已落地（`v1.8`）：设置页 / 锁屏页 / 家长工具 236 条搬进资源，文案未改；新增 `tools/check_strings.py` 守住回潮。见第 14 节 |
 | OPT-17 | 异常落盘 ✅ | 1 | 已落地（`v1.7`）：`DiagMath` 纯逻辑 + `Diag`；本地先落盘、后台合并上传 `data:curated/logs/tv-yyyyMMdd.txt`（200 KB 滚动、留 7 天、60 秒去重）；接管崩溃兜底。见第 14 节 |
 | OPT-18 | 设置页拆分 ✅ | 1.5 | 已落地（`v1.9`）：`SettingsActivity` 1094 → 256 行，只留外壳；按「概览 / 时间与时长 / 规则 / 维护 / 系统」拆成 5 个 `SettingsGroup` + 适配器 + 弹窗工具箱，行为与文案零变化（201 处文案使用点逐条比对）。见第 14 节 |
@@ -381,6 +381,8 @@ graph LR
 - EX-22 NAS 写保护时在电视上改时段 → 应阻断并提示，不静默回滚（Wave 1，原提案 EX-15）
 - Wave 3 的 `pm clear` 后重开 → 打卡可恢复（EX-24）
 
+> **编号澄清（2026-11-11 第二轮验收时修正）**：早期第 14 节落地记录把「`pm clear` 恢复」写成 EX-13，但 PRD 15.4 的 `EX-13` 是「`features` 段写坏」，恢复记录的正确编号是 **EX-24**。第 10 节已声明「用例编号以 PRD 15.4 为唯一事实来源」，历史段落保留原文并加注，活文档（第 13 节、待实机验证清单）一律用 EX-24。
+
 ---
 
 ## 11. 风险与回滚
@@ -423,7 +425,7 @@ graph LR
 4. ~~Wave 1 的 OPT-05 / OPT-06 / OPT-07~~ ✅ 已完成并实机验收，发 `versionCode 4 / v1.3`，见第 14 节。
 5. ~~Wave 2（孩子体验）~~ ✅ 已完成并实机验收，发 `versionCode 5 / v1.4`，见第 14 节。
 6. ~~Wave 3（OPT-09 / OPT-08 / OPT-10）~~ ✅ **代码全部完成**，`versionCode 6 / v1.5` 与 `7 / v1.6` 两版；
-   **OPT-09 的实机 EX-13 / EX-24 未跑**（2026-11-11 16:00 电视离线），
+   **OPT-09 的实机 EX-24 未跑**（旧稿误记 EX-13；2026-11-11 16:00 电视离线），
    与 OPT-08 / OPT-10 的新用例一起登记在 [待实机验证清单](待实机验证.md)。
    **周一到周五白天不做实机安装测试**，这部分只能在晚上或周末集中跑。
 7. ~~Wave 4 的 OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19~~ ✅ **全部完成**，Wave 4 收口（`v1.7` / `v1.8` / `v1.9`，
@@ -438,9 +440,9 @@ graph LR
    A-02 / A-06「已在第三方 App 内被拉回盖锁屏」在允许时段内补跑；
    连播「恰好在第 5 集播完那一秒限额到点」未做端到端构造（5 秒倒计时窗口短于 15 秒同步周期，
    已由 `AutoNext.allowed` 单测 + 实机「限额到点 1 秒内切锁屏」覆盖）。
-10. **新需求已收集，尚未排期**：学习区配图 + 古诗「念诗」、学习资源改在线拉取（不再编译进 APK），
-    见 [需求池](需求池.md) RQ-001 / RQ-002。两条关联，先由家长确认音频/图片来源、在线通道
-    （NAS 还是公网）、断网兜底，再决定要不要动 FR-09 与 `data/builtin/`、`assets/art/`。
+10. **新需求已收集，尚未排期**：详见 [需求池](需求池.md)（RQ-001 学习区配图 + 念诗、
+    RQ-002 学习资源在线拉取、RQ-003 视频图标缩小约 30%）。RQ-001/002 关联，先确认音频与图片来源、
+    在线通道（NAS 还是公网）、断网兜底；RQ-003 先确认缩的是首页海报卡还是分区小图标。
     本轮只登记，不改代码、不发版。
 
 ---
@@ -658,7 +660,7 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 1. **本地记录为空时绝不回写**：重装后 5 分钟自动备份会拿空数据把 NAS 上的好备份冲掉。
    `exportNow()` 在 `snapshot.isEmpty` 时直接返回，日志留一行「跳过备份」。
 2. **用量自动合回、打卡与进度要问家长**：`watch_` / `ext_` / `vids_` 决定今天还剩多少额度，
-   重装后归零等于白送一段（EX-13），必须静默补；`stamps` / `pos_` / `front_` 可能是家长
+   重装后归零等于白送一段（EX-24；旧稿误记 EX-13），必须静默补；`stamps` / `pos_` / `front_` 可能是家长
    刚用「清空播放进度」故意清掉的，静默导入会把他的操作悄悄撤销，所以走确认弹窗。
 3. **`pm clear` 后仍要读得到备份**：清数据会把 `nas_*` 一起清空，`Store.nas()` 返回 null。
    所以 `StateBackup.nasCfg()` 和 `Repo.load()` / `PlaylistSync` 一样退回 `Store.DEFAULT_NAS`
@@ -677,7 +679,7 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 **实机验证：待跑（阻塞在电视开机）**。2026-11-11 16:00 电视 `192.168.31.147` 离线
 （ARP 表里已消失，NAS `192.168.31.72` 正常），`adb connect` 超时。开机后要补：
 
-- EX-13：`pm clear com.family.curated` → 重启 App → 今日 `watch_<day>` 自动回补、
+- EX-24（旧稿误记 EX-13）：`pm clear com.family.curated` → 重启 App → 今日 `watch_<day>` 自动回补、
   弹出「发现上次的观看记录」→ 点「恢复」后 `stamps` 与 `pos_*` 回来。
 - 空记录保护：清数据后先等一轮自动备份，确认日志是「跳过备份」而不是覆盖。
 - 家长入口：设置页「维护 → 记录备份」的「立即备份 / 从 NAS 恢复」。
@@ -720,7 +722,7 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 
 **实机验证：未跑（按约定，周一到周五白天不做实机安装测试）**。用例已登记在
 [待实机验证清单](待实机验证.md)：周报空状态与数字对账、外部应用分段、反复看/看到一半、
-奖励加时到账与 `1.6` 的版本号显示；连同 OPT-09 的 EX-13 / EX-24 一起，等晚上或周末一轮跑完。
+奖励加时到账与 `1.6` 的版本号显示；连同 OPT-09 的 EX-24 一起，等晚上或周末一轮跑完。
 
 ### 2026-11-11 晚 · Wave 4 首项：OPT-17 异常落盘（`versionCode 8` / `v1.7`）
 
@@ -1015,3 +1017,27 @@ Windows 下会抛 `ConnectionAbortedError` 刷一屏红字。按「三个工具�
    说明书 11.1 已补「不碰 scrcpy 也可能复发」；排查时 `watch_<day>` 入账 + 音频活跃轨道比
    `pos_` 可靠（`pos_` 只在结束/退后台保存）。
 
+
+
+### 2026-11-11 夜 · 第二轮实机（周报 / 五组设置 / TC-58）+ 两个对话框失败项
+
+21:43~22:01 又跑了一轮，电视一直开着，首轮装的 `v1.9(10)` 未动、没再装包。
+备份在 `.workbuddy/tmp/backup-20261111-2145/`，**通过项、截图证据、还原细节全部写在
+`docs/待实机验证.md` 第 5 节**，这里只记三条对后续有影响的结论：
+
+1. **周报与设置页实机通过**：TC-48 数字对账 86 分与 prefs 一致（口径是
+   `watchMsOn = max(watch_, daymax_)`，11/10 的 daymax 16.79 > watch 15.16）；7 柱视觉、未来轨道、
+   今天描边、空态文案全部正常。设置页五组 24 行 + 「关于」对话框逐屏看过，无裁切/串行。
+   TC-58 的 ASCII 正反两项实机通过：`18-20` 被拒且 NAS 逐字节不变、`1800-2000` 正确写回
+   `18:00-20:00` 后已按备份还原并确认本地缓存无残留。中文/全角输入因 `input text` 注入不了，仍靠 18 条单测。
+2. **新发现两个验收失败项（不是文档笔误）**：`MaintGroup.kt:138 showStateBackup()` 与
+   `:194 showDiag()` 都用 `setMessage + setItems`，在这台电视的 `THEME_DEVICE_DEFAULT_DARK` 上
+   items 的 ListView 被 message 的 ScrollView 挤掉，实机只有正文 + 「关闭」——
+   「立即备份到 NAS / 从 NAS 恢复记录」「立即上传 / 清空本地日志」四个操作项点不到，家长入口失效。
+   同轮只有 `setItems` 的列表框（时段预设、临时放行）全部正常，根因明确。
+   修法建议改成三个按钮或自定义 View，改完需重新构建装包回归。**修好之前 OPT-09 / OPT-17 的
+   家长手动入口不能算验收通过**，清单里两行已标「失败」。
+3. **还原边界写清了**：`state.json` 是 App 自动维护的正常产物，收尾按原字节写回即可、
+   **不要删**（首轮删过又自动生成）；`curated_prefs.xml` 的四个自动时间戳会随 App 重启推进，
+   不必追求逐字节一致，只要没有测试键/测试值。本轮 NAS 三文件原字节一致、
+   `tempUntil` 回到 `1794353631858`、前台回到 `LockActivity`；工作区 `小剧场.apk` 仍 v1.4(5)。
