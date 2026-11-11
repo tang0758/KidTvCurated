@@ -128,17 +128,21 @@ class MainActivity : AppCompatActivity() {
         b.pbLoading.visibility = View.VISIBLE
         b.tvEmpty.visibility = View.GONE
 
-        Thread {
-            val res = Repo.load()
-            runOnUiThread {
+        UiAsync.run(
+            this,
+            io = {
+                val res = Repo.load()
+                // 时段、密码、通过比例都从清单同步到本地，播放页/锁屏页才能独立读到
+                PlaylistSync.applyToLocal(res.playlist)
+                res
+            },
+            onMain = { res ->
                 loading = false
                 b.pbLoading.visibility = View.GONE
                 playlist = res.playlist
-                // 时段、密码、通过比例都从清单同步到本地，播放页/锁屏页才能独立读到
-                PlaylistSync.applyToLocal(res.playlist)
                 render(res.error)
             }
-        }.start()
+        )
     }
 
     /** 把家长勾选的应用拼成一个额外的分区，追加在所有片单分区后面 */

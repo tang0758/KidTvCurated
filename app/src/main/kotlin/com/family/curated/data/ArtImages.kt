@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import android.widget.ImageView
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
@@ -17,11 +19,13 @@ import java.util.concurrent.Executors
  */
 object ArtImages {
 
-    private val pool = Executors.newSingleThreadExecutor()
+    private val pool = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "art-images").apply { isDaemon = true }
+    }
     private val cache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
-    private val missing = HashSet<String>()
+    private val missing: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
     private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "webp", "bmp")
 
     fun isImage(name: String): Boolean =
@@ -93,7 +97,7 @@ object ArtImages {
                 null
             }
             val bmp = bytes?.let { decode(it, reqW, reqH) }
-            if (bmp != null) cache.put(tag, bmp) else synchronized(missing) { missing.add(tag) }
+            if (bmp != null) cache.put(tag, bmp) else missing.add(tag)
             iv.post {
                 if (iv.tag == tag) onLoaded(bmp)
             }
@@ -122,6 +126,6 @@ object ArtImages {
 
     fun clear() {
         cache.evictAll()
-        synchronized(missing) { missing.clear() }
+        missing.clear()
     }
 }

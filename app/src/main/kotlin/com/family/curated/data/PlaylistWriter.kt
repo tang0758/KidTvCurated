@@ -20,6 +20,9 @@ object PlaylistWriter {
 
     private const val TAG = "PlaylistWriter"
 
+    /** 计算远端清单内容的 SHA-256 指纹，避免 32 位多项式 hashCode 碰撞导致误判未修改 */
+    fun contentHash(bytes: ByteArray): String = RemoteCommand.sha256Hex(bytes)
+
     data class Result(
         val ok: Boolean,
         val message: String = "",
@@ -44,7 +47,7 @@ object PlaylistWriter {
             // 连读都没读到，没有可重放的完整内容；只标记「没同步」，不提供覆盖按钮
             return Result(false, "读不到 NAS 上的清单：${e.message ?: e.javaClass.simpleName}")
         }
-        val baseHash = before.contentHashCode().toString()
+        val baseHash = contentHash(before)
 
         val root = try {
             JSONObject(before.toString(Charsets.UTF_8).trimStart('\uFEFF'))
@@ -90,7 +93,11 @@ object PlaylistWriter {
         } catch (e: Exception) {
             return Result(false, "现在还是读不到 NAS 上的清单：${e.message ?: e.javaClass.simpleName}")
         }
-        if (before.contentHashCode().toString() != Store.pendingBaseHash) {
+        val currentHash = contentHash(before)
+        // 兼容升级前存下的旧 hashCode 格式
+        val matchesBase = currentHash == Store.pendingBaseHash ||
+            before.contentHashCode().toString() == Store.pendingBaseHash
+        if (!matchesBase) {
             return Result(
                 false,
                 "NAS 上的清单在这期间被改过（可能你在网页上动过片单）。" +

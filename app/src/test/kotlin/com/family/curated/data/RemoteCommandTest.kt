@@ -51,4 +51,18 @@ class RemoteCommandTest {
             RemoteCommand.actions(true, true, 10, true)
         )
     }
+
+    @Test
+    fun `SHA-256 指纹稳定且能够区分细微差异（避免 32 位 hashCode 碰撞）`() {
+        // "Aa" 与 "BB" 在 31 进制多项式 hashCode 下相等（都是 2112），但 SHA-256 必须不同
+        val aa = "Aa".toByteArray(Charsets.UTF_8)
+        val bb = "BB".toByteArray(Charsets.UTF_8)
+        assertEquals(aa.contentHashCode(), bb.contentHashCode())
+        assertNotEquals(PlaylistWriter.contentHash(aa), PlaylistWriter.contentHash(bb))
+        assertEquals(64, PlaylistWriter.contentHash(aa).length)
+        assertNotEquals(
+            RemoteCommand.idempotencyKey("", "Aa"),
+            RemoteCommand.idempotencyKey("", "BB")
+        )
+    }
 }

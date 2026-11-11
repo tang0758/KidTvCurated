@@ -64,19 +64,23 @@ class EpisodesActivity : AppCompatActivity() {
     private fun loadEpisodes() {
         b.tvSub.text = "正在读取…"
         loadFailed = false
-        Thread {
-            val cfg = Store.nas()
-            var failed = false
-            val list = try {
-                if (cfg == null || folder.isEmpty()) emptyList() else Repo.listVideos(cfg, folder)
-            } catch (e: Exception) {
-                failed = true
-                Log.w("Episodes", "读取剧集失败: $folder", e)
-                emptyList()
-            }
-            runOnUiThread {
+        UiAsync.run(
+            this,
+            io = {
+                val cfg = Store.nas()
+                var failed = false
+                val list = try {
+                    if (cfg == null || folder.isEmpty()) emptyList() else Repo.listVideos(cfg, folder)
+                } catch (e: Exception) {
+                    failed = true
+                    Log.w("Episodes", "读取剧集失败: $folder", e)
+                    emptyList()
+                }
+                Triple(list, AutoNext.encode(list), failed)
+            },
+            onMain = { (list, encoded, failed) ->
                 episodes = list
-                queueJson = AutoNext.encode(list)
+                queueJson = encoded
                 loadFailed = failed
                 b.tvSub.text = when {
                     failed -> "读取超时，按遥控器 OK 重试"
@@ -89,7 +93,7 @@ class EpisodesActivity : AppCompatActivity() {
                     first?.itemView?.requestFocus()
                 }
             }
-        }.start()
+        )
     }
 
     private inner class EpAdapter : RecyclerView.Adapter<EpAdapter.VH>() {

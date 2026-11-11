@@ -133,15 +133,16 @@ class LockActivity : AppCompatActivity() {
         if (learning.artFolder.isNotBlank()) {
             val cfg = Store.nas()
             val snapshot = learning
-            Thread {
-                val bound = ArtImages.bindNasArt(base, snapshot, cfg)
-                runOnUiThread {
-                    if (!isFinishing && bound.isNotEmpty()) {
+            UiAsync.run(
+                this,
+                io = { ArtImages.bindNasArt(base, snapshot, cfg) },
+                onMain = { bound ->
+                    if (bound.isNotEmpty()) {
                         deck = bound
                         showCard()
                     }
                 }
-            }.start()
+            )
         }
     }
 

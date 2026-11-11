@@ -77,9 +77,10 @@ object ParentTools {
     }
 
     private fun retryPending(activity: AppCompatActivity, onResolved: () -> Unit) {
-        Thread {
-            val r = PlaylistWriter.restorePending()
-            activity.runOnUiThread {
+        UiAsync.run(
+            activity,
+            io = { PlaylistWriter.restorePending() },
+            onMain = { r ->
                 Toast.makeText(
                     activity,
                     if (r.ok) "已重新保存到 NAS" else r.message,
@@ -87,7 +88,7 @@ object ParentTools {
                 ).show()
                 onResolved()
             }
-        }.start()
+        )
     }
 
     /**

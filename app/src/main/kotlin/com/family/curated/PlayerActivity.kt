@@ -265,17 +265,17 @@ class PlayerActivity : AppCompatActivity() {
 
         ui.postDelayed({
             // 断链放到后台线程，避免在主线程等网络超时
-            Thread {
-                Smb.reset()
-                ui.post {
-                    if (isFinishing || isDestroyed) return@post
+            UiAsync.run(
+                this,
+                io = { Smb.reset() },
+                onMain = {
                     b.playerView.player = null
                     val old = player
                     player = null
                     try { old?.release() } catch (e: Exception) { }
                     startPlayer()
                 }
-            }.start()
+            )
         }, 700L * n)
     }
 

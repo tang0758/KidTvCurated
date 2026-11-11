@@ -398,9 +398,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         busy = true
         b.tvBusy.text = "正在保存到 NAS…"
-        Thread {
-            val r = PlaylistWriter.patch(apply)
-            runOnUiThread {
+        UiAsync.run(
+            this,
+            io = { PlaylistWriter.patch(apply) },
+            onMain = { r ->
                 busy = false
                 b.tvBusy.text = footer
                 if (r.ok) {
@@ -419,7 +420,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 render()
             }
-        }.start()
+        )
     }
 
     /** 时段相关的字段都在 schedule 段里；没有就建一个 */
@@ -743,12 +744,15 @@ class SettingsActivity : AppCompatActivity() {
         if (busy) return
         busy = true
         b.tvBusy.text = "正在重新读取清单…"
-        Thread {
-            Smb.reset()
-            val res = Repo.load()
-            val ok = res.error == null
-            PlaylistSync.applyToLocal(res.playlist)
-            runOnUiThread {
+        UiAsync.run(
+            this,
+            io = {
+                Smb.reset()
+                val res = Repo.load()
+                PlaylistSync.applyToLocal(res.playlist)
+                res.error == null
+            },
+            onMain = { ok ->
                 busy = false
                 b.tvBusy.text = footer
                 Toast.makeText(
@@ -758,7 +762,7 @@ class SettingsActivity : AppCompatActivity() {
                 ).show()
                 render()
             }
-        }.start()
+        )
     }
 
     // ---------------- 对话框小工具 ----------------
