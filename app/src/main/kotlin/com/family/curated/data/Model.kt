@@ -124,7 +124,8 @@ data class Features(val on: Map<String, Boolean> = emptyMap()) {
             "remoteControl" to false, // OPT-06 远程控制卡：新链路，先由家长在编辑器打开
             "remainingNotice" to true, // OPT-05 剩余时间预告，正式功能，装上即生效
             "continueWatching" to true, // OPT-12 首页「继续看」，装上即生效
-            "report" to false,        // OPT-08 周报页
+            // OPT-08 周报只读、不改任何行为，默认开；出问题在设置页或 JSON 里关掉，入口立刻消失
+            "report" to true,
             "kioskPullback" to true   // 儿童锁「被切走后拉回」，老行为，默认开
         )
 

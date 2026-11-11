@@ -1093,6 +1093,7 @@ function renderGlobal(){
     f("工作日时段 weekday（JSON 数组）","schedule.weekday",{json:true}) +
     f("周末时段 weekend（JSON 数组）","schedule.weekend",{json:true}) +
     f("每日时长 dailyLimitMinutes","schedule.dailyLimitMinutes",{type:"number"}) +
+    f("做完任务奖励 rewardMinutes","schedule.rewardMinutes",{type:"number"}) +
     f("锁屏提示 lockMessage","schedule.lockMessage") +
     f("时段 PIN schedule.pin","schedule.pin");
 }

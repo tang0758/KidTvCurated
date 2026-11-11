@@ -33,6 +33,13 @@
         "weekday": { "$ref": "#/definitions/windows" },
         "weekend": { "$ref": "#/definitions/windows" },
         "dailyLimitMinutes": { "type": "integer", "minimum": 0, "default": 60, "description": "0 = 不限" },
+        "rewardMinutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120,
+          "default": 0,
+          "description": "当日必看全部完成后，今天的上限额外加这么多分钟（0 = 关闭）。只加在今天额度上，不影响时段限制，也不会覆盖家长手动临时放行"
+        },
         "lockMessage": { "type": "string" },
         "pin": { "type": "string" }
       }
@@ -129,7 +136,7 @@
         "remainingNotice": { "type": "boolean", "default": true, "description": "播放页右上角显示剩余时间，剩 5 分钟 / 1 分钟各提示一次；外部应用放行结束前 2 分钟提示" },
         "remoteControl": { "type": "boolean", "default": false, "description": "每 15 秒读同目录的 control.json，执行立即锁屏 / 加时 / 暂停，并写 control.ack.json 回执" },
         "continueWatching": { "type": "boolean", "default": true, "description": "首页顶部显示「继续看」动态分区，最多 5 条未看完的进度；关掉即回到旧版片单首页" },
-        "report": { "type": "boolean", "default": false, "description": "周报页（规划中）" }
+        "report": { "type": "boolean", "default": true, "description": "家长控制页顶部显示「本周报告」入口（电视端只读周报：7 天时长条形图含第三方应用分段、打卡、反复看、看到一半）" }
       }
     },
     "allowedHours": { "$ref": "#/definitions/windows", "description": "旧版简写" },

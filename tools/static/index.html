@@ -299,6 +299,7 @@ function normalize(d){
     d.schedule.weekday = winToStrings(d.schedule.weekday);
     d.schedule.weekend = d.schedule.weekend === undefined ? null : winToStrings(d.schedule.weekend);
     if (d.schedule.dailyLimitMinutes === undefined) d.schedule.dailyLimitMinutes = 0;
+    if (d.schedule.rewardMinutes === undefined) d.schedule.rewardMinutes = 0;
     if (d.schedule.enabled === undefined) d.schedule.enabled = true;
     if (!d.schedule.lockMessage) d.schedule.lockMessage = "电视休息时间，先去玩会儿别的吧";
   }
@@ -343,6 +344,8 @@ function normalize(d){
   // Wave 2：继续看是正式功能默认开；自动连播会加快时长消耗，默认关，由家长自己打开
   if (F.continueWatching === undefined) F.continueWatching = true;
   if (F.autoNext === undefined) F.autoNext = false;
+  // Wave 3：周报只读、不改行为，默认开；关掉只是把设置页顶部的入口收起来
+  if (F.report === undefined) F.report = true;
   // 文本域用这个虚拟字段；以 _ 开头，保存时会被 cleanKeys 自动剔除
   A._entriesText = A.entries.map(e => typeof e === "string" ? e :
     ((e && e.package ? e.package : "") + (e && e.label ? " | " + e.label : "")))
@@ -364,6 +367,8 @@ function payload(){
     if (Array.isArray(d.schedule.weekend))
       d.schedule.weekend = d.schedule.weekend.filter(x => String(x).trim());
     d.schedule.dailyLimitMinutes = Number(d.schedule.dailyLimitMinutes) || 0;
+    d.schedule.rewardMinutes = Math.min(120, Math.max(0, Number(d.schedule.rewardMinutes) || 0));
+    if (!d.schedule.rewardMinutes) delete d.schedule.rewardMinutes;
   }
   (d.sections || []).forEach(s=>{
     if (s.auto && !s.auto.folder) delete s.auto;
@@ -643,6 +648,7 @@ function renderRules(){
     }
     h += '<div class="fields" style="margin-top:16px">' +
       "<label>每天最多（分钟，0 = 不限）<input type=\"number\" data-type=\"number\" data-bind=\"schedule.dailyLimitMinutes\" value=\"" + esc(sch.dailyLimitMinutes) + "\"></label>" +
+      "<label>做完任务奖励（分钟，0 = 不加时）<input type=\"number\" data-type=\"number\" data-bind=\"schedule.rewardMinutes\" value=\"" + esc(sch.rewardMinutes || 0) + "\"></label>" +
       "<label>锁屏提示语<input data-bind=\"schedule.lockMessage\" value=\"" + esc(sch.lockMessage) + "\"></label>" +
       "</div>" +
       '<div class="rowbtn"><button class="tiny" data-act="preset" data-v="school">平时 17:30-20:30 / 周末放宽</button>' +
@@ -682,6 +688,7 @@ function renderRules(){
     chk("features.remoteControl", "远程控制：电视每 15 秒读同目录的 control.json", F.remoteControl === true) +
     chk("features.continueWatching", "继续看：首页顶部显示最多 5 条没看完的进度", F.continueWatching !== false) +
     chk("features.autoNext", "自动连播：剧集页点开后，一集播完 5 秒倒计时接着播下一集", F.autoNext === true) +
+    chk("features.report", "本周报告：家长控制页顶部显示「本周报告」入口", F.report !== false) +
     '<p class="empty">「后台拉回」关掉后按 Home / 切到别的应用不再被拉回，「主界面拦截返回键」和时段锁屏照旧；' +
     '只有在个别电视上拉回会和投屏、系统弹窗打架时才关。<br>' +
     '「外部应用计时」默认开：曾经孩子从应用入口进优酷 2 小时不进账，50 分钟上限永远触发不了。' +

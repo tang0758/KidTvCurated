@@ -22,6 +22,8 @@ data class Schedule(
     val weekday: List<TimeWindow> = emptyList(),
     val weekend: List<TimeWindow> = emptyList(),
     val dailyLimitMinutes: Int = 0,
+    /** 当日必看全部完成后，额外加到「今天上限」上的分钟数；0 = 关闭（OPT-10） */
+    val rewardMinutes: Int = 0,
     val lockMessage: String = "到点啦，先去玩会儿别的吧",
     val pin: String = "1234"
 ) {
@@ -37,6 +39,8 @@ data class Schedule(
         put("weekday", JSONArray().also { a -> weekday.forEach { a.put("${hm(it.startMin)}-${hm(it.endMin)}") } })
         put("weekend", JSONArray().also { a -> weekend.forEach { a.put("${hm(it.startMin)}-${hm(it.endMin)}") } })
         put("dailyLimitMinutes", dailyLimitMinutes)
+        // 只在配置了才写回，避免给所有老片单凭空加一个字段（还原/比对时看着像改过）
+        if (rewardMinutes > 0) put("rewardMinutes", RewardMath.clampReward(rewardMinutes))
         put("lockMessage", lockMessage)
         put("pin", pin)
     }.toString()
@@ -56,6 +60,7 @@ data class Schedule(
                 weekday = wd,
                 weekend = we,
                 dailyLimitMinutes = o.optInt("dailyLimitMinutes", 0),
+                rewardMinutes = RewardMath.clampReward(o.optInt("rewardMinutes", 0)),
                 lockMessage = o.optString("lockMessage", "到点啦，先去玩会儿别的吧").ifBlank { "到点啦" },
                 pin = o.optString("pin", "1234").ifBlank { "1234" }
             )

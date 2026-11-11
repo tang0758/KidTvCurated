@@ -25,6 +25,7 @@ import com.family.curated.data.KioskKeys
 import com.family.curated.data.Playlist
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Repo
+import com.family.curated.data.RewardMath
 import com.family.curated.data.Section
 import com.family.curated.data.StateBackup
 import com.family.curated.data.StateMerge
@@ -334,10 +335,12 @@ class MainActivity : AppCompatActivity() {
             b.taskBar.visibility = View.GONE
         }
 
-        // 今天观看时长 / 每日上限
+        // 今天观看时长 / 每日上限（上限里可能含「完成必看」奖励出来的分钟数）
         val st = GateKeeper.status()
+        val bonusNote = RewardMath.bonusNote(st.bonusMinutes)
         b.tvTime.text = if (st.limitMinutes > 0)
-            "今天 ${st.usedMinutes}/${st.limitMinutes} 分钟"
+            "今天 ${st.usedMinutes}/${st.limitMinutes} 分钟" +
+                (if (bonusNote.isNotEmpty()) "（$bonusNote）" else "")
         else "今天 ${st.usedMinutes} 分钟"
 
         // 勋章小红点
@@ -348,13 +351,34 @@ class MainActivity : AppCompatActivity() {
         if (total > 0 && left == 0) {
             val first = !Extras.isCheckedIn(Extras.day())
             Extras.markCheckIn()
-            if (first && !celebratedToday) {
+            // OPT-10：完成必看 → 今天额度加时。奖励记在 bonus_<day> 上（不是临时放行窗口），
+            // 孩子先去吃饭、晚上回来看，这 N 分钟还在。一天只发一次。
+            val reward = grantRewardIfAny(total, left)
+            if (reward > 0) {
+                if (!celebratedToday) {
+                    celebratedToday = true
+                    Toast.makeText(
+                        this,
+                        "今天全部完成，奖励 $reward 分钟，可以多看一会儿啦",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    StateBackup.nudge("checkin")
+                }
+            } else if (first && !celebratedToday) {
                 celebratedToday = true
                 Toast.makeText(this, "太棒了！今天已打卡，去「我的奖励」看看新勋章", Toast.LENGTH_LONG).show()
                 // 每日首次打卡立刻存一次档：这是记录最有价值的那一天（OPT-09）
                 StateBackup.nudge("checkin")
             }
         }
+    }
+
+    /** 发完成奖励，返回今天累计的奖励分钟数；不该发 / 已发过返回 0 */
+    private fun grantRewardIfAny(total: Int, left: Int): Int {
+        val reward = Extras.schedule()?.rewardMinutes ?: 0
+        if (!RewardMath.shouldGrant(reward, total, left, Extras.rewardGiven())) return 0
+        Extras.markRewardGiven()
+        return Extras.grantBonus(reward)
     }
 
     private fun openRewards() {

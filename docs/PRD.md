@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.5（Wave 3 首批：OPT-09 落地后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-11 下午） |
+| 文档版本 | V1.6（Wave 3 收口：OPT-08 / OPT-10 落地后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 傍晚） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 进行中（OPT-09 已完成），见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（26.6 MB，versionCode 6 / versionName 1.5）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（25.3 MB，versionCode 7 / versionName 1.6）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -769,6 +769,51 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 
 ---
 
+#### FR-31 电视端周报（P1）✅ 代码完成，实机待验（2026-11-11 新增，Wave 3）
+
+**描述**：家长在沙发上就能回答「这周看了多久、哪几集反复看、有没有看到一半就跑」，
+不用开电脑、也不查 NAS。只做电视端，**不做网页端**（数据在电视本地，多一套网页就多一套鉴权与读写）。
+
+**入口**：家长控制页顶部「概览 → 本周报告」（PIN 之后）；受 `features.report` 控制，默认开 ——
+这一页只读、不改任何行为，出问题时关掉开关即可收起入口。
+
+**内容**（数据全部来自本地，无新埋点、不读 NAS）：
+1. **本周 7 天条形图**（周一 → 周日）：每根柱子两段 —— 小剧场时长（金色）+ 第三方应用时长（蓝色，读 `ext_<day>`）；
+   每日上限画成虚线，今天加描边；未来日期画底色轨道。纵轴至少覆盖上限，向上取整到 15 分钟。
+2. **打卡**：当前连击、最长连击、本周盖章天数、累计打卡 / 累计看完。
+3. **反复看**：本周被点开过 ≥2 天的片子（最多 3 部）。日期维度来自 `wplay_<day>`（每天一个 key 集合，同一部同一天只记一次，只留 14 天）；
+   标题优先用清单缓存里家长自填的，片子已移出清单时退化为文件名。
+4. **看到一半**：进度在 5%–60% 的片子（最多 2 部），按最近点开排序。
+
+**空状态**：一条记录都没有时显示「这周还没有记录」，**不显示一排 0** ——
+0 会被读成「孩子一分钟没看」，而实际可能只是今天刚装好。
+
+**AC**：数字与 `run-as` 读到的 `kid_extras` 一致；有第三方应用时长时柱子出现蓝色上段并在图例中标明；
+没有记录时是空状态；本周一打开时平均时长按「有记录的天」算（不被未来 6 天拉低）。
+
+---
+
+#### FR-32 完成必看自动奖励加时（P2）✅ 代码完成，实机待验（2026-11-11 新增，Wave 3）
+
+**描述**：`schedule.rewardMinutes`（默认 0 = 关闭，上限 120）。当日必看全部完成 → 今天的**额度**加 N 分钟，
+并提示「今天全部完成，奖励 10 分钟，可以多看一会儿啦」。
+
+**为什么不复用「临时放行」**：临时放行是「从此刻开始倒计时」的窗口，家长再点一次放行就会覆盖它；
+孩子做完任务先去吃饭、晚上回来再看，那 10 分钟已经过期 —— 那不叫奖励。
+所以奖励写进当天额度 `bonus_<day>`，与手动放行（`tempUntil`）分开计数，谁也不会覆盖谁。
+
+**四条边界**：
+1. **只加额度不改时段**：时段外奖励再多也进不去；
+2. **一天只发一次**：`reward_<day>` 标记，重绘 / 切页面不会重复发；
+3. **只升不降**：当天把 10 调成 20 就是 20，不是 30（`RewardMath.bonusAfter` 取大值）；
+4. **没有必看分区时不发**：`gateTotal == 0` 视为「没有任务」，否则等于天天白送时间；
+   基础上限为 0（不限制）时 `0 + 10` 仍按不限制处理，不能凭空造出一个 10 分钟上限。
+
+**AC**：配 10 分钟后完成全部必看，首页时长显示 `x/(上限+10) 分钟（含奖励 10 分钟）`；
+再刷新一次不重复发；把上限改成 0（不限制）后奖励不产生限额；改电视日期拿不到第二天的奖励。
+
+---
+
 ## 9. 关键业务规则（实现契约）
 
 | ID | 规则 | 说明 / 边界 |
@@ -805,6 +850,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-30 | 动态分区的 key 仍路径派生 | 「继续看」分区 key 固定 `p:continue`，但分区内条目一律沿用原 key；`Store.notePlayed()` 与进度落盘分开，避免排序错位 |
 | R-31 | 备份不得把记录弄小 | `StateMerge.merge` 同键取大值、打卡取并集；导入幂等，重复导 / 导一半断电再导都不会让记录变小。因此它不能用来「回退」，回退只走设置页的显式路径 |
 | R-32 | `pm clear` 后仍读得到备份 | 清数据会连 `nas_*` 一起清空，`StateBackup` 与 `Repo.load()` 一样退回 `Store.DEFAULT_NAS`；否则「重装能恢复」是空话。另外本地快照为空时绝不回写 |
+| R-33 | 奖励记额度、不记放行 | 完成必看的奖励写 `bonus_<day>` 并加到当天上限（`GateKeeper.limit`），**不得**复用 `tempUntil` —— 放行窗口会过期、会被下一次手动放行覆盖；日期键走 `ClockGuard.day()` |
+| R-34 | 周报只读且不读 NAS | 周报所有数字来自本地 prefs；`ext_<day>` 必须夹到不超过 `watch_<day>`（防手改后画出负段）；没有数据就显示空状态，不显示 0；平均只按有记录的天算 |
 
 ---
 
@@ -819,12 +866,12 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `pin` | string | 否 | 家长密码，默认 `1234` |
 | | `passRatio` | number | 否 | 看完比例，默认 0.92 |
 | | `sections` | array | 是 | 分区数组，顺序即电视上下顺序 |
-| | `schedule` | object | 否 | `enabled/weekday/weekend/dailyLimitMinutes/lockMessage` |
+| | `schedule` | object | 否 | `enabled/weekday/weekend/dailyLimitMinutes/rewardMinutes/lockMessage` |
 | | `learning` | object | 否 | `enabled/intervalSeconds/order/useBuiltin/stage/stageSize/artFolder/artShare/custom` |
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
-| | `features` | object | 否 | 远程功能开关，见 FR-21～FR-29 / FR-30；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` / `continueWatching` 开，`remoteControl` / `autoNext` / `report` 关） |
+| | `features` | object | 否 | 远程功能开关，见 FR-21～FR-29 / FR-30；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` / `continueWatching` 开，`remoteControl` / `autoNext` 关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
 | | `icon` | string | 否 | 内置图标名 `none/star/play/book/heart/game/moon`，见 FR-29；不写 = 不显示 |
 | | `title` | string | 是 | 行标题 |
@@ -1068,6 +1115,10 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-45 | 自动备份 | 正常看过一段时间 | 退到后台 / 等 5 分钟 | NAS 出现 `state.json`，`stamps` 与 `watch_*` 与本地一致（FR-30） |
 | TC-46 | 重装恢复用量 | 记下今日已用时长后 `pm clear` | 重启 App | 本地 `watch_<day>` 自动回到原值；超限则直接锁屏（FR-30 / R-32） |
 | TC-47 | 空备份保护 | 清数据后不选恢复 | 等一轮自动备份 | 日志为「本地没有任何记录，跳过备份」，NAS 上的 `state.json` 未被改写（R-32） |
+| TC-48 | 周报数字对账 | 看 30 分钟（其中 10 分钟从应用入口进优酷）后打开周报 | 今日柱子 = 30 分钟且上段蓝色 = 10 分钟；图例、上限虚线、打卡天数与 `run-as` 读到的 prefs 一致（FR-31） |
+| TC-49 | 周报空状态 | 装好 App 但今天一次没看 | 显示「这周还没有记录」+ 提示语，**不出现一排 0 或空白图**（FR-31 / R-34） |
+| TC-50 | 完成奖励加时 | 配 `rewardMinutes: 10`，把必看全部看完 | 提示「奖励 10 分钟」；首页变 `x/(上限+10) 分钟（含奖励 10 分钟）`；再切回首页不重复提示、额度不再涨（FR-32 / R-33） |
+| TC-51 | 奖励不越权 | 上限设为 0（不限制）或必看分区为空时配 `rewardMinutes` | 前者仍显示「今天 x 分钟」不产生限额；后者不发奖励（`gateTotal == 0`）（FR-32） |
 
 ### 15.4 异常与恢复用例
 
@@ -1097,6 +1148,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-22 | NAS 写保护时改设置 | 给 `tv.json` 加只读属性后在电视上改「时段限制」 | 留在原页 + 红色错误条 + `unsynced_*`；本机与 NAS 都是旧值，不静默回滚；解除保护后可重放或放弃（FR-25） |
 | EX-23 | 连播途中限额到点 | 开着 `autoNext`，把 `dailyLimitMinutes` 改到小于已用量 | 清单同步后 1 秒内前台变 `LockActivity`，不启动下一集；`AutoNext.allowed(gateOpen=false)` 单测覆盖（FR-26 / R-28） |
 | EX-24 | 卸载重装 / `pm clear` 清零 | 记录今日已用时长后清数据并重启 | 用量自动补回、打卡与进度经确认恢复；不出现「重装白送一段额度」（FR-30 / R-31） |
+| EX-25 | 奖励当天被重复触发 | 完成必看拿到奖励后，家长在设置页把奖励从 10 改成 20，再刷新首页 | 额度变成「上限+20」而不是 +30；`reward_<day>` 已在，不再二次发奖（FR-32 / R-33） |
+| EX-26 | 周报里的坏数据 | 手工把 `ext_<day>` 改成大于 `watch_<day>` | 柱子上段被夹到整段，不出现负数段、不崩（FR-31 / R-34） |
 
 > 编号说明：ROADMAP 第 10 节最初的提案把 EX-14 / EX-15 预留给 Wave 1，但 OPT-04 提前落地时
 > 本表已用 EX-14～EX-20 登记外部应用计时的用例。V1.5 起以本表为准，Wave 1 顺延为 EX-21 / EX-22。

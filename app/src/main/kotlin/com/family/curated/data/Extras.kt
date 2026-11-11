@@ -93,6 +93,9 @@ object Extras {
 
     fun extMsToday(): Long = p().getLong("ext_" + day(), 0L)
 
+    /** 某天里第三方应用那段（周报里画成条形图的第二段） */
+    fun extMsOn(dayKey: String): Long = p().getLong("ext_$dayKey", 0L)
+
     /**
      * 记账。ms 可以是负数（退预扣），结果不会小于 0。
      * [ext] = 这段时长来自外部应用（应用入口），另记一份明细到 `ext_<day>`。
@@ -128,9 +131,49 @@ object Extras {
 
     fun videosToday(): Int = p().getInt("vids_" + day(), 0)
 
+    /** 某天看了几个（周报用） */
+    fun videosOn(dayKey: String): Int = p().getInt("vids_$dayKey", 0)
+
     fun addVideo() {
         val k = "vids_" + day()
         p().edit().putInt(k, p().getInt(k, 0) + 1).apply()
+    }
+
+    // ---------- 本周点开过哪些片子（OPT-08 周报「反复看」） ----------
+    //
+    // 每天一个字符串集合 `wplay_<day>`，元素是条目的路径派生 key。
+    // 为什么不直接给每个 key 记次数：次数没有日期，算不出「这周」；
+    // 一天一个集合既能算「这周点开了几天」，也天然按天过期。
+    // 只保留最近 14 天（周报最多看 7 天，留点余量），不会无限长大。
+
+    fun notePlayedVideo(key: String) {
+        if (key.isBlank()) return
+        val k = "wplay_" + day()
+        val cur = p().getStringSet(k, null)
+        val set = HashSet(cur ?: emptySet())
+        if (!set.add(key)) return
+        val e = p().edit().putStringSet(k, set)
+        e.apply()
+        if (cur == null) trimPlayDays()
+    }
+
+    private fun trimPlayDays(keep: Int = 14) {
+        val keys = p().all.keys.filter { it.startsWith("wplay_") }.sorted()
+        if (keys.size <= keep) return
+        val e = p().edit()
+        keys.dropLast(keep).forEach { e.remove(it) }
+        e.apply()
+    }
+
+    /** 给定几天，统计每个 key 在这几天里被点开过几天（≥2 才算「反复看」） */
+    fun playedDaysOn(days: List<String>): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        days.forEach { d ->
+            p().getStringSet("wplay_$d", emptySet())?.forEach { k ->
+                out[k] = (out[k] ?: 0) + 1
+            }
+        }
+        return out
     }
 
     fun videosTotal(): Int = p().all
@@ -266,6 +309,33 @@ object Extras {
 
     fun markNoticeFired(tag: String) =
         p().edit().putBoolean("notice_${day()}_$tag", true).apply()
+
+    // ---------- 完成必看奖励加时（OPT-10） ----------
+    //
+    // 记在「今天的额度」上（bonus_<day>），不是临时放行窗口：
+    // 孩子做完任务可能先去吃饭，回来时那 10 分钟还应该在。
+    // 键名带日期 → 必须走 ClockGuard.day()，改电视日期骗不到明天的奖励。
+
+    /** 今天因为完成必看而多出来的分钟数 */
+    fun bonusMinutes(dayKey: String = day()): Int = p().getInt("bonus_$dayKey", 0)
+
+    /** 今天已经发过奖励了吗（一天只发一次，不随重绘重复弹提示） */
+    fun rewardGiven(dayKey: String = day()): Boolean = p().getBoolean("reward_$dayKey", false)
+
+    fun markRewardGiven(dayKey: String = day()) =
+        p().edit().putBoolean("reward_$dayKey", true).apply()
+
+    /** 加时只加不退；返回加完之后今天的奖励分钟数 */
+    fun grantBonus(minutes: Int, dayKey: String = day()): Int {
+        val cur = bonusMinutes(dayKey)
+        val next = RewardMath.bonusAfter(cur, minutes)
+        if (next > cur) p().edit().putInt("bonus_$dayKey", next).apply()
+        return next
+    }
+
+    /** 今天实际生效的上限（含奖励）。基础 0 = 不限制，加时无意义 */
+    fun limitMinutesToday(baseMinutes: Int): Int =
+        RewardMath.limitWith(baseMinutes, bonusMinutes())
 
     // ---------- 记录备份（OPT-09） ----------
 

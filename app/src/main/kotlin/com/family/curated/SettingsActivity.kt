@@ -23,6 +23,7 @@ import com.family.curated.data.PlaylistSync
 import com.family.curated.data.PlaylistWriter
 import com.family.curated.data.RemoteControl
 import com.family.curated.data.Repo
+import com.family.curated.data.RewardMath
 import com.family.curated.data.Schedule
 import com.family.curated.data.Smb
 import com.family.curated.data.StateBackup
@@ -145,6 +146,18 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val list = ArrayList<Entry>()
+        // OPT-08：周报是家长进这一页最想先看的东西，放在最上面。
+        // 走 features.report 开关（默认开）：这一页要是出问题，改一行 JSON 就能收起来。
+        if (Extras.feature("report")) {
+            list.add(Entry.Group("概览"))
+            list.add(
+                Entry.Row(
+                    "本周报告",
+                    "每天看了多久 / 打卡 / 反复看 / 看到一半",
+                    "打开 ›"
+                ) { openReport() }
+            )
+        }
         if (Store.hasUnsyncedEdit) {
             list.add(Entry.Group("未同步的修改"))
             list.add(
@@ -159,7 +172,9 @@ class SettingsActivity : AppCompatActivity() {
         list.add(
             Entry.Row(
                 "每日观看上限",
-                if (st.limitMinutes == 0) "现在不按分钟限制" else "到量自动锁屏",
+                if (st.limitMinutes == 0) "现在不按分钟限制"
+                else if (st.bonusMinutes > 0) "今天完成奖励已加 ${st.bonusMinutes} 分钟"
+                else "到量自动锁屏",
                 if ((sch?.dailyLimitMinutes ?: 0) > 0) "${sch!!.dailyLimitMinutes} 分钟" else "不限制"
             ) { chooseLimit() }
         )
@@ -183,6 +198,14 @@ class SettingsActivity : AppCompatActivity() {
                 if (sch?.enabled == true) "按上面的时段执行" else "完全不受时段限制",
                 if (sch?.enabled == true) "开启" else "关闭"
             ) { toggleSchedule() }
+        )
+        list.add(
+            Entry.Row(
+                "完成奖励",
+                if ((sch?.rewardMinutes ?: 0) > 0) "必看全部完成，今天额度多加 ${sch!!.rewardMinutes} 分钟"
+                else "已关闭：做完任务不加时",
+                if ((sch?.rewardMinutes ?: 0) > 0) "+${sch!!.rewardMinutes} 分钟" else "关闭"
+            ) { chooseReward() }
         )
 
         list.add(Entry.Group("规则"))
@@ -310,6 +333,14 @@ class SettingsActivity : AppCompatActivity() {
                 if (Extras.feature("autoNext")) "开启" else "关闭"
             ) { toggleAutoNext() }
         )
+        list.add(
+            Entry.Row(
+                "本周报告",
+                if (Extras.feature("report")) "设置页顶部显示「本周报告」入口"
+                else "已关闭：不显示周报入口",
+                if (Extras.feature("report")) "开启" else "关闭"
+            ) { toggleReport() }
+        )
         val anomalies = ClockGuard.anomalyCount()
         if (anomalies > 0 || ClockGuard.frozen()) {
             list.add(
@@ -394,6 +425,10 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun hhmm(min: Int) = String.format("%02d:%02d", min / 60, min % 60)
 
+    private fun openReport() {
+        startActivity(android.content.Intent(this, ReportActivity::class.java))
+    }
+
     // ---------------- 写回 NAS ----------------
 
     /**
@@ -443,6 +478,8 @@ class SettingsActivity : AppCompatActivity() {
             putWindows(o, "weekday", next.weekday)
             putWindows(o, "weekend", next.weekend)
             o.put("dailyLimitMinutes", next.dailyLimitMinutes)
+            if (next.rewardMinutes > 0) o.put("rewardMinutes", next.rewardMinutes)
+            else o.remove("rewardMinutes")
             o.put("lockMessage", next.lockMessage)
             if (next.pin.isNotBlank()) o.put("pin", next.pin)
         }, { Extras.saveSchedule(next) }, label)
@@ -468,6 +505,60 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    /**
+     * 完成必看自动加时（OPT-10）。写进 schedule.rewardMinutes，0 = 关闭。
+     * 注意它加的是「今天的上限」，不是临时放行窗口：做完任务先去吃饭，
+     * 晚上回来这 N 分钟还在。家长手动放行（上面的「临时放行」）是另一套计数，互不覆盖。
+     */
+    private fun chooseReward() {
+        val cur = Extras.schedule()?.rewardMinutes ?: 0
+        val values = (listOf(0, 5, 10, 15, 20, 30) + cur).distinct().sorted()
+        val labels = values.map { if (it == 0) "关闭" else "奖励 $it 分钟" } + "自定义…"
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("完成必看奖励加时")
+            .setItems(
+                labels.mapIndexed { i, s -> (if (i < values.size && values[i] == cur) "✓ " else "   ") + s }
+                    .toTypedArray()
+            ) { _, which ->
+                if (which == values.size) askCustomReward(cur)
+                else updateSchedule("完成奖励") { it.copy(rewardMinutes = values[which]) }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun askCustomReward(cur: Int) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "分钟数，0 = 关闭（最多 ${RewardMath.MAX_REWARD_MINUTES}）"
+            if (cur > 0) setText(cur.toString())
+            setSelection(text.length)
+            setTextColor(0xFFF2F4F8.toInt())
+            setHintTextColor(0xFF7C8797.toInt())
+            textSize = 20f
+            setPadding(40, 24, 40, 24)
+        }
+        val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("完成后奖励几分钟")
+            .setView(input)
+            .setPositiveButton("保存") { _, _ ->
+                val v = input.text.toString().trim().toIntOrNull()
+                if (v == null || v < 0 || v > RewardMath.MAX_REWARD_MINUTES) {
+                    Toast.makeText(
+                        this,
+                        "请输入 0~${RewardMath.MAX_REWARD_MINUTES} 之间的分钟数",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@setPositiveButton
+                }
+                updateSchedule("完成奖励") { it.copy(rewardMinutes = v) }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        dialog.show()
+        ParentTools.submitOnEnter(input, dialog)
     }
 
     private fun askCustomLimit(cur: Int) {
@@ -712,6 +803,9 @@ class SettingsActivity : AppCompatActivity() {
     /** 默认关：连播会让时长消耗明显变快，家长要自己决定要不要打开 */
     private fun toggleAutoNext() = toggleFeature("autoNext", "自动连播")
 
+    /** 周报只读、不改变任何行为，默认开；万一某个电视上渲染出问题，这里一键收起入口 */
+    private fun toggleReport() = toggleFeature("report", "本周报告")
+
     /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
     private fun showAbout() {
         val names = linkedMapOf(
@@ -721,7 +815,7 @@ class SettingsActivity : AppCompatActivity() {
             "remoteControl" to "远程控制",
             "continueWatching" to "首页继续看",
             "autoNext" to "自动连播",
-            "report" to "周报（占位）"
+            "report" to "本周报告"
         )
         val switches = names.entries.joinToString("\n") { (k, label) ->
             "$label：${if (Extras.feature(k)) "开" else "关"}"

@@ -17,7 +17,9 @@ object GateKeeper {
         val detail: String,
         val secondsLeft: Long,
         val usedMinutes: Int,
-        val limitMinutes: Int
+        val limitMinutes: Int,
+        /** 今天的上限里有多少是「完成必看」奖励出来的（OPT-10），界面用来解释为什么比配置的大 */
+        val bonusMinutes: Int = 0
     )
 
     fun status(now: Long = ClockGuard.now()): Status {
@@ -25,6 +27,9 @@ object GateKeeper {
         // 含还没落盘的零头：否则「到点」最多会晚 10 秒，孩子能多看一眼
         val usedMs = WatchClock.todayMs()
         val usedMin = (usedMs / 60_000L).toInt()
+        // 完成必看的奖励直接加在今天上限上（不是临时放行窗口），和手动放行分开计
+        val bonus = Extras.bonusMinutes()
+        val limit = RewardMath.limitWith(sch?.dailyLimitMinutes ?: 0, bonus)
 
         // 家长在手机上点了「立即锁屏」：优先级最高，时段 / 临时放行都不能盖过它。
         // 只清 tempUntil 不留下这个状态的话，下一秒 KidApp 就会把刚弹出的锁屏 finish 掉。
@@ -33,20 +38,19 @@ object GateKeeper {
             return Status(
                 false, Reason.REMOTE, "家长已暂停观看",
                 "家长点了「立即锁屏」。在电视上按菜单键 → PIN → 临时放行，即可解除",
-                remoteLeft / 1000L, usedMin, sch?.dailyLimitMinutes ?: 0
+                remoteLeft / 1000L, usedMin, limit, bonus
             )
         }
 
         if (sch == null || !sch.enabled) {
-            return Status(true, Reason.OK, "", "", 0L, usedMin, 0)
+            return Status(true, Reason.OK, "", "", 0L, usedMin, 0, 0)
         }
-        val limit = sch.dailyLimitMinutes
         val tempLeft = Extras.tempRemainingMs()
         if (tempLeft > 0L) {
             return Status(
                 true, Reason.TEMP, "临时放行中",
                 "家长已临时放行，剩余 ${(tempLeft / 60_000L) + 1} 分钟",
-                tempLeft / 1000L, usedMin, limit
+                tempLeft / 1000L, usedMin, limit, bonus
             )
         }
 
@@ -59,7 +63,7 @@ object GateKeeper {
             val next = nextOpening(sch, now, includeToday = true)
             return Status(
                 false, Reason.OUTSIDE, "现在不是看片时间", sch.lockMessage,
-                ((next - now) / 1000L).coerceAtLeast(0L), usedMin, limit
+                ((next - now) / 1000L).coerceAtLeast(0L), usedMin, limit, bonus
             )
         }
 
@@ -67,12 +71,13 @@ object GateKeeper {
             val next = nextOpening(sch, now, includeToday = false)
             return Status(
                 false, Reason.LIMIT, "今天的时间用完啦",
-                "今天已经看了 $usedMin 分钟，明天再来吧",
-                ((next - now) / 1000L).coerceAtLeast(0L), usedMin, limit
+                if (bonus > 0) "今天已经看了 $usedMin 分钟（含奖励 $bonus 分钟），明天再来吧"
+                else "今天已经看了 $usedMin 分钟，明天再来吧",
+                ((next - now) / 1000L).coerceAtLeast(0L), usedMin, limit, bonus
             )
         }
 
-        return Status(true, Reason.OK, "", "", 0L, usedMin, limit)
+        return Status(true, Reason.OK, "", "", 0L, usedMin, limit, bonus)
     }
 
     /** 找下一个「可以开始看」的时刻 */

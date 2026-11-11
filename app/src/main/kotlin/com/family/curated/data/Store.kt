@@ -213,6 +213,22 @@ object Store {
         sp.edit().putLong("dur_$key", ms.coerceAtLeast(0L)).apply()
     }
 
+    /**
+     * 全量播放进度，给周报找「看到一半就退出」用（OPT-08）。
+     * 只返回 pos/dur 都有效的条目：老版本只存了 `pos_` 的那几条算不出比例。
+     */
+    fun allProgress(): List<ReportMath.Progress> {
+        val all = sp.all
+        return all.entries.mapNotNull { (k, v) ->
+            if (!k.startsWith("pos_") || v !is Long || v <= 0L) return@mapNotNull null
+            val key = k.removePrefix("pos_")
+            val dur = (all["dur_$key"] as? Long) ?: 0L
+            if (dur <= 0L) return@mapNotNull null
+            val played = (all["played_$key"] as? Long) ?: 0L
+            ReportMath.Progress(key, v, dur, played)
+        }
+    }
+
     // ---------- 最近看过（OPT-12 首页「继续看」） ----------
     /**
      * 记一次「真的点开看过」。不复用 setProgress 的写入时间：进度在暂停、退出、

@@ -9,5 +9,7 @@
     <color name="accent">#FFC44D</color>
     <color name="accent_dim">#8A6A20</color>
     <color name="done_green">#3DD68C</color>
+    <!-- 周报里「第三方应用」那一段；和金色区分开，避免两段糊成一根柱子 -->
+    <color name="ext_blue">#6C8CFF</color>
     <color name="lock_gray">#3A3F4A</color>
 </resources>

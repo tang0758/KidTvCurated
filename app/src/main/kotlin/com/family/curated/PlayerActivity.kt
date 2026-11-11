@@ -138,6 +138,8 @@ class PlayerActivity : AppCompatActivity() {
         queueIndex = intent.getIntExtra(AutoNext.EXTRA_QUEUE_INDEX, -1)
         // OPT-12：只在真的点开一次时记「最近看过」，不拿进度落盘时间当排序依据
         Store.notePlayed(key)
+        // OPT-08：周报要按「这周点开过几天」算反复看，点开就记一次（同一天同一部只记一次）
+        Extras.notePlayedVideo(key)
 
         val cfg = Store.nas()
         if (cfg == null) {
