@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 |---|---|
 | 产品 | 小剧场 · KidTvCurated |
-| 文档 | 优化计划 V1.6 |
-| 日期 | 2026-11-10（最后更新 2026-11-11 凌晨） |
+| 文档 | 优化计划 V1.7 |
+| 日期 | 2026-11-10（最后更新 2026-11-11 下午） |
 | 基线 | `main` @ `3e7193b` |
 | 输入 | [PRD](PRD.md) 的风险与待办、[用户使用说明书](用户使用说明书.md) 的常见问题、一次代码评审结论、[外部应用计时方案对比](外部应用计时方案对比.md) 与 [ADR-01](ADR-外部应用计时.md) |
 | 目标 | 从「能用」到「可信 + 有反馈」：规则绕不过、数据丢不了、家长看得见 |
@@ -199,7 +199,7 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 | 编号 | 项 | 依赖 | 估时 |
 |---|---|---|---|
 | OPT-08 | 周报页 `ReportActivity`（**电视端**） | OPT-01 | 2 |
-| OPT-09 | 打卡与进度备份 `state.json` | OPT-02 | 1.5 |
+| OPT-09 | 打卡与进度备份 `state.json` 🟡 | OPT-02 | 1.5 |
 | OPT-10 | 完成必看自动奖励加时 | OPT-06 | 1 |
 
 ### OPT-08 周报页（电视端）
@@ -212,7 +212,8 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 
 ### OPT-09 打卡与进度备份
 
-- **做法**：`Extras` 增加 `exportState()/importState()`，序列化 `stamps`、`front_*`、`pos_*`、`watch_*` 到 `data:curated/state.json`；触发时机：应用退到后台、每 5 分钟、每日首次打卡。冷启动若本地 `stamps` 为空且 NAS 有备份 → 提示家长「恢复上次记录」而不是静默导入。
+- **做法**：`Extras` 增加 `exportState()/importState()`，序列化 `stamps`、`front_*`、`pos_*`、`watch_*` 到 `data:curated/state.json`
+  （落地时落在 `StateBackup` + 纯逻辑 `StateMerge`，`Extras` 只提供快照读写，见第 14 节）；触发时机：应用退到后台、每 5 分钟、每日首次打卡。冷启动若本地 `stamps` 为空且 NAS 有备份 → 提示家长「恢复上次记录」而不是静默导入。
 - **理由**：卸载重装/恢复出厂会把 30 天连续记录清零——数据上无所谓，对孩子的意义不一样。
 - **验收**：`pm clear` 后重启，能把打卡墙恢复。
 
@@ -363,8 +364,10 @@ graph LR
 3. ~~按 [ADR-01](ADR-外部应用计时.md) 实施 OPT-04~~ ✅ **提前完成**（实机缺陷驱动，发 `versionCode 3 / v1.2`），见第 14 节。
 4. ~~Wave 1 的 OPT-05 / OPT-06 / OPT-07~~ ✅ 已完成并实机验收，发 `versionCode 4 / v1.3`，见第 14 节。
 5. ~~Wave 2（孩子体验）~~ ✅ 已完成并实机验收，发 `versionCode 5 / v1.4`，见第 14 节。
-6. **下一步 = Wave 3（家长可感）**：OPT-08 周报页（电视端）、OPT-09 打卡与进度备份 `state.json`、
-   OPT-10 完成必看自动奖励加时。OPT-09 收口「重装清零」这条绕过路径，优先级最高。
+6. **Wave 3 进行中**：**OPT-09 打卡与进度备份已实现（`versionCode 6 / v1.5`），
+   实机 EX-13 待电视开机后补跑**（2026-11-11 16:00 电视离线，NAS 在线）。
+   之后是 OPT-08 周报页（电视端）与 OPT-10 完成必看自动奖励加时。
+   OPT-09 收口「重装清零」这条绕过路径，优先级最高。
 7. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
    结算实际走的是 `elapsedRealtime` 估算（ADR 第 13 节未决事项 1 已有实测结论）。
 8. 待补（非阻塞）：换一个长视频补验「主动按 OK 暂停」不计时；
@@ -571,3 +574,43 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 只读属性清除，`curated/` 只剩 `tv.json` / `tv.backup.json` / `covers`；电视三份 prefs
 （`curated_prefs` / `kid_extras` / `kid_clock`）还原为装 v1.4 之前的备份，`played_*` 与
 `continueWatching` 无残留，重启无崩溃，前台按正式时段规则停在 `LockActivity`（周二 00:30，时段外，预期）。
+
+### 2026-11-11 下午 · Wave 3 第一批：OPT-09 打卡与进度备份（`versionCode 6` / `v1.5`）
+
+**实现了什么**：`StateMerge`（纯逻辑）+ `StateBackup`（读写 NAS）+ `Extras` 快照读写 +
+`Store` 的备份状态键；`data:curated/state.json` 存打卡与进度，和片单分文件。
+
+**三个触发点**（按第 6 节设计）：退到后台（`KidApp.onActivityPaused` 里 `nudge`）、
+每 5 分钟（`KidApp.tick` 驱动）、每日首次打卡（`MainActivity` 打卡成功处 `nudge`）。
+全部复用 `PlaylistSync.submit()` 的同一条后台线程与 `Smb.writeIsolated()` 的独立短连接，
+不新增线程 / 定时器，也不抢正在供视频的那条主连接。
+
+**四条实现期定下的硬规矩**
+
+1. **本地记录为空时绝不回写**：重装后 5 分钟自动备份会拿空数据把 NAS 上的好备份冲掉。
+   `exportNow()` 在 `snapshot.isEmpty` 时直接返回，日志留一行「跳过备份」。
+2. **用量自动合回、打卡与进度要问家长**：`watch_` / `ext_` / `vids_` 决定今天还剩多少额度，
+   重装后归零等于白送一段（EX-13），必须静默补；`stamps` / `pos_` / `front_` 可能是家长
+   刚用「清空播放进度」故意清掉的，静默导入会把他的操作悄悄撤销，所以走确认弹窗。
+3. **`pm clear` 后仍要读得到备份**：清数据会把 `nas_*` 一起清空，`Store.nas()` 返回 null。
+   所以 `StateBackup.nasCfg()` 和 `Repo.load()` / `PlaylistSync` 一样退回 `Store.DEFAULT_NAS`
+   （内置地址与账号）——否则「重装能恢复」就是一句空话。
+4. **清空进度后立刻把空的写回 NAS**：`SettingsActivity` 的「清空播放进度」加了一次
+   `StateBackup.exportAsync("reset")`，否则下次恢复会把旧进度合回来，家长的操作等于没做。
+
+**合并策略**：只升不降 —— 同键取大值、打卡取并集（`StateMerge.merge`），
+于是导入天然幂等，重复导、导一半断电再导都不会把孩子的记录弄小；
+也意味着这套机制**不能**用来回退数据，回退只有设置页那条显式路径。
+
+**单测**：`StateMergeTest` 15 条（白名单前缀、日期校验、打卡去重与 400 天截断、
+负数/超长键过滤、只升不降、并集、幂等、`raised` 计数、`onlyUsage` / `onlyRecords`、
+何时该问家长、摘要文案）。累计 **66 条全绿**。
+
+**实机验证：待跑（阻塞在电视开机）**。2026-11-11 16:00 电视 `192.168.31.147` 离线
+（ARP 表里已消失，NAS `192.168.31.72` 正常），`adb connect` 超时。开机后要补：
+
+- EX-13：`pm clear com.family.curated` → 重启 App → 今日 `watch_<day>` 自动回补、
+  弹出「发现上次的观看记录」→ 点「恢复」后 `stamps` 与 `pos_*` 回来。
+- 空记录保护：清数据后先等一轮自动备份，确认日志是「跳过备份」而不是覆盖。
+- 家长入口：设置页「维护 → 记录备份」的「立即备份 / 从 NAS 恢复」。
+- 还原现场：`state.json` 删除、三份 prefs 还原、`appops` 的 `GET_USAGE_STATS` 重新授权。

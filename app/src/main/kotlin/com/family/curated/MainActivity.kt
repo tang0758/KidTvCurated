@@ -26,6 +26,8 @@ import com.family.curated.data.Playlist
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Repo
 import com.family.curated.data.Section
+import com.family.curated.data.StateBackup
+import com.family.curated.data.StateMerge
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityMainBinding
 import com.family.curated.ui.SectionsAdapter
@@ -349,6 +351,8 @@ class MainActivity : AppCompatActivity() {
             if (first && !celebratedToday) {
                 celebratedToday = true
                 Toast.makeText(this, "太棒了！今天已打卡，去「我的奖励」看看新勋章", Toast.LENGTH_LONG).show()
+                // 每日首次打卡立刻存一次档：这是记录最有价值的那一天（OPT-09）
+                StateBackup.nudge("checkin")
             }
         }
     }
@@ -451,6 +455,42 @@ class MainActivity : AppCompatActivity() {
         // 回到主界面时也提醒一次，不必等下一次清单变化（内部有 30 秒节流）
         if (Store.hasUnsyncedEdit) {
             b.root.post { ParentTools.showUnsyncedConflict(this) { updateHeader() } }
+        }
+        // 重装 / 恢复出厂后本地记录是空的，问一次要不要从 NAS 恢复（只问一次，OPT-09）
+        maybeOfferRestore()
+    }
+
+    /** 进程内只探一次 NAS 备份，别每次回主界面都读一遍 */
+    private var restoreChecked = false
+
+    private fun maybeOfferRestore() {
+        if (restoreChecked) return
+        restoreChecked = true
+        if (Extras.stamps().isNotEmpty()) return
+        if (Store.stateRestoreAsked) return
+        StateBackup.probe { snap ->
+            if (isFinishing || isDestroyed) return@probe
+            val s = snap ?: return@probe
+            if (!StateMerge.shouldPrompt(Extras.stamps().size, s)) return@probe
+            AlertDialog.Builder(this)
+                .setTitle("发现上次的观看记录")
+                .setMessage(
+                    "这台电视上的记录是空的，NAS 上有上次的备份：\n\n" +
+                        "${StateMerge.summary(s)}\n\n" +
+                        "恢复后打卡墙和播放进度会接上，今天已经看过的时间也会算回去。"
+                )
+                .setPositiveButton("恢复") { _, _ ->
+                    Toast.makeText(this, "正在恢复…", Toast.LENGTH_SHORT).show()
+                    StateBackup.importAsync { r ->
+                        if (isFinishing || isDestroyed) return@importAsync
+                        Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
+                        if (playlist != null) render(null)
+                        updateHeader()
+                    }
+                }
+                .setNeutralButton("稍后", null)
+                .setNegativeButton("不用了") { _, _ -> Store.stateRestoreAsked = true }
+                .show()
         }
     }
 

@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.4（Wave 2 落地后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-11 凌晨） |
+| 文档版本 | V1.5（Wave 3 首批：OPT-09 落地后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 下午） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 2 完成，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（26.6 MB，versionCode 5 / versionName 1.4）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 进行中（OPT-09 已完成），见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（26.6 MB，versionCode 6 / versionName 1.5）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -581,7 +581,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 - **每次冷启动**用缓存清单幂等重放一次 `applyToLocal()`：它原先只在清单内容变化时跑，升级 / 重装（保留数据）
   后本地会缺 `kiosk` / `features` 键，`Kiosk.enabled` 取默认 `false` 导致「被切走后拉回」全程不工作。
 - 改完 15 秒内经轮询生效，不重装 APK；网页控制台「规则」页可直接勾选，也可手改 JSON。
-- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.4(5)` 加构建时间。
+- 版本可见：`versionCode` 每 Wave 递增；`BuildConfig.BUILD_TIME` 编入构建时间；设置页页脚常显 `v1.5(6)` 加构建时间。
 
 **AC**
 1. 把 `features.kioskPullback` 改为 `false`，15 秒内按 Home 切走后不再被拉回；改回 `true` 同样 15 秒恢复。
@@ -744,6 +744,31 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 
 ---
 
+#### FR-30 打卡与进度备份 `state.json`（P0）🟡 代码完成，实机待验（2026-11-11 新增，Wave 3）
+
+**描述**：把打卡记录与播放进度备份到 NAS，卸载重装、恢复出厂或 `pm clear` 之后能接回来。
+它同时收口「重装清零」这条绕过路径 —— 清数据后今日已用时长归零，等于白送孩子一段额度。
+
+**范围**：`stamps`（打卡日期）、`watch_*` / `ext_*` / `vids_*`（时长账本）、
+`pos_*` / `dur_*` / `front_*` / `played_*`（进度、防跳看、最近点开）。
+设置类字段不进备份（那是 `tv.json` 的职责，混在一起迟早打架）。
+
+**存储**：`data:curated/state.json`，与 `tv.json` 同目录不同文件；格式见 10 节。
+写盘走独立短连接（`Smb.writeIsolated`），与片单轮询、播放供货互不影响。
+
+**触发**：应用退到后台、每 5 分钟、每日首次打卡；另有设置页「立即备份」。
+播放中只做被明确请求的那次（退后台 / 打卡），定时备份等播完再说。
+
+**三条硬规则**（实现契约见 R-31 / R-32）：
+1. 本地一条记录都没有时**绝不回写**，避免空数据冲掉 NAS 上的好备份；
+2. 用量（`watch_` / `ext_` / `vids_`）冷启动**自动**补回；打卡与进度**问过家长**再恢复；
+3. 合并**只升不降**（同键取大值、打卡取并集），导入幂等，重复导不会把记录弄小。
+
+**AC**：`pm clear` 后重启，今日 `watch_<day>` 自动回补；打卡墙经确认可恢复；
+「清空播放进度」之后再恢复不会把旧进度带回来。
+
+---
+
 ## 9. 关键业务规则（实现契约）
 
 | ID | 规则 | 说明 / 边界 |
@@ -778,6 +803,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-28 | 连播不得绕开门禁 | `autoNext` 只是体验开关；`maybeAutoNext()` 与倒计时每秒都查 `GateKeeper`，家长暂停 / 限额到点立刻停，`stopForLock()` 优先于连播 |
 | R-29 | 队列不占用 SMB 主连接 | 整季队列在剧集页一次编码、随 Intent 传递；播放结束不再列目录，避免半死连接把剧集页和播放一起挂住 |
 | R-30 | 动态分区的 key 仍路径派生 | 「继续看」分区 key 固定 `p:continue`，但分区内条目一律沿用原 key；`Store.notePlayed()` 与进度落盘分开，避免排序错位 |
+| R-31 | 备份不得把记录弄小 | `StateMerge.merge` 同键取大值、打卡取并集；导入幂等，重复导 / 导一半断电再导都不会让记录变小。因此它不能用来「回退」，回退只走设置页的显式路径 |
+| R-32 | `pm clear` 后仍读得到备份 | 清数据会连 `nas_*` 一起清空，`StateBackup` 与 `Repo.load()` 一样退回 `Store.DEFAULT_NAS`；否则「重装能恢复」是空话。另外本地快照为空时绝不回写 |
 
 ---
 
@@ -797,7 +824,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | | `kiosk` | object | 否 | `enabled/exitComponent/exitMinutes/reentryMs/blockBack/blockSystemKeys` |
 | | `apps` | object | 否 | `enabled/title/showAfterDaily/maxMinutes/entries` |
 | | `autoRefresh` | object | 否 | `enabled/intervalSeconds/followAppList` |
-| | `features` | object | 否 | 远程功能开关，见 FR-21～FR-29；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` / `continueWatching` 开，`remoteControl` / `autoNext` / `report` 关） |
+| | `features` | object | 否 | 远程功能开关，见 FR-21～FR-29 / FR-30；缺字段 = 默认值（`kioskPullback` / `extWatchMs` / `remainingNotice` / `continueWatching` 开，`remoteControl` / `autoNext` / `report` 关） |
 | 分区 | `key` | string | 是 | 唯一；`requires` 指向它 |
 | | `icon` | string | 否 | 内置图标名 `none/star/play/book/heart/game/moon`，见 FR-29；不写 = 不显示 |
 | | `title` | string | 是 | 行标题 |
@@ -830,6 +857,33 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | `good_wall` / `anomaly` | `kid_clock.xml` | 时钟守卫：最近可信墙上时间、时间跳变次数 |
 | `daymax_<day>` | 同上 | 当日用量历史最大值（只增不减，保留 30 天） |
 | `auto_refresh_*` / `playlist_apps_sig` | `curated_prefs.xml` | 轮询状态、apps 指纹 |
+| `state_saved_at` / `state_saved_reason` / `state_saved_bytes` | `curated_prefs.xml` | 上次备份时间、触发原因、字节数（设置页显示） |
+| `state_restore_asked` | 同上 | 家长已选「不用了」，别每次都弹恢复提示 |
+
+### 10.3 `state.json`（NAS：`data:/curated/state.json`）
+
+电视自动写的打卡与进度备份，**独立文件**，家长手改片单碰不坏它（见 FR-30）。
+明文 JSON，出问题可以直接打开看，删掉也会自动重新生成。
+
+```json
+{
+  "version": 1,
+  "savedAt": 1762851234567,
+  "savedAtText": "2026-11-11 16:05",
+  "note": "电视自动备份的打卡与播放进度，重装后可恢复；删掉也没关系，会重新生成",
+  "stamps": ["2026-11-09", "2026-11-10"],
+  "longs": {
+    "watch_2026-11-11": 1200000,
+    "ext_2026-11-11": 300000,
+    "pos_p:/cartoon/01.mp4": 480000,
+    "dur_p:/cartoon/01.mp4": 600000
+  }
+}
+```
+
+- `version` 大于本版 App 支持的值时整份忽略（旧 App 不猜新字段）。
+- `stamps` 只认 `yyyy-MM-dd`，最多 400 天；`longs` 只认白名单前缀、非负、键长 ≤200、最多 5000 项。
+- 读不到 / 写不进都只影响恢复能力，**不影响播放与门禁**。
 
 ---
 
@@ -1011,6 +1065,9 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-42 | 继续看不错位 | 播 20 秒后返回，再对调片单前两项 | 看首页 | 「继续看」仍指向同一张卡，key 不变（FR-27） |
 | TC-43 | 占位封面 | 给条目配不存在的 cover | 首页 + 快速左右 30 次 | `ivCover` 可见、`tvFallback` 隐藏，无 ANR / OOM（FR-28） |
 | TC-44 | 图标与进度条 | 分区配 `icon`、有 3 个必修条目 | 看首页 | 图标可见，显示「今天任务 0/3」与进度条（FR-29） |
+| TC-45 | 自动备份 | 正常看过一段时间 | 退到后台 / 等 5 分钟 | NAS 出现 `state.json`，`stamps` 与 `watch_*` 与本地一致（FR-30） |
+| TC-46 | 重装恢复用量 | 记下今日已用时长后 `pm clear` | 重启 App | 本地 `watch_<day>` 自动回到原值；超限则直接锁屏（FR-30 / R-32） |
+| TC-47 | 空备份保护 | 清数据后不选恢复 | 等一轮自动备份 | 日志为「本地没有任何记录，跳过备份」，NAS 上的 `state.json` 未被改写（R-32） |
 
 ### 15.4 异常与恢复用例
 
@@ -1039,6 +1096,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-21 | `control.json` 写坏 JSON | 写 `{ broken json oops`，同时改 `tv.json` 的限额 | 忽略坏指令、只记一条日志、不崩；片单限额仍在 15 秒内正常下发（FR-24） |
 | EX-22 | NAS 写保护时改设置 | 给 `tv.json` 加只读属性后在电视上改「时段限制」 | 留在原页 + 红色错误条 + `unsynced_*`；本机与 NAS 都是旧值，不静默回滚；解除保护后可重放或放弃（FR-25） |
 | EX-23 | 连播途中限额到点 | 开着 `autoNext`，把 `dailyLimitMinutes` 改到小于已用量 | 清单同步后 1 秒内前台变 `LockActivity`，不启动下一集；`AutoNext.allowed(gateOpen=false)` 单测覆盖（FR-26 / R-28） |
+| EX-24 | 卸载重装 / `pm clear` 清零 | 记录今日已用时长后清数据并重启 | 用量自动补回、打卡与进度经确认恢复；不出现「重装白送一段额度」（FR-30 / R-31） |
 
 > 编号说明：ROADMAP 第 10 节最初的提案把 EX-14 / EX-15 预留给 Wave 1，但 OPT-04 提前落地时
 > 本表已用 EX-14～EX-20 登记外部应用计时的用例。V1.5 起以本表为准，Wave 1 顺延为 EX-21 / EX-22。

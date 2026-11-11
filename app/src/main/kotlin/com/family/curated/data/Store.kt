@@ -176,6 +176,30 @@ object Store {
             .apply()
     }
 
+    // ---------- 打卡与进度备份 state.json（OPT-09） ----------
+
+    /** 上次成功备份的时间戳（0 = 还没备份过） */
+    var stateSavedAt: Long
+        get() = sp.getLong("state_saved_at", 0L)
+        set(v) = sp.edit().putLong("state_saved_at", v).apply()
+
+    /** 上次备份的触发原因（timer / background / checkin / manual），排查时看 */
+    var stateSavedReason: String
+        get() = sp.getString("state_saved_reason", "") ?: ""
+        set(v) = sp.edit().putString("state_saved_reason", v).apply()
+
+    var stateSavedBytes: Int
+        get() = sp.getInt("state_saved_bytes", 0)
+        set(v) = sp.edit().putInt("state_saved_bytes", v).apply()
+
+    /**
+     * 已经问过家长「要不要恢复上次记录」并得到了「不用了」。
+     * 这个键和记录本身一起被 `pm clear` 清掉，所以下次真清空时还会再问一次。
+     */
+    var stateRestoreAsked: Boolean
+        get() = sp.getBoolean("state_restore_asked", false)
+        set(v) = sp.edit().putBoolean("state_restore_asked", v).apply()
+
     // ---------- 播放进度 ----------
     fun progress(key: String): Long = sp.getLong("pos_$key", 0L)
 

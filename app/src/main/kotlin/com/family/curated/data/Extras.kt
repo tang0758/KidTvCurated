@@ -267,6 +267,60 @@ object Extras {
     fun markNoticeFired(tag: String) =
         p().edit().putBoolean("notice_${day()}_$tag", true).apply()
 
+    // ---------- 记录备份（OPT-09） ----------
+
+    /** 要备份的打卡记录 */
+    fun backupStamps(): Set<String> = stamps()
+
+    /** 要备份的长整数键：时长账本、进度、防跳看、最近点开。过滤规则在 StateMerge */
+    fun backupLongs(): Map<String, Long> {
+        val all = p().all
+        val out = LinkedHashMap<String, Long>()
+        all.forEach { (k, v) ->
+            if (!StateMerge.isLongKey(k)) return@forEach
+            val n = when (v) {
+                is Long -> v
+                is Int -> v.toLong()
+                else -> null
+            } ?: return@forEach
+            out[k] = n
+        }
+        return out
+    }
+
+    /**
+     * 把备份里的记录合回本地。**只升不降**：打卡取并集，长整数取大值。
+     *
+     * `watch_<day>` 调高之后必须同步 `ClockGuard.noteUsage()` —— 当日用量是
+     * `max(watch_, daymax_)`，只改前者也能生效，但补一次 daymax 才不会在
+     * 后续某个「记录被改小」的路径上又被放回去。
+     */
+    fun applyState(stamps: Set<String>, longs: Map<String, Long>) {
+        if (stamps.isEmpty() && longs.isEmpty()) return
+        val cur = p().all
+        val e = p().edit()
+        if (stamps.isNotEmpty()) {
+            val merged = stamps()
+            merged.addAll(stamps)
+            e.putStringSet("stamps", merged)
+        }
+        val raisedWatch = HashMap<String, Long>()
+        longs.forEach { (k, v) ->
+            if (!StateMerge.isLongKey(k)) return@forEach
+            val before = when (val b = cur[k]) {
+                is Long -> b
+                is Int -> b.toLong()
+                else -> 0L
+            }
+            if (v <= before) return@forEach
+            if (k.startsWith("vids_")) e.putInt(k, v.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+            else e.putLong(k, v)
+            if (k.startsWith("watch_")) raisedWatch[k.removePrefix("watch_")] = v
+        }
+        e.apply()
+        raisedWatch.forEach { (day, ms) -> ClockGuard.noteUsage(day, ms) }
+    }
+
     // ---------- 放行倒计时的实现 ----------
     //
     // 截止时间存两份：墙上时间（给界面显示 / 跨重启还认）+ 单调时间 elapsedRealtime

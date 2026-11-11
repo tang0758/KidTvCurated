@@ -13,6 +13,7 @@ import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.PlaylistSync
+import com.family.curated.data.StateBackup
 import com.family.curated.data.Store
 import com.family.curated.data.TimeNotice
 import com.family.curated.data.WatchClock
@@ -67,6 +68,8 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 enforceKiosk()
                 // 清单自动同步：内部按 autoRefresh.intervalSeconds 节流，只有内容变了才重绘
                 PlaylistSync.tick()
+                // 打卡与进度备份：内部按 5 分钟节流，退到后台 / 打卡时会插队（OPT-09）
+                StateBackup.tick()
             } catch (e: Exception) {
                 // 守卫不能把应用搞崩
             }
@@ -156,6 +159,10 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         Extras.init(this)
         PlaylistSync.init(this)
         registerActivityLifecycleCallbacks(this)
+        // 重装 / 恢复出厂后本地用量是 0，等于白送孩子一段额度（EX-13）。
+        // 冷启动先把 NAS 备份里的「用量」静默合回来 —— 只会变大，不存在被滥用的方向。
+        // 打卡与进度不在这里动：那可能是家长刚故意清空的，要问过才恢复（OPT-09）。
+        PlaylistSync.submit { StateBackup.autoMergeUsage() }
         handler.postDelayed(tick, 1200)
     }
 
@@ -169,7 +176,14 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         // 从播放页 / 锁屏 / 别的应用回到主界面时，立刻查一次清单（下一次 1 秒 tick 生效）
         if (a is MainActivity) PlaylistSync.nudge()
     }
-    override fun onActivityPaused(a: Activity) { if (current === a) current = null }
+    override fun onActivityPaused(a: Activity) {
+        if (current === a) {
+            current = null
+            // 应用退到后台（或跳去家长允许的第三方应用）时补一次备份：
+            // 这是最自然的存档点，孩子下次开机看到的是完整记录（OPT-09）
+            StateBackup.nudge("background")
+        }
+    }
     override fun onActivityCreated(a: Activity, s: Bundle?) {}
     override fun onActivityStarted(a: Activity) {}
     override fun onActivityStopped(a: Activity) {}

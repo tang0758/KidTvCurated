@@ -25,6 +25,7 @@ import com.family.curated.data.RemoteControl
 import com.family.curated.data.Repo
 import com.family.curated.data.Schedule
 import com.family.curated.data.Smb
+import com.family.curated.data.StateBackup
 import com.family.curated.data.Store
 import com.family.curated.data.TimeWindow
 import com.family.curated.databinding.ActivitySettingsBinding
@@ -226,10 +227,20 @@ class SettingsActivity : AppCompatActivity() {
                 confirm("清空所有播放进度？", "所有视频会回到开头，这个操作不能撤销。") {
                     Store.resetAllProgress()
                     com.family.curated.data.Covers.clear()
+                    // 清完立刻把「空的」状态写回 NAS：否则下次恢复记录时，
+                    // 备份里那些旧进度会被重新合回来，家长的操作等于没做（OPT-09）
+                    StateBackup.exportAsync("reset") { }
                     Toast.makeText(this, "已清空全部进度", Toast.LENGTH_SHORT).show()
                     render()
                 }
             }
+        )
+        list.add(
+            Entry.Row(
+                "记录备份",
+                "${StateBackup.lastSavedText()} · 打卡 ${Extras.stamps().size} 天",
+                "备份 ›"
+            ) { showStateBackup() }
         )
         list.add(
             Entry.Row("重新读取清单", "从 NAS 重新拉一次", "") { reloadPlaylist() }
@@ -770,6 +781,52 @@ class SettingsActivity : AppCompatActivity() {
             .setItems(shown.toTypedArray()) { _, which -> onPick(which) }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    /**
+     * 记录备份（OPT-09）：打卡与播放进度存在 NAS 的 `state.json`。
+     * 平时由 App 自己备份（退到后台 / 每 5 分钟 / 每日首次打卡），这里只给家长
+     * 一个「现在就备份一次」和「从 NAS 恢复」的入口。
+     */
+    private fun showStateBackup() {
+        val days = Extras.stamps().size
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("记录备份 · 打卡 $days 天")
+            .setMessage(
+                "${StateBackup.lastSavedText()}。\n\n" +
+                    "备份在 NAS 的 ${StateBackup.statePath()}，和片单分开存，" +
+                    "手改片单碰不坏记录。重装 App、恢复出厂或清了数据之后，" +
+                    "可以用它把打卡墙和播放进度接回来。"
+            )
+            .setItems(arrayOf("立即备份到 NAS", "从 NAS 恢复记录")) { _, which ->
+                when (which) {
+                    0 -> {
+                        Toast.makeText(this, "正在备份…", Toast.LENGTH_SHORT).show()
+                        StateBackup.exportAsync("manual") { r ->
+                            Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
+                            if (!isFinishing) render()
+                        }
+                    }
+                    else -> confirmRestore()
+                }
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    private fun confirmRestore() {
+        confirm(
+            "从 NAS 恢复记录？",
+            "只会补充，不会把本地更新的进度改小。\n" +
+                "今天已经看过的时间也会一并算回去 —— 如果因此超过每日上限，" +
+                "恢复后会马上锁屏，这是正常的。"
+        ) {
+            Toast.makeText(this, "正在恢复…", Toast.LENGTH_SHORT).show()
+            StateBackup.importAsync { r ->
+                Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
+                if (!isFinishing) render()
+            }
+        }
     }
 
     private fun confirm(title: String, message: String, onOk: () -> Unit) {
