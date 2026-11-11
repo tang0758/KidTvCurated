@@ -978,7 +978,9 @@ Windows 下会抛 `ConnectionAbortedError` 刷一屏红字。按「三个工具�
 `--no-browser`、不写 NAS）跑通「未启动 → 拉起 → 运行中 → 再点复用 → 非法模式拒绝」，
 日志落盘且中文正常、stderr 零红字、测试子进程已全部停止、8799 已释放。
 `tools/check_strings.py` 仍通过（Kotlin 一行未动，271 处基线不变）。
-Android 侧 130 条单测与 `assembleDebug` 本次未重跑（没有 Kotlin / 资源改动），由 CI 覆盖。
+推送后 CI 实跑（run `43014539613`，commit `6a91681`）：**三个 job 全绿** ——
+`文案守卫`、`单测与打包`（含 130 条 Android 单测与 `assembleDebug`）、新增的 `PC 工具单测`（28 条单测 / `--self-test` / `py_compile` 在 Ubuntu runner 上均通过）。
+这一条也顺带验证了「启动器纯逻辑不依赖 Windows」：Linux 上不连 NAS、不开浏览器照样能测。
 
 **第三个坑（真实双击才暴露）**：`小剧场.bat` 第一版按 README 惯例写成 UTF-8 中文 + LF，
 结果 Windows cmd 用本地 GBK 代码页解析批处理时，中文 `echo` 行被当成命令，直接
