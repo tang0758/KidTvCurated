@@ -1,4 +1,252 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  小剧场所有界面文案。改这里的字只影响显示，不影响任何逻辑 —— 想换个说法直接改值，
+  不用碰 Kotlin。带 %1$s / %2$d 的是占位符，改的时候占位符的数量和顺序要保留。
+  教学卡片内容（唐诗 / 课文 / 单词 / 名画）不在这里，那些是数据，见 data/builtin/。
+  新增界面文字请加在这里并用 getString(R.string.xxx)，tools/check_strings.py 会盯着。
+-->
 <resources>
     <string name="app_name">小剧场</string>
+
+    <!-- ==================== 通用 ==================== -->
+    <string name="common_on">开启</string>
+    <string name="common_off">关闭</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_confirm">确定</string>
+    <string name="common_save">保存</string>
+    <string name="common_close">关闭</string>
+    <string name="common_got_it">知道了</string>
+    <string name="act_open">打开 ›</string>
+    <string name="act_edit">修改 ›</string>
+    <string name="act_retry">重试 ›</string>
+    <string name="act_backup">备份 ›</string>
+    <string name="act_upload">上传 ›</string>
+    <string name="act_view">查看 ›</string>
+    <string name="act_calibrate">校准 ›</string>
+    <string name="word_none">无</string>
+    <string name="word_write_failed">写入失败</string>
+    <string name="word_wrong_pin">密码不对</string>
+    <string name="temp_15">放行 15 分钟</string>
+    <string name="temp_30">放行 30 分钟</string>
+    <string name="temp_60">放行 60 分钟</string>
+    <string name="temp_120">放行 120 分钟</string>
+    <string name="set_footer">方向键选择 · OK 修改 · 返回键回到片单 · v%1$s(%2$d) %3$s</string>
+
+    <!-- ==================== 家长控制 · 概览与未同步 ==================== -->
+    <string name="set_group_overview">概览</string>
+    <string name="set_time_of_limit">今天 %1$d/%2$d 分钟</string>
+    <string name="set_time_today">今天 %1$d 分钟</string>
+    <string name="set_nas_unset">未配置 NAS</string>
+    <string name="set_report">本周报告</string>
+    <string name="set_report_desc">每天看了多久 / 打卡 / 反复看 / 看到一半</string>
+    <string name="set_group_unsynced">未同步的修改</string>
+    <string name="set_retry_save">重试保存到 NAS</string>
+    <string name="set_retry_label">上次改「%1$s」失败了</string>
+
+    <!-- ==================== 家长控制 · 时间与时长 ==================== -->
+    <string name="set_group_time">时间与时长</string>
+    <string name="set_limit">每日观看上限</string>
+    <string name="set_limit_hint_unlimited">现在不按分钟限制</string>
+    <string name="set_limit_hint_bonus">今天完成奖励已加 %1$d 分钟</string>
+    <string name="set_limit_hint_full">到量自动锁屏</string>
+    <string name="set_minutes">%1$d 分钟</string>
+    <string name="set_unlimited">不限制</string>
+    <string name="set_window_weekday">平日时段</string>
+    <string name="set_window_weekday_hint">留空 = 全天可看</string>
+    <string name="set_window_weekend">周末时段</string>
+    <string name="set_window_weekend_hint">可以设两段</string>
+    <string name="set_window_enable">时段限制</string>
+    <string name="set_window_enable_on">按上面的时段执行</string>
+    <string name="set_window_enable_off">完全不受时段限制</string>
+    <string name="set_reward">完成奖励</string>
+    <string name="set_reward_hint_on">必看全部完成，今天额度多加 %1$d 分钟</string>
+    <string name="set_reward_hint_off">已关闭：做完任务不加时</string>
+    <string name="set_reward_value">+%1$d 分钟</string>
+    <string name="set_window_all_day">全天</string>
+    <string name="set_temp_left">剩余 %1$d 分钟</string>
+    <string name="set_not_released">未放行</string>
+
+    <!-- ==================== 家长控制 · 规则 ==================== -->
+    <string name="set_group_rules">规则</string>
+    <string name="set_pin">家长密码</string>
+    <string name="set_pin_hint">家长菜单要输这个</string>
+    <string name="set_pass_ratio">看完判定</string>
+    <string name="set_pass_ratio_hint">超过这个比例算看完</string>
+    <string name="set_apps">应用入口</string>
+    <string name="set_apps_hint_on">孩子能看到的 App</string>
+    <string name="set_apps_hint_off">片单里没开应用分区</string>
+    <string name="set_apps_count">%1$d 个</string>
+    <string name="set_not_enabled">未开启</string>
+
+    <!-- ==================== 家长控制 · 维护 ==================== -->
+    <string name="set_group_maint">维护</string>
+    <string name="set_temp_release">临时放行</string>
+    <string name="set_temp_hint_active">放行中，到点自动恢复</string>
+    <string name="set_temp_hint_idle">不锁屏，到点结束</string>
+    <string name="set_reset_today">今天全部重来</string>
+    <string name="set_reset_today_hint">清掉今天的完成记录</string>
+    <string name="set_reset_today_confirm">今天全部重来？</string>
+    <string name="set_reset_today_msg">今天的完成记录会清空，必修要重新看一遍。</string>
+    <string name="set_reset_today_done">已清空今天的记录</string>
+    <string name="set_reset_progress">清空播放进度</string>
+    <string name="set_reset_progress_hint">所有视频回到开头</string>
+    <string name="set_reset_progress_confirm">清空所有播放进度？</string>
+    <string name="set_reset_progress_msg">所有视频会回到开头，这个操作不能撤销。</string>
+    <string name="set_reset_progress_done">已清空全部进度</string>
+    <string name="set_backup">记录备份</string>
+    <string name="set_backup_summary">%1$s · 打卡 %2$d 天</string>
+    <string name="set_diag">诊断日志</string>
+    <string name="set_reload">重新读取清单</string>
+    <string name="set_reload_hint">从 NAS 重新拉一次</string>
+    <string name="set_exit_launcher">退出到桌面</string>
+    <string name="set_exit_hint_lock">点这里恢复儿童锁</string>
+    <string name="set_exit_hint_free">家长维护用</string>
+    <string name="set_kiosk_restored">儿童锁已恢复</string>
+
+    <!-- ==================== 家长控制 · 系统 ==================== -->
+    <string name="set_group_system">系统</string>
+    <string name="set_pullback">后台拉回</string>
+    <string name="set_pullback_on">被切走后自动拉回小剧场</string>
+    <string name="set_pullback_off">已关闭：按 Home 不再拉回</string>
+    <string name="set_extwatch">外部应用计时</string>
+    <string name="set_extwatch_off">已关闭：应用入口不计入上限</string>
+    <string name="set_notice">剩余时间预告</string>
+    <string name="set_notice_on">播放页显示还剩几分钟，到点前提醒</string>
+    <string name="set_notice_off">已关闭：到点前不提示</string>
+    <string name="set_remote">远程控制</string>
+    <string name="set_remote_on">读 NAS 的 control.json，15 秒生效</string>
+    <string name="set_remote_off">已关闭：不读 control.json</string>
+    <string name="set_continue">首页继续看</string>
+    <string name="set_continue_on">顶部显示没看完的 5 条</string>
+    <string name="set_continue_off">已关闭：不显示继续看</string>
+    <string name="set_autonext">自动连播</string>
+    <string name="set_autonext_on">播完 5 秒接下一集，限额到点停</string>
+    <string name="set_autonext_off">已关闭：播完回剧集列表</string>
+    <string name="set_report_on">设置页顶部显示「本周报告」入口</string>
+    <string name="set_report_off">已关闭：不显示周报入口</string>
+    <string name="set_clock">电视时间</string>
+    <string name="set_clock_anomaly">系统时间被改过 %1$d 次，用量已按正确时间计算</string>
+    <string name="set_clock_calibrating">正在校正</string>
+    <string name="set_clock_confirm">按实际时间校准？</string>
+    <string name="set_clock_confirm_msg">只在电视时间确实设错过时才需要点。\n\n校准后，今天的已看时长不会被清零；「改日期绕过限额」的记录也会重新计数。</string>
+
+    <!-- ==================== 家长控制 · 关于 ==================== -->
+    <string name="set_version_row">版本与开关</string>
+    <string name="set_built_at">构建于 %1$s</string>
+    <string name="set_about_title">关于</string>
+    <string name="set_about_version">版本：v%1$s（versionCode %2$d）\n</string>
+    <string name="set_about_built">构建：%1$s\n</string>
+    <string name="set_about_pkg">包名：%1$s\n\n</string>
+    <string name="set_about_features">功能开关（tv.json 的 features 段，改完 15 秒生效）\n</string>
+    <string name="set_about_ext">\n\n今日外部应用：%1$d 分钟（已计入每日上限）</string>
+    <string name="set_about_mode">\n计时模式：%1$s</string>
+    <string name="set_about_remote">\n远程控制卡：%1$s:%2$s</string>
+    <string name="set_about_last_cmd">（最近指令 %1$s）</string>
+    <string name="set_about_remote_lock">\n家长远程锁定中：剩余 %1$d 分钟</string>
+    <string name="set_about_anomaly">\n\n系统时间被改过 %1$d 次</string>
+    <string name="set_about_frozen">（当前按校正时间计算）</string>
+
+    <!-- ==================== 家长控制 · 对话框 ==================== -->
+    <string name="set_label_default">设置</string>
+    <string name="set_busy_other">上一个修改还在保存，稍等一下</string>
+    <string name="set_saving">正在保存到 NAS…</string>
+    <string name="set_saved_warn">已保存（之前那次没同步的修改请重新设一次）</string>
+    <string name="set_saved">已保存</string>
+    <string name="set_save_failed">保存失败</string>
+    <string name="set_custom">自定义…</string>
+    <string name="set_custom_indent">   自定义…</string>
+    <string name="set_reward_title">完成必看奖励加时</string>
+    <string name="set_reward_pick">奖励 %1$d 分钟</string>
+    <string name="set_reward_input_hint">分钟数，0 = 关闭（最多 %1$d）</string>
+    <string name="set_reward_ask_title">完成后奖励几分钟</string>
+    <string name="set_reward_invalid">请输入 0~%1$d 之间的分钟数</string>
+    <string name="set_limit_input_hint">分钟数，0 = 不限制</string>
+    <string name="set_limit_ask_title">每天最多看多少分钟</string>
+    <string name="set_limit_invalid">请输入 0~720 之间的分钟数</string>
+    <string name="set_win_all_free">全天不限</string>
+    <string name="set_win_morning">早上 07:00-08:00</string>
+    <string name="set_win_after_school">放学后 16:00-19:00</string>
+    <string name="set_win_afternoon">下午 17:00-20:00</string>
+    <string name="set_win_evening">晚饭后 18:00-20:00</string>
+    <string name="set_win_before_bed">睡前 19:00-21:00</string>
+    <string name="set_win_split">上午 + 下午</string>
+    <string name="set_days_weekend">周六周日</string>
+    <string name="set_days_weekday">周一到周五</string>
+    <string name="set_win_title">%1$s 允许时段</string>
+    <string name="set_win_title_now">%1$s 允许时段（现在 %2$s）</string>
+    <string name="set_win_input_hint">例如 1800-2000，多段用逗号隔开，留空 = 全天</string>
+    <string name="set_win_custom_weekend">自定义周末时段</string>
+    <string name="set_win_custom_weekday">自定义平日时段</string>
+    <string name="set_win_invalid">格式看不懂，例如 1800-2000 或 18:00-20:00</string>
+    <string name="set_hint_no_limits">现在是全天不限，建议再设一下时段或上限</string>
+    <string name="set_pin_input_hint">4~8 位数字，留空不改</string>
+    <string name="set_pin_title">修改家长密码</string>
+    <string name="set_pin_invalid">请输入 4~8 位数字</string>
+    <string name="set_apps_confirm">开启应用入口？</string>
+    <string name="set_apps_confirm_msg">开启后，主界面会多出一个「%1$s」分区，放家长勾选的第三方 App。</string>
+    <string name="set_temp_end">结束放行（立刻恢复限制）</string>
+    <string name="set_temp_restored">已恢复时间限制</string>
+    <string name="set_temp_granted">已放行 %1$d 分钟</string>
+    <string name="set_reloading">正在重新读取清单…</string>
+    <string name="set_reloaded">已重新读取清单</string>
+    <string name="set_reload_failed">连不上 NAS，正在用上次的清单</string>
+    <string name="set_state_title">记录备份 · 打卡 %1$d 天</string>
+    <string name="set_state_msg">%1$s。\n\n备份在 NAS 的 %2$s，和片单分开存，手改片单碰不坏记录。重装 App、恢复出厂或清了数据之后，可以用它把打卡墙和播放进度接回来。</string>
+    <string name="set_state_do_backup">立即备份到 NAS</string>
+    <string name="set_state_do_restore">从 NAS 恢复记录</string>
+    <string name="set_state_backing_up">正在备份…</string>
+    <string name="set_diag_upload_now">立即上传到 NAS</string>
+    <string name="set_diag_clear">清空本地日志</string>
+    <string name="set_diag_uploading">正在上传…</string>
+    <string name="set_diag_clear_confirm">清空本地日志？</string>
+    <string name="set_diag_clear_msg">NAS 上已经归档的不会删。</string>
+    <string name="set_diag_cleared">已清空本地日志</string>
+    <string name="set_diag_intro">出问题时电视会自己记一笔，方便回头查是哪儿不对。\n\n</string>
+    <string name="set_diag_pending">本地待上传：%1$d 条\n</string>
+    <string name="set_diag_archive">NAS 归档：%1$s\n</string>
+    <string name="set_diag_keep">（只保留最近 7 天，单个文件最多 200 KB，写满自动丢最旧的）\n\n</string>
+    <string name="set_diag_recent">最近的记录：\n</string>
+    <string name="set_restore_confirm">从 NAS 恢复记录？</string>
+    <string name="set_restore_msg">只会补充，不会把本地更新的进度改小。\n今天已经看过的时间也会一并算回去 —— 如果因此超过每日上限，恢复后会马上锁屏，这是正常的。</string>
+    <string name="set_restoring">正在恢复…</string>
+    <string name="set_error_write_failed">⚠ 「%1$s」没能写进 NAS：%2$s\nNAS 上仍是旧设置，电视本机也没有改。点下面「未同步的修改」重试。</string>
+
+    <!-- ==================== 锁屏页 ==================== -->
+    <string name="lock_time_of_limit">今天已看 %1$d / %2$d 分钟</string>
+    <string name="lock_time">今天已看 %1$d 分钟</string>
+    <string name="lock_now">现在 %1$s</string>
+    <string name="lock_paused">暂停</string>
+    <string name="lock_hint_paused">已暂停 · 按播放键继续 · ◀ ▶ 换一张</string>
+    <string name="lock_hint_playing">遥控器 ◀ ▶ 换一张 · 播放键暂停</string>
+    <string name="lock_art_loading">名画图片加载中…</string>
+    <string name="lock_art_missing">《%1$s》\n把图片放到 NAS 的 artFolder 目录就能看到画</string>
+    <string name="lock_cards_paused">学习卡片已暂停</string>
+    <string name="lock_cards_resumed">继续自动换卡片</string>
+    <string name="lock_granted_15">已临时放行 15 分钟</string>
+    <string name="lock_pin_hint">输入家长密码</string>
+    <string name="lock_pin_title">家长临时放行</string>
+    <string name="lock_pin_msg">输入密码后放行 15 分钟（密码在 tv.json 的 pin 字段）</string>
+
+    <!-- ==================== 家长工具（PIN / 选应用 / 退出桌面） ==================== -->
+    <string name="pt_pin_title_default">家长选项</string>
+    <string name="pt_pin_hint">家长密码（tv.json 的 pin）</string>
+    <string name="pt_no_apps">没找到可以启动的应用</string>
+    <string name="pt_apps_title">选择孩子能看到的 App（OK 勾选）</string>
+    <string name="pt_apps_shown">已显示 %1$d 个应用入口</string>
+    <string name="pt_hide_all">全部隐藏</string>
+    <string name="pt_apps_hidden">已隐藏所有应用入口</string>
+    <string name="pt_no_launcher">没找到其它桌面，请在 kiosk.exitComponent 里指定</string>
+    <string name="pt_launcher_title">退出到哪个桌面？</string>
+    <string name="pt_launch_failed">启动失败，请把组件名写进 kiosk.exitComponent</string>
+    <string name="pt_temp_granted">已临时放行 %1$d 分钟，回来后可在家长控制里结束放行</string>
+    <string name="pt_unsynced_title">有设置没同步到 NAS</string>
+    <string name="pt_unsynced_head">上次在电视上改「%1$s」时没能写进 NAS：\n</string>
+    <string name="pt_unsynced_mid">\n\nNAS 上仍是你上次保存的内容，电视本机也没有改，两边都没有偷偷变。\n\n</string>
+    <string name="pt_unsynced_ask">要现在用电视上的设置覆盖 NAS 吗？</string>
+    <string name="pt_unsynced_no_data">当时连 NAS 都没读到，没有可重放的内容，只能放弃后重新设置一次。</string>
+    <string name="pt_later">稍后再说</string>
+    <string name="pt_overwrite">覆盖 NAS</string>
+    <string name="pt_discard">放弃这次修改</string>
+    <string name="pt_discarded">已放弃，继续用 NAS 上的设置</string>
+    <string name="pt_resaved">已重新保存到 NAS</string>
 </resources>

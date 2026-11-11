@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.7（Wave 4 首项：OPT-17 异常落盘后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-11 晚） |
+| 文档版本 | V1.8（Wave 4：OPT-17 异常落盘、OPT-16 文案收口后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 夜） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4 首项（OPT-17），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（25.4 MB，versionCode 8 / versionName 1.7）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（25.5 MB，versionCode 9 / versionName 1.8）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -844,6 +844,28 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 
 ---
 
+#### FR-34 界面文案集中管理（P2）✅ 代码完成，实机待验（2026-11-11 新增，Wave 4 / OPT-16）
+
+**描述**：所有给孩子和家长看的字都在 `res/values/strings.xml` 一处，改措辞不用读 Kotlin。
+起因很实际：这个 App 面向自己家，文案会反复微调（「看完判定」还是「看完标准」？「维护」还是「工具」？），
+而原来这些字散在七个 Kotlin 文件、近一千五百处字符串里，改一个词要全局搜。
+
+**范围与进度**（分批，不追求一次到位）：
+1. **已完成**：家长控制页全部、锁屏页全部、家长工具（PIN / 选应用 / 退出桌面 / 未同步冲突框），
+   共 236 处 → 223 条资源。**文案一个字都没有改**，只换了来源。
+2. **未做**：首页（55）、勋章名（30）、播放页（16）、周报页（16）。已按文件写进预算基线。
+3. **不做**：`data/builtin/` 的教学内容（唐诗 / 课文 / 单词 / 名画）—— 那是**数据**不是文案，
+   进资源等于把 strings.xml 变成第二个数据源；`Log.*` 的日志文本也不进 —— 它不上界面。
+
+**防回潮**：`tools/check_strings.py` 按文件记预算，新增中文硬编码直接返回 1（可直接挂 CI）。
+`--update` 是唯一「认账」入口，得显式跑。
+
+**AC**：改 `strings.xml` 里任意一条（如 `set_group_maint`）重装后设置页显示新文字，而逻辑不变；
+新增一句 `Toast.makeText(this, "中文", …)` 后 `tools/check_strings.py` 返回 1；
+`strings.xml` 里不存在教学卡片内容；界面上所有带变量的句子都带 `%1$s / %2$d` 占位符，没有字符串拼接。
+
+---
+
 ## 9. 关键业务规则（实现契约）
 
 | ID | 规则 | 说明 / 边界 |
@@ -883,6 +905,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-33 | 奖励记额度、不记放行 | 完成必看的奖励写 `bonus_<day>` 并加到当天上限（`GateKeeper.limit`），**不得**复用 `tempUntil` —— 放行窗口会过期、会被下一次手动放行覆盖；日期键走 `ClockGuard.day()` |
 | R-34 | 周报只读且不读 NAS | 周报所有数字来自本地 prefs；`ext_<day>` 必须夹到不超过 `watch_<day>`（防手改后画出负段）；没有数据就显示空状态，不显示 0；平均只按有记录的天算 |
 | R-35 | 日志两段式、绝不拖累主流程 | 异常先同步落本地、再由心跳后台传 NAS；`record()` 自身任何失败只 `Log.w`，不向上抛；同一指纹 60 秒一条；滚动整行丢、按 UTF-8 字节计上限；`logs/` 只删 `tv-yyyyMMdd.txt`，其它文件一律不动；读失败（非「文件不存在」）不得当空文件覆盖 |
+| R-36 | 界面文案只在 strings.xml | 新增/修改面向用户的中文必须加进 `res/values/strings.xml` 并用 `getString`（object 里用 `activity.getString`）；带变量的句子必须用位置占位符 `%1$s / %2$d`，不得用字符串拼接；教学数据（`data/builtin/`）与日志文本不进资源；`tools/check_strings.py` 的预算只降不升 |
 
 ---
 
@@ -1152,6 +1175,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-51 | 奖励不越权 | 上限设为 0（不限制）或必看分区为空时配 `rewardMinutes` | 前者仍显示「今天 x 分钟」不产生限额；后者不发奖励（`gateTotal == 0`）（FR-32） |
 | TC-52 | 异常落盘闭环 | 用 `run-as` 往 `filesDir/diag` 写一条、或构造一次心跳异常；等 1 分钟 | 本地文件有内容；NAS `data:curated/logs/tv-<今天>.txt` 出现同样一条，本地被清空（FR-33） |
 | TC-53 | 断网不丢 | 断开 NAS 后触发 3 次异常，再恢复网络等 5 分钟 | 断网期间本地条数递增、不上传；恢复后一次补齐；过程中界面不卡、播放不受影响（FR-33 / R-35） |
+| TC-54 | 文案来源可改 | 把 `strings.xml` 里 `set_group_maint`（维护）改成别的词，重新安装 | 设置页分组名跟着变，其余行为不变（FR-34） |
+| TC-55 | 文案守卫 | 在任意界面文件里加一句中文 `Toast`，跑 `python tools/check_strings.py` | 返回 1 并指出文件与条数；删掉后返回 0，`--list` 能看到每一处的行号（FR-34 / R-36） |
 
 ### 15.4 异常与恢复用例
 
@@ -1185,6 +1210,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | EX-26 | 周报里的坏数据 | 手工把 `ext_<day>` 改成大于 `watch_<day>` | 柱子上段被夹到整段，不出现负数段、不崩（FR-31 / R-34） |
 | EX-27 | 日志把盘写满 | 把 `logs/tv-<今天>.txt` 预置成 1 MB 内容后触发上传 | 合并后不超过 200 KB、开头有「已滚动丢弃」提示，`logs/` 下其它文件不受影响（FR-33） |
 | EX-28 | 崩溃后仍有线索 | 人为让播放页抛未捕获异常导致崩溃，重开 App | 崩溃后本地有 `crash` 记录，重开后 1 分钟内上传到 NAS；应用照常被杀掉重启（FR-33） |
+| EX-29 | 占位符被改坏 | 把 `set_time_of_limit` 的 `%1$d/%2$d` 改成 `%s/%s` 或删掉一个 | 编译期资源格式报错，或运行期 `IllegalFormatConversion` 崩在设置页 —— 这说明守卫要靠 code review，不靠运气；`aapt2 dump resources` 可提前核对（FR-34 / R-36） |
 
 > 编号说明：ROADMAP 第 10 节最初的提案把 EX-14 / EX-15 预留给 Wave 1，但 OPT-04 提前落地时
 > 本表已用 EX-14～EX-20 登记外部应用计时的用例。V1.5 起以本表为准，Wave 1 顺延为 EX-21 / EX-22。

@@ -229,9 +229,40 @@
 设置页「系统 → 版本与开关」能看到当前是「精确计时（已授权）」还是「估算扣时（未授权）」，
 以及今日外部应用累计分钟数。授权方式见 [ADR-01 第 12 节](docs/ADR-外部应用计时.md)。
 
+### 想改界面上的字：全在 strings.xml
+
+设置页、锁屏页、家长工具的文字都在 `app/src/main/res/values/strings.xml`（220 多条，按屏幕分了组），
+改措辞不用读 Kotlin：
+
+```bash
+# 想找「维护」这个分组叫什么
+grep -n '维护' app/src/main/res/values/strings.xml
+#    <string name="set_group_maint">维护</string>
+
+# 改成别的词，重新编译安装即可；逻辑一行都不用动
+```
+
+几个约定（`tools/check_strings.py` 会在你违反时直接报错）：
+
+- **新增界面文字必须进 `strings.xml`**，用 `getString(R.string.xxx)`；在 `object` 里（比如 `ParentTools`）
+  用 `activity.getString(...)`。
+- **带变量的句子用位置占位符**：`今天 %1$d/%2$d 分钟`，不要再用字符串拼接 ——
+  拼接会把一句话拆成几段，改语序时必然漏。
+- **教学内容不进资源**：唐诗 / 课文 / 单词 / 名画在 `data/builtin/`，那是数据，改了要重新编译就已经输了。
+- **日志文本不进资源**：`Log.*` 保持中文，它不上界面。
+
+```bash
+python tools/check_strings.py            # 检查：新增中文硬编码就返回 1（CI 可直接挂）
+python tools/check_strings.py --list     # 看还剩哪些、在哪一行
+python tools/check_strings.py --update   # 认账（唯一能把预算改高的入口）
+```
+
+还没搬的：首页（55 处）、勋章名（30）、播放页（16）、周报页（16）。都记在
+`tools/string_budget.json` 里，只许降不许升 —— 这类「以后再收」的活，没有基线就会被永远忘掉。
+
 ### 怎么知道电视上装的是哪一版
 
-设置页页脚一直显示 `v1.7(8) 11-11 19:10`（版本名 / versionCode / 构建时间，
+设置页页脚一直显示 `v1.8(9) 11-11 17:38`（版本名 / versionCode / 构建时间，
 构建时间由 `build.gradle.kts` 编进 `BuildConfig.BUILD_TIME`），排障第一句不用再连电脑查。
 
 ---

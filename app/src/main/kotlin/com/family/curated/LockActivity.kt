@@ -100,9 +100,9 @@ class LockActivity : AppCompatActivity() {
         b.tvCountdown.text = GateKeeper.hms(st.secondsLeft)
         b.tvDetail.text = st.detail
         b.tvUsed.text = if (st.limitMinutes > 0)
-            "今天已看 ${st.usedMinutes} / ${st.limitMinutes} 分钟"
-        else "今天已看 ${st.usedMinutes} 分钟"
-        b.tvNow.text = "现在 " + timeFmt.format(Date())
+            getString(R.string.lock_time_of_limit, st.usedMinutes, st.limitMinutes)
+        else getString(R.string.lock_time, st.usedMinutes)
+        b.tvNow.text = getString(R.string.lock_now, timeFmt.format(Date()))
     }
 
     // ---------------- 右：学习角 ----------------
@@ -160,12 +160,12 @@ class LockActivity : AppCompatActivity() {
     }
 
     private fun updateCardTimer() {
-        b.tvCardTimer.text = if (paused) "暂停" else leftSeconds.toString() + "s"
+        b.tvCardTimer.text = if (paused) getString(R.string.lock_paused) else leftSeconds.toString() + "s"
         b.cardProgress.progress =
             (leftSeconds * 100 / learning.intervalSeconds.coerceAtLeast(1)).coerceIn(0, 100)
         b.tvCardHint.text = if (paused)
-            "已暂停 · 按播放键继续 · ◀ ▶ 换一张"
-        else "遥控器 ◀ ▶ 换一张 · 播放键暂停"
+            getString(R.string.lock_hint_paused)
+        else getString(R.string.lock_hint_playing)
     }
 
     private fun showCard() {
@@ -233,7 +233,7 @@ class LockActivity : AppCompatActivity() {
         b.artFrame.visibility = View.VISIBLE
         b.ivArt.setImageDrawable(null)
         b.tvArtPlaceholder.visibility = View.VISIBLE
-        b.tvArtPlaceholder.text = "名画图片加载中…"
+        b.tvArtPlaceholder.text = getString(R.string.lock_art_loading)
         b.tvCardNote.text = buildString {
             append("《").append(c.title.trim('《', '》')).append("》")
             if (c.sub.isNotBlank()) append(" · ").append(c.sub)
@@ -251,7 +251,7 @@ class LockActivity : AppCompatActivity() {
                 b.tvArtPlaceholder.visibility = View.GONE
             } else {
                 b.tvArtPlaceholder.text =
-                    "《${c.title}》\n把图片放到 NAS 的 artFolder 目录就能看到画"
+                    getString(R.string.lock_art_missing, c.title)
             }
         }
     }
@@ -290,7 +290,9 @@ class LockActivity : AppCompatActivity() {
                 paused = !paused
                 leftSeconds = learning.intervalSeconds
                 updateCardTimer()
-                Toast.makeText(this, if (paused) "学习卡片已暂停" else "继续自动换卡片",
+                Toast.makeText(
+                    this,
+                    if (paused) getString(R.string.lock_cards_paused) else getString(R.string.lock_cards_resumed),
                     Toast.LENGTH_SHORT).show()
                 return true
             }
@@ -308,10 +310,10 @@ class LockActivity : AppCompatActivity() {
             pinBuffer.setLength(0)
             if (entered == Extras.pin()) {
                 Extras.grantTemp(15)
-                Toast.makeText(this, "已临时放行 15 分钟", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.lock_granted_15), Toast.LENGTH_SHORT).show()
                 finish()
             } else {
-                Toast.makeText(this, "密码不对", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.word_wrong_pin), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -319,26 +321,26 @@ class LockActivity : AppCompatActivity() {
     private fun showParentOverride() {
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = "输入家长密码"
+            hint = getString(R.string.lock_pin_hint)
             setTextColor(0xFFF2F4F8.toInt())
             setHintTextColor(0xFF7C8797.toInt())
             textSize = 20f
             setPadding(40, 24, 40, 24)
         }
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("家长临时放行")
-            .setMessage("输入密码后放行 15 分钟（密码在 tv.json 的 pin 字段）")
+            .setTitle(getString(R.string.lock_pin_title))
+            .setMessage(getString(R.string.lock_pin_msg))
             .setView(input)
-            .setPositiveButton("放行 15 分钟") { _, _ ->
+            .setPositiveButton(getString(R.string.temp_15)) { _, _ ->
                 if (input.text.toString() == Extras.pin()) {
                     Extras.grantTemp(15)
-                    Toast.makeText(this, "已临时放行 15 分钟", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.lock_granted_15), Toast.LENGTH_SHORT).show()
                     finish()
                 } else {
-                    Toast.makeText(this, "密码不对", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.word_wrong_pin), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 }

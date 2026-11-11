@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 |---|---|
 | 产品 | 小剧场 · KidTvCurated |
-| 文档 | 优化计划 V1.9 |
-| 日期 | 2026-11-10（最后更新 2026-11-11 晚） |
+| 文档 | 优化计划 V2.0 |
+| 日期 | 2026-11-10（最后更新 2026-11-11 夜） |
 | 基线 | `main` @ `3e7193b` |
 | 输入 | [PRD](PRD.md) 的风险与待办、[用户使用说明书](用户使用说明书.md) 的常见问题、一次代码评审结论、[外部应用计时方案对比](外部应用计时方案对比.md) 与 [ADR-01](ADR-外部应用计时.md) |
 | 目标 | 从「能用」到「可信 + 有反馈」：规则绕不过、数据丢不了、家长看得见 |
@@ -28,6 +28,12 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 发 `versionCode 5 / versionName 1.4`（见第 14 节）。与计划的偏差：**连播队列由剧集页整串传给播放页**，
 播完不再回 SMB 列目录（避免刚播完时连接半死、也避免播放期间抢主连接）；
 另新增 `features.continueWatching` 作为「继续看」的远程回滚闸门。下一步改为 Wave 3。
+
+**V2.0 变更（2026-11-11 夜）**：**OPT-16 文案收口**落地（`versionCode 9 / 1.8`）：
+设置页、锁屏页、家长工具三处共 **236 条**中文硬编码搬进 `res/values/strings.xml`（现 223 条资源），
+**文案一字未改**（有脚本做过逐字符比对）。同时加 `tools/check_strings.py` 守卫：
+Kotlin 里再写中文界面文字会直接报错，剩下的 271 处按文件记了基线，只许降不许升。
+两处与计划的偏差见第 14 节。
 
 **V1.9 变更（2026-11-11 晚）**：**OPT-17 异常落盘**落地，发 `versionCode 8 / versionName 1.7`（见第 14 节）。
 原先 `KidApp.tick` 的 `catch` 是空的（「守卫不能把应用搞崩」），代价是电视上出任何问题都没有线索。
@@ -251,7 +257,7 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 | 编号 | 项 | 估时 | 说明 |
 |---|---|---|---|
 | OPT-15 | 单测 + CI | 2 | 加 `testImplementation("junit:junit:4.13.2")` 与 `src/test/kotlin`；先覆盖纯函数：`Schedule` 时段解析与跨零点、`GateKeeper.nextOpening`、`Badges` 判定、`PlaylistParser` 路径解码（`+` 号事故回归）、`Kiosk` 解析。新增 `.github/workflows/android.yml` 跑 `gradlew test` |
-| OPT-16 | 文案收口 `strings.xml` | 1.5 | 现在 `strings.xml` 只有 1 条，中文全散在 Kotlin 里；先收设置页与锁屏页 |
+| OPT-16 | 文案收口 `strings.xml` ✅ | 1.5 | 已落地（`v1.8`）：设置页 / 锁屏页 / 家长工具 236 条搬进资源，文案未改；新增 `tools/check_strings.py` 守住回潮。见第 14 节 |
 | OPT-17 | 异常落盘 ✅ | 1 | 已落地（`v1.7`）：`DiagMath` 纯逻辑 + `Diag`；本地先落盘、后台合并上传 `data:curated/logs/tv-yyyyMMdd.txt`（200 KB 滚动、留 7 天、60 秒去重）；接管崩溃兜底。见第 14 节 |
 | OPT-18 | 设置页拆分 | 1.5 | `SettingsActivity` 667 行，改任何开关都在动同一个文件；按「时段 / 规则 / 应用 / 学习角 / 系统」拆 5 个数据驱动的分组渲染器 |
 | OPT-19 | 家长工具收敛 | 视情况 | 三个入口（`tvjson_simple.py`、`console.py`、`PC exe`）先做「一个启动页 + 三个模式」，功能不合并 |
@@ -396,9 +402,11 @@ graph LR
    **OPT-09 的实机 EX-13 / EX-24 未跑**（2026-11-11 16:00 电视离线），
    与 OPT-08 / OPT-10 的新用例一起登记在 [待实机验证清单](待实机验证.md)。
    **周一到周五白天不做实机安装测试**，这部分只能在晚上或周末集中跑。
-7. ~~Wave 4 的 OPT-17 异常落盘~~ ✅ 已完成，发 `versionCode 8 / v1.7`，见第 14 节。
-   代码侧下一步：**OPT-16 文案收口**（`strings.xml` 只有 1 条，中文散在 Kotlin 里，先收设置页与锁屏页）→
-   **OPT-18 设置页拆分**（`SettingsActivity` 已 1000 行，改任何开关都在动同一个文件）→ **OPT-15 CI**。
+7. ~~Wave 4 的 OPT-17 / OPT-16~~ ✅ 已完成（`v1.7` / `v1.8`），见第 14 节。
+   代码侧下一步：**OPT-18 设置页拆分**（`SettingsActivity` 已 1100 行，改任何开关都在动同一个文件）→ **OPT-15 CI**
+   （CI 里直接挂 `tools/check_strings.py` 与 `gradlew test`）。
+   文案还剩 271 处：`MainActivity` 55、`Badges` 30（勋章名）、`PlayerActivity` 16、`ReportActivity` 16 是主要头寸；
+   数据层（`Diag` / `StateBackup` / `ReportMath`）那些是**回给 UI 显示的消息**，要动就得改成 `@StringRes + args`，单独排一项。
 8. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
    结算实际走的是 `elapsedRealtime` 估算（ADR 第 13 节未决事项 1 已有实测结论）。
 9. 待补（非阻塞）：换一个长视频补验「主动按 OK 暂停」不计时；
@@ -722,3 +730,59 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 **实机验证：未跑（按约定，周一到周五白天不做实机安装测试）**。用例已登记在
 [待实机验证清单](待实机验证.md)：造一次 `tick` 异常看本地文件与 NAS 归档、断网时退避与不丢、
 `logs` 目录自动创建、7 天清理、设置页「诊断日志」对话框。
+
+### 2026-11-11 夜 · Wave 4 第二项：OPT-16 文案收口（`versionCode 9` / `v1.8`）
+
+**实现了什么**
+
+| 项 | 落地内容 | 规模 |
+|---|---|---|
+| 资源 | `res/values/strings.xml` 从 1 条 → **223 条**，按「通用 / 概览 / 时间与时长 / 规则 / 维护 / 系统 / 关于 / 对话框 / 锁屏页 / 家长工具」分组，带分隔注释 | 资源 223 条 |
+| 设置页 | `SettingsActivity` 全部界面文字改走 `getString`，含时段预设、上限/奖励对话框、关于框、记录备份、诊断日志 | 193 处 |
+| 锁屏页 | `LockActivity`：今日已看、卡片提示、名画缺图、临时放行 PIN 框 | 17 处 |
+| 家长工具 | `ParentTools`：PIN 框、选应用、退出桌面、未同步冲突框（object 无 Context，用 `activity.getString`） | 26 处 |
+| 守卫 | 新增 `tools/check_strings.py` + `tools/string_budget.json`：按文件记基线，新增中文硬编码就返回 1 | 271 处基线 |
+
+**文案一个字都没改**（这是这次唯一的验收底线）。做法是「对照表驱动 + 逐条断言命中」：
+迁移脚本里每条都写明原文与期望命中次数，跑完必须全是「命中」，最后再用另一个脚本做双向比对 ——
+把旧文件的字面量（`${...}` 归一成 `%`）与新资源值（`%1$d` 归一成 `%`）互相比，
+未匹配项只能落在「跨行拼接被合并成一条」这类已知情形上，逐条核对过。
+
+**两处与计划的偏差**
+
+1. **`footer` 改成 `by lazy`**。它原来是个类级 `val`，直接写 `getString` 会在构造期取 Context ——
+   那时 Activity 还没 `attach()`，必崩。`by lazy` 让它第一次用到（onCreate）时才求值。
+2. **两个默认参数改成可空**。`save(label: String = "设置")` 与 `askPin(title: String = "家长选项")`
+   的默认值不能用 `getString`（默认参数在调用方求值，那里没有 Context）。改成 `String? = null`，
+   在使用处兜底 `?: getString(...)`。
+
+**几条实现期定下的规矩**
+
+- **教学数据不进资源**：`data/builtin/`（唐诗 / 课文 / 单词 / 名画）是**数据**，塞进 `strings.xml`
+  等于把资源文件变成第二个数据源，改内容还得重新编译。`check_strings.py` 整目录跳过。
+- **日志不进资源**：`Log.*` 的实参保持中文，它不上界面，进资源只会让排障时多绕一层。
+- **`全天 / 全天不限` 既是显示文字又是解析取值**：原来 `parseWindows` 拿字面量比对，
+  文案一旦改进资源就会失配。这次把比较也改成 `getString(...)`，两处口径合成一处。
+- **`关闭` 拆两个键**：`common_off`（开关状态值）与 `common_close`（对话框按钮）文字相同、语义不同，
+  分开放，以后要改按钮措辞不会连带把开关值改掉。
+- **不给文案加开关**：文案是基础设施，不是 feature flag，出错时不能在 `features` 里关掉它。
+
+**守卫怎么用**
+
+```bash
+python tools/check_strings.py            # 检查（超基线返回 1，可直接挂 CI）
+python tools/check_strings.py --list     # 列每一处的文件与行号
+python tools/check_strings.py --update   # 认账：把当前值写成新基线
+```
+
+**剩下的 271 处**（已写入基线，只许降不许升）：`MainActivity` 55、`Badges` 30（勋章名，纯 UI）、
+`PlayerActivity` 16、`ReportActivity` 16、`EpisodesActivity` 5 是界面侧主要头寸；
+`Diag` / `StateBackup` / `ReportMath` / `PlaylistWriter` 那些是**回给 UI 显示的消息**，
+要收就得把返回值改成 `@StringRes + args`（数据层不能拿 Context），单独排一项更合适。
+
+**验证**：单测 **112 条全绿**；`assembleDebug` 通过；`aapt2 dump resources` 核对过编译后的
+`%1$s / %2$d` 与换行都没走样；`check_strings.py` 自测（故意加一句硬编码 → 返回 1，删掉 → 通过）。
+
+**实机验证：未跑（按约定，周一到周五白天不做实机安装测试）**。用例已登记在
+[待实机验证清单](待实机验证.md)：设置页 / 锁屏页 / 家长工具逐屏过一遍（重点看有没有丢字、
+折行、占位符没填），页脚版本号显示 `v1.8(9)`。

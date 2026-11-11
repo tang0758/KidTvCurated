@@ -44,27 +44,27 @@ object ParentTools {
         }
         val canReplay = Store.pendingPlaylistJson != null
         val msg = buildString {
-            append("上次在电视上改「${Store.unsyncedLabel}」时没能写进 NAS：\n")
-            append(Store.unsyncedMessage.ifBlank { "写入失败" })
-            append("\n\nNAS 上仍是你上次保存的内容，电视本机也没有改，两边都没有偷偷变。\n\n")
+            append(activity.getString(R.string.pt_unsynced_head, Store.unsyncedLabel))
+            append(Store.unsyncedMessage.ifBlank { activity.getString(R.string.word_write_failed) })
+            append(activity.getString(R.string.pt_unsynced_mid))
             append(
-                if (canReplay) "要现在用电视上的设置覆盖 NAS 吗？"
-                else "当时连 NAS 都没读到，没有可重放的内容，只能放弃后重新设置一次。"
+                if (canReplay) activity.getString(R.string.pt_unsynced_ask)
+                else activity.getString(R.string.pt_unsynced_no_data)
             )
         }
         val b = AlertDialog.Builder(activity, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("有设置没同步到 NAS")
+            .setTitle(activity.getString(R.string.pt_unsynced_title))
             .setMessage(msg)
-            .setNeutralButton("稍后再说", null)
+            .setNeutralButton(activity.getString(R.string.pt_later), null)
         if (canReplay) {
-            b.setPositiveButton("覆盖 NAS") { _, _ -> retryPending(activity, onResolved) }
-            b.setNegativeButton("放弃这次修改") { _, _ ->
+            b.setPositiveButton(activity.getString(R.string.pt_overwrite)) { _, _ -> retryPending(activity, onResolved) }
+            b.setNegativeButton(activity.getString(R.string.pt_discard)) { _, _ ->
                 PlaylistWriter.discardPending()
-                Toast.makeText(activity, "已放弃，继续用 NAS 上的设置", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, activity.getString(R.string.pt_discarded), Toast.LENGTH_SHORT).show()
                 onResolved()
             }
         } else {
-            b.setNegativeButton("放弃这次修改") { _, _ ->
+            b.setNegativeButton(activity.getString(R.string.pt_discard)) { _, _ ->
                 PlaylistWriter.discardPending()
                 onResolved()
             }
@@ -82,7 +82,7 @@ object ParentTools {
             activity.runOnUiThread {
                 Toast.makeText(
                     activity,
-                    if (r.ok) "已重新保存到 NAS" else r.message,
+                    if (r.ok) activity.getString(R.string.pt_resaved) else r.message,
                     Toast.LENGTH_LONG
                 ).show()
                 onResolved()
@@ -114,25 +114,25 @@ object ParentTools {
     /** 弹 PIN 输入框；密码对才执行 [onOk] */
     fun askPin(
         activity: AppCompatActivity,
-        title: String = "家长选项",
+        title: String? = null,
         onOk: () -> Unit
     ) {
         val input = EditText(activity).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = "家长密码（tv.json 的 pin）"
+            hint = activity.getString(R.string.pt_pin_hint)
             setTextColor(0xFFF2F4F8.toInt())
             setHintTextColor(0xFF7C8797.toInt())
             textSize = 20f
             setPadding(40, 24, 40, 24)
         }
         val dialog = AlertDialog.Builder(activity, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(title)
+            .setTitle(title ?: activity.getString(R.string.pt_pin_title_default))
             .setView(input)
-            .setPositiveButton("确定") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.common_confirm)) { _, _ ->
                 if (input.text.toString() == Extras.pin()) onOk()
-                else Toast.makeText(activity, "密码不对", Toast.LENGTH_SHORT).show()
+                else Toast.makeText(activity, activity.getString(R.string.word_wrong_pin), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(activity.getString(R.string.common_cancel), null)
             .create()
         dialog.show()
         submitOnEnter(input, dialog)
@@ -142,7 +142,7 @@ object ParentTools {
     fun pickApps(activity: AppCompatActivity, onChanged: () -> Unit) {
         val catalog = AppCatalog.installed(activity)
         if (catalog.isEmpty()) {
-            Toast.makeText(activity, "没找到可以启动的应用", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, activity.getString(R.string.pt_no_apps), Toast.LENGTH_LONG).show()
             return
         }
         val selected = Extras.visibleApps()
@@ -150,22 +150,22 @@ object ParentTools {
         val checked = BooleanArray(catalog.size) { catalog[it].spec in selected }
 
         AlertDialog.Builder(activity, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("选择孩子能看到的 App（OK 勾选）")
+            .setTitle(activity.getString(R.string.pt_apps_title))
             .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
                 checked[which] = isChecked
             }
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(activity.getString(R.string.common_save)) { _, _ ->
                 val set = catalog.filterIndexed { i, _ -> checked[i] }.map { it.spec }.toSet()
                 Extras.saveSelectedApps(set)
                 onChanged()
-                Toast.makeText(activity, "已显示 ${set.size} 个应用入口", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, activity.getString(R.string.pt_apps_shown, set.size), Toast.LENGTH_SHORT).show()
             }
-            .setNeutralButton("全部隐藏") { _, _ ->
+            .setNeutralButton(activity.getString(R.string.pt_hide_all)) { _, _ ->
                 Extras.saveSelectedApps(emptySet())
                 onChanged()
-                Toast.makeText(activity, "已隐藏所有应用入口", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, activity.getString(R.string.pt_apps_hidden), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(activity.getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -189,7 +189,7 @@ object ParentTools {
         if (candidates.isEmpty()) {
             Toast.makeText(
                 activity,
-                "没找到其它桌面，请在 kiosk.exitComponent 里指定",
+                activity.getString(R.string.pt_no_launcher),
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -198,18 +198,18 @@ object ParentTools {
             it.loadLabel(pm).toString() + "  (" + it.activityInfo.packageName + ")"
         }.toTypedArray()
         AlertDialog.Builder(activity, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("退出到哪个桌面？")
+            .setTitle(activity.getString(R.string.pt_launcher_title))
             .setItems(labels) { _, which ->
                 val ai = candidates[which].activityInfo
                 if (!launchComponent(activity, ComponentName(ai.packageName, ai.name), k.exitMinutes)) {
                     Toast.makeText(
                         activity,
-                        "启动失败，请把组件名写进 kiosk.exitComponent",
+                        activity.getString(R.string.pt_launch_failed),
                         Toast.LENGTH_LONG
                     ).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(activity.getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -226,7 +226,7 @@ object ParentTools {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
         Toast.makeText(
-            activity, "已临时放行 $minutes 分钟，回来后可在家长控制里结束放行",
+            activity, activity.getString(R.string.pt_temp_granted, minutes),
             Toast.LENGTH_LONG
         ).show()
         true

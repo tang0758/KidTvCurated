@@ -51,7 +51,12 @@ class SettingsActivity : AppCompatActivity() {
     private var busy = false
     private var lastFocusPos = -1
 
-    private val footer = "方向键选择 · OK 修改 · 返回键回到片单 · v${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE}) ${BuildConfig.BUILD_TIME}"
+    private val footer: String by lazy {
+        getString(
+            R.string.set_footer,
+            BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.BUILD_TIME
+        )
+    }
 
     /**
      * 「未同步的修改」重放成功后，[PlaylistWriter] 会在后台异步跑一次同步，
@@ -131,17 +136,19 @@ class SettingsActivity : AppCompatActivity() {
         val apps = Extras.apps()
 
         b.tvToday.text = if (st.limitMinutes > 0)
-            "今天 ${st.usedMinutes}/${st.limitMinutes} 分钟"
-        else "今天 ${st.usedMinutes} 分钟"
+            getString(R.string.set_time_of_limit, st.usedMinutes, st.limitMinutes)
+        else getString(R.string.set_time_today, st.usedMinutes)
         val nas = Store.nas()
-        b.tvNas.text = nas?.host ?: "未配置 NAS"
+        b.tvNas.text = nas?.host ?: getString(R.string.set_nas_unset)
 
         // OPT-07：写回失败不是「弹个 Toast 就过去」，错误条一直挂到家长处理完
         if (Store.hasUnsyncedEdit) {
             b.tvError.visibility = View.VISIBLE
-            b.tvError.text = "⚠ 「${Store.unsyncedLabel}」没能写进 NAS：" +
-                "${Store.unsyncedMessage.ifBlank { "写入失败" }}\n" +
-                "NAS 上仍是旧设置，电视本机也没有改。点下面「未同步的修改」重试。"
+            b.tvError.text = getString(
+                R.string.set_error_write_failed,
+                Store.unsyncedLabel,
+                Store.unsyncedMessage.ifBlank { getString(R.string.word_write_failed) }
+            )
         } else {
             b.tvError.visibility = View.GONE
         }
@@ -150,141 +157,145 @@ class SettingsActivity : AppCompatActivity() {
         // OPT-08：周报是家长进这一页最想先看的东西，放在最上面。
         // 走 features.report 开关（默认开）：这一页要是出问题，改一行 JSON 就能收起来。
         if (Extras.feature("report")) {
-            list.add(Entry.Group("概览"))
+            list.add(Entry.Group(getString(R.string.set_group_overview)))
             list.add(
                 Entry.Row(
-                    "本周报告",
-                    "每天看了多久 / 打卡 / 反复看 / 看到一半",
-                    "打开 ›"
+                    getString(R.string.set_report),
+                    getString(R.string.set_report_desc),
+                    getString(R.string.act_open)
                 ) { openReport() }
             )
         }
         if (Store.hasUnsyncedEdit) {
-            list.add(Entry.Group("未同步的修改"))
+            list.add(Entry.Group(getString(R.string.set_group_unsynced)))
             list.add(
                 Entry.Row(
-                    "重试保存到 NAS",
-                    "上次改「${Store.unsyncedLabel}」失败了",
-                    "重试 ›"
+                    getString(R.string.set_retry_save),
+                    getString(R.string.set_retry_label, Store.unsyncedLabel),
+                    getString(R.string.act_retry)
                 ) { ParentTools.showUnsyncedConflict(this, force = true) { render() } }
             )
         }
-        list.add(Entry.Group("时间与时长"))
+        list.add(Entry.Group(getString(R.string.set_group_time)))
         list.add(
             Entry.Row(
-                "每日观看上限",
-                if (st.limitMinutes == 0) "现在不按分钟限制"
-                else if (st.bonusMinutes > 0) "今天完成奖励已加 ${st.bonusMinutes} 分钟"
-                else "到量自动锁屏",
-                if ((sch?.dailyLimitMinutes ?: 0) > 0) "${sch!!.dailyLimitMinutes} 分钟" else "不限制"
+                getString(R.string.set_limit),
+                if (st.limitMinutes == 0) getString(R.string.set_limit_hint_unlimited)
+                else if (st.bonusMinutes > 0) getString(R.string.set_limit_hint_bonus, st.bonusMinutes)
+                else getString(R.string.set_limit_hint_full),
+                if ((sch?.dailyLimitMinutes ?: 0) > 0) getString(R.string.set_minutes, sch!!.dailyLimitMinutes)
+                else getString(R.string.set_unlimited)
             ) { chooseLimit() }
         )
         list.add(
             Entry.Row(
-                "平日时段",
-                "留空 = 全天可看",
+                getString(R.string.set_window_weekday),
+                getString(R.string.set_window_weekday_hint),
                 windowsText(sch?.weekday ?: emptyList())
             ) { chooseWindows(weekend = false) }
         )
         list.add(
             Entry.Row(
-                "周末时段",
-                "可以设两段",
+                getString(R.string.set_window_weekend),
+                getString(R.string.set_window_weekend_hint),
                 windowsText(sch?.weekend ?: emptyList())
             ) { chooseWindows(weekend = true) }
         )
         list.add(
             Entry.Row(
-                "时段限制",
-                if (sch?.enabled == true) "按上面的时段执行" else "完全不受时段限制",
-                if (sch?.enabled == true) "开启" else "关闭"
+                getString(R.string.set_window_enable),
+                if (sch?.enabled == true) getString(R.string.set_window_enable_on)
+                else getString(R.string.set_window_enable_off),
+                if (sch?.enabled == true) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleSchedule() }
         )
         list.add(
             Entry.Row(
-                "完成奖励",
-                if ((sch?.rewardMinutes ?: 0) > 0) "必看全部完成，今天额度多加 ${sch!!.rewardMinutes} 分钟"
-                else "已关闭：做完任务不加时",
-                if ((sch?.rewardMinutes ?: 0) > 0) "+${sch!!.rewardMinutes} 分钟" else "关闭"
+                getString(R.string.set_reward),
+                if ((sch?.rewardMinutes ?: 0) > 0) getString(R.string.set_reward_hint_on, sch!!.rewardMinutes)
+                else getString(R.string.set_reward_hint_off),
+                if ((sch?.rewardMinutes ?: 0) > 0) getString(R.string.set_reward_value, sch!!.rewardMinutes)
+                else getString(R.string.common_off)
             ) { chooseReward() }
         )
 
-        list.add(Entry.Group("规则"))
+        list.add(Entry.Group(getString(R.string.set_group_rules)))
         list.add(
-            Entry.Row("家长密码", "家长菜单要输这个", "修改 ›") { askPin() }
+            Entry.Row(getString(R.string.set_pin), getString(R.string.set_pin_hint), getString(R.string.act_edit)) { askPin() }
         )
         list.add(
             Entry.Row(
-                "看完判定",
-                "超过这个比例算看完",
+                getString(R.string.set_pass_ratio),
+                getString(R.string.set_pass_ratio_hint),
                 "${(Extras.passRatio() * 100).toInt()}%"
             ) { choosePassRatio() }
         )
         list.add(
             Entry.Row(
-                "应用入口",
-                if (apps.enabled) "孩子能看到的 App" else "片单里没开应用分区",
-                if (apps.enabled) "${Extras.visibleApps(apps).size} 个" else "未开启"
+                getString(R.string.set_apps),
+                if (apps.enabled) getString(R.string.set_apps_hint_on) else getString(R.string.set_apps_hint_off),
+                if (apps.enabled) getString(R.string.set_apps_count, Extras.visibleApps(apps).size)
+                else getString(R.string.set_not_enabled)
             ) { editApps() }
         )
 
-        list.add(Entry.Group("维护"))
+        list.add(Entry.Group(getString(R.string.set_group_maint)))
         list.add(
             Entry.Row(
-                "临时放行",
+                getString(R.string.set_temp_release),
                 if (Extras.tempRemainingMs() > 0L)
-                    "放行中，到点自动恢复" else "不锁屏，到点结束",
+                    getString(R.string.set_temp_hint_active) else getString(R.string.set_temp_hint_idle),
                 tempText()
             ) { chooseTemp() }
         )
         list.add(
-            Entry.Row("今天全部重来", "清掉今天的完成记录", "") {
-                confirm("今天全部重来？", "今天的完成记录会清空，必修要重新看一遍。") {
+            Entry.Row(getString(R.string.set_reset_today), getString(R.string.set_reset_today_hint), "") {
+                confirm(getString(R.string.set_reset_today_confirm), getString(R.string.set_reset_today_msg)) {
                     Store.clearTodayRecursive()
-                    Toast.makeText(this, "已清空今天的记录", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.set_reset_today_done), Toast.LENGTH_SHORT).show()
                     render()
                 }
             }
         )
         list.add(
-            Entry.Row("清空播放进度", "所有视频回到开头", "") {
-                confirm("清空所有播放进度？", "所有视频会回到开头，这个操作不能撤销。") {
+            Entry.Row(getString(R.string.set_reset_progress), getString(R.string.set_reset_progress_hint), "") {
+                confirm(getString(R.string.set_reset_progress_confirm), getString(R.string.set_reset_progress_msg)) {
                     Store.resetAllProgress()
                     com.family.curated.data.Covers.clear()
                     // 清完立刻把「空的」状态写回 NAS：否则下次恢复记录时，
                     // 备份里那些旧进度会被重新合回来，家长的操作等于没做（OPT-09）
                     StateBackup.exportAsync("reset") { }
-                    Toast.makeText(this, "已清空全部进度", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.set_reset_progress_done), Toast.LENGTH_SHORT).show()
                     render()
                 }
             }
         )
         list.add(
             Entry.Row(
-                "记录备份",
-                "${StateBackup.lastSavedText()} · 打卡 ${Extras.stamps().size} 天",
-                "备份 ›"
+                getString(R.string.set_backup),
+                getString(R.string.set_backup_summary, StateBackup.lastSavedText(), Extras.stamps().size),
+                getString(R.string.act_backup)
             ) { showStateBackup() }
         )
         list.add(
             Entry.Row(
-                "诊断日志",
+                getString(R.string.set_diag),
                 Diag.statusText(),
-                if (Diag.pending() > 0) "上传 ›" else "查看 ›"
+                if (Diag.pending() > 0) getString(R.string.act_upload) else getString(R.string.act_view)
             ) { showDiag() }
         )
         list.add(
-            Entry.Row("重新读取清单", "从 NAS 重新拉一次", "") { reloadPlaylist() }
+            Entry.Row(getString(R.string.set_reload), getString(R.string.set_reload_hint), "") { reloadPlaylist() }
         )
         list.add(
             Entry.Row(
-                "退出到桌面",
-                if (Extras.kioskExitActive()) "点这里恢复儿童锁" else "家长维护用",
+                getString(R.string.set_exit_launcher),
+                if (Extras.kioskExitActive()) getString(R.string.set_exit_hint_lock) else getString(R.string.set_exit_hint_free),
                 ""
             ) {
                 if (Extras.kioskExitActive()) {
                     Extras.clearKioskExit()
-                    Toast.makeText(this, "儿童锁已恢复", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.set_kiosk_restored), Toast.LENGTH_SHORT).show()
                     render()
                 } else {
                     ParentTools.exitToLauncher(this)
@@ -292,76 +303,74 @@ class SettingsActivity : AppCompatActivity() {
             }
         )
 
-        list.add(Entry.Group("系统"))
+        list.add(Entry.Group(getString(R.string.set_group_system)))
         list.add(
             Entry.Row(
-                "后台拉回",
-                if (Extras.feature("kioskPullback")) "被切走后自动拉回小剧场"
-                else "已关闭：按 Home 不再拉回",
-                if (Extras.feature("kioskPullback")) "开启" else "关闭"
+                getString(R.string.set_pullback),
+                if (Extras.feature("kioskPullback")) getString(R.string.set_pullback_on)
+                else getString(R.string.set_pullback_off),
+                if (Extras.feature("kioskPullback")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { togglePullback() }
         )
         list.add(
             Entry.Row(
-                "外部应用计时",
+                getString(R.string.set_extwatch),
                 if (Extras.feature("extWatchMs")) ExtWatchTracker.modeText(this)
-                else "已关闭：应用入口不计入上限",
-                if (Extras.feature("extWatchMs")) "开启" else "关闭"
+                else getString(R.string.set_extwatch_off),
+                if (Extras.feature("extWatchMs")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleExtWatch() }
         )
         list.add(
             Entry.Row(
-                "剩余时间预告",
-                if (Extras.feature("remainingNotice")) "播放页显示还剩几分钟，到点前提醒"
-                else "已关闭：到点前不提示",
-                if (Extras.feature("remainingNotice")) "开启" else "关闭"
+                getString(R.string.set_notice),
+                if (Extras.feature("remainingNotice")) getString(R.string.set_notice_on)
+                else getString(R.string.set_notice_off),
+                if (Extras.feature("remainingNotice")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleRemainingNotice() }
         )
         list.add(
             Entry.Row(
-                "远程控制",
-                if (Extras.feature("remoteControl")) "读 NAS 的 control.json，15 秒生效"
-                else "已关闭：不读 control.json",
-                if (Extras.feature("remoteControl")) "开启" else "关闭"
+                getString(R.string.set_remote),
+                if (Extras.feature("remoteControl")) getString(R.string.set_remote_on)
+                else getString(R.string.set_remote_off),
+                if (Extras.feature("remoteControl")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleRemoteControl() }
         )
         list.add(
             Entry.Row(
-                "首页继续看",
-                if (Extras.feature("continueWatching")) "顶部显示没看完的 5 条"
-                else "已关闭：不显示继续看",
-                if (Extras.feature("continueWatching")) "开启" else "关闭"
+                getString(R.string.set_continue),
+                if (Extras.feature("continueWatching")) getString(R.string.set_continue_on)
+                else getString(R.string.set_continue_off),
+                if (Extras.feature("continueWatching")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleContinueWatching() }
         )
         list.add(
             Entry.Row(
-                "自动连播",
-                if (Extras.feature("autoNext")) "播完 5 秒接下一集，限额到点停"
-                else "已关闭：播完回剧集列表",
-                if (Extras.feature("autoNext")) "开启" else "关闭"
+                getString(R.string.set_autonext),
+                if (Extras.feature("autoNext")) getString(R.string.set_autonext_on)
+                else getString(R.string.set_autonext_off),
+                if (Extras.feature("autoNext")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleAutoNext() }
         )
         list.add(
             Entry.Row(
-                "本周报告",
-                if (Extras.feature("report")) "设置页顶部显示「本周报告」入口"
-                else "已关闭：不显示周报入口",
-                if (Extras.feature("report")) "开启" else "关闭"
+                getString(R.string.set_report),
+                if (Extras.feature("report")) getString(R.string.set_report_on)
+                else getString(R.string.set_report_off),
+                if (Extras.feature("report")) getString(R.string.common_on) else getString(R.string.common_off)
             ) { toggleReport() }
         )
         val anomalies = ClockGuard.anomalyCount()
         if (anomalies > 0 || ClockGuard.frozen()) {
             list.add(
                 Entry.Row(
-                    "电视时间",
-                    "系统时间被改过 $anomalies 次，用量已按正确时间计算",
-                    if (ClockGuard.frozen()) "正在校正" else "校准 ›"
+                    getString(R.string.set_clock),
+                    getString(R.string.set_clock_anomaly, anomalies),
+                    if (ClockGuard.frozen()) getString(R.string.set_clock_calibrating) else getString(R.string.act_calibrate)
                 ) {
                     confirm(
-                        "按实际时间校准？",
-                        "只在电视时间确实设错过时才需要点。\n\n" +
-                            "校准后，今天的已看时长不会被清零；" +
-                            "「改日期绕过限额」的记录也会重新计数。"
+                        getString(R.string.set_clock_confirm),
+                        getString(R.string.set_clock_confirm_msg)
                     ) {
                         ClockGuard.reset()
                         render()
@@ -371,8 +380,8 @@ class SettingsActivity : AppCompatActivity() {
         }
         list.add(
             Entry.Row(
-                "版本与开关",
-                "构建于 ${BuildConfig.BUILD_TIME}",
+                getString(R.string.set_version_row),
+                getString(R.string.set_built_at, BuildConfig.BUILD_TIME),
                 "v${BuildConfig.VERSION_NAME}(${BuildConfig.VERSION_CODE})"
             ) { showAbout() }
         )
@@ -421,14 +430,14 @@ class SettingsActivity : AppCompatActivity() {
     // ---------------- 文案 ----------------
 
     private fun windowsText(w: List<TimeWindow>): String {
-        if (w.isEmpty()) return "全天"
+        if (w.isEmpty()) return getString(R.string.set_window_all_day)
         return w.joinToString("、") { "${hhmm(it.startMin)}-${hhmm(it.endMin)}" }
     }
 
     private fun tempText(): String {
         val left = Extras.tempRemainingMs()
-        if (left <= 0L) return "未放行"
-        return "剩余 ${(left / 60_000L) + 1} 分钟"
+        if (left <= 0L) return getString(R.string.set_not_released)
+        return getString(R.string.set_temp_left, (left / 60_000L) + 1)
     }
 
     private fun hhmm(min: Int) = String.format("%02d:%02d", min / 60, min % 60)
@@ -445,13 +454,13 @@ class SettingsActivity : AppCompatActivity() {
      * OPT-07：只有写成功才更新本机；失败时停留在原页、挂红色错误条，
      * 并把「本想写入的内容」存下来供重试。绝不出现「界面改好了、下次同步悄悄变回去」。
      */
-    private fun save(apply: (JSONObject) -> Unit, after: () -> Unit, label: String = "设置") {
+    private fun save(apply: (JSONObject) -> Unit, after: () -> Unit, label: String? = null) {
         if (busy) {
-            Toast.makeText(this, "上一个修改还在保存，稍等一下", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.set_busy_other), Toast.LENGTH_SHORT).show()
             return
         }
         busy = true
-        b.tvBusy.text = "正在保存到 NAS…"
+        b.tvBusy.text = getString(R.string.set_saving)
         Thread {
             val r = PlaylistWriter.patch(apply)
             runOnUiThread {
@@ -463,13 +472,16 @@ class SettingsActivity : AppCompatActivity() {
                     after()
                     Toast.makeText(
                         this,
-                        if (hadPending) "已保存（之前那次没同步的修改请重新设一次）" else "已保存",
+                        if (hadPending) getString(R.string.set_saved_warn) else getString(R.string.set_saved),
                         if (hadPending) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
                     ).show()
                 } else {
                     // 不调 after()：本机保持 NAS 上的旧值
-                    Store.markUnsynced(label, r.pendingText, r.baseHash, r.message)
-                    Toast.makeText(this, r.message.ifBlank { "保存失败" }, Toast.LENGTH_LONG).show()
+                    Store.markUnsynced(
+                        label ?: getString(R.string.set_label_default),
+                        r.pendingText, r.baseHash, r.message
+                    )
+                    Toast.makeText(this, r.message.ifBlank { getString(R.string.set_save_failed) }, Toast.LENGTH_LONG).show()
                 }
                 render()
             }
@@ -499,19 +511,21 @@ class SettingsActivity : AppCompatActivity() {
         val cur = Extras.schedule()?.dailyLimitMinutes ?: 0
         // 清单里可能是 50 这种不在预设里的值：并进来，否则选项里看不到当前值、也打不了勾
         val values = (listOf(0, 20, 30, 45, 60, 90, 120) + cur).distinct().sorted()
-        val labels = values.map { if (it == 0) "不限制" else "$it 分钟" } + "自定义…"
+        val labels = values.map {
+            if (it == 0) getString(R.string.set_unlimited) else getString(R.string.set_minutes, it)
+        } + getString(R.string.set_custom)
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("每日观看上限")
+            .setTitle(getString(R.string.set_limit))
             .setItems(
                 labels.mapIndexed { i, s -> (if (i < values.size && values[i] == cur) "✓ " else "   ") + s }
                     .toTypedArray()
             ) { _, which ->
                 if (which == values.size) askCustomLimit(cur) else {
                     val v = values[which]
-                    updateSchedule("每日观看上限") { it.copy(dailyLimitMinutes = v, enabled = true) }
+                    updateSchedule(getString(R.string.set_limit)) { it.copy(dailyLimitMinutes = v, enabled = true) }
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -523,24 +537,26 @@ class SettingsActivity : AppCompatActivity() {
     private fun chooseReward() {
         val cur = Extras.schedule()?.rewardMinutes ?: 0
         val values = (listOf(0, 5, 10, 15, 20, 30) + cur).distinct().sorted()
-        val labels = values.map { if (it == 0) "关闭" else "奖励 $it 分钟" } + "自定义…"
+        val labels = values.map {
+            if (it == 0) getString(R.string.common_off) else getString(R.string.set_reward_pick, it)
+        } + getString(R.string.set_custom)
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("完成必看奖励加时")
+            .setTitle(getString(R.string.set_reward_title))
             .setItems(
                 labels.mapIndexed { i, s -> (if (i < values.size && values[i] == cur) "✓ " else "   ") + s }
                     .toTypedArray()
             ) { _, which ->
                 if (which == values.size) askCustomReward(cur)
-                else updateSchedule("完成奖励") { it.copy(rewardMinutes = values[which]) }
+                else updateSchedule(getString(R.string.set_reward)) { it.copy(rewardMinutes = values[which]) }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
     private fun askCustomReward(cur: Int) {
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "分钟数，0 = 关闭（最多 ${RewardMath.MAX_REWARD_MINUTES}）"
+            hint = getString(R.string.set_reward_input_hint, RewardMath.MAX_REWARD_MINUTES)
             if (cur > 0) setText(cur.toString())
             setSelection(text.length)
             setTextColor(0xFFF2F4F8.toInt())
@@ -549,21 +565,21 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(40, 24, 40, 24)
         }
         val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("完成后奖励几分钟")
+            .setTitle(getString(R.string.set_reward_ask_title))
             .setView(input)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(getString(R.string.common_save)) { _, _ ->
                 val v = input.text.toString().trim().toIntOrNull()
                 if (v == null || v < 0 || v > RewardMath.MAX_REWARD_MINUTES) {
                     Toast.makeText(
                         this,
-                        "请输入 0~${RewardMath.MAX_REWARD_MINUTES} 之间的分钟数",
+                        getString(R.string.set_reward_invalid, RewardMath.MAX_REWARD_MINUTES),
                         Toast.LENGTH_LONG
                     ).show()
                     return@setPositiveButton
                 }
-                updateSchedule("完成奖励") { it.copy(rewardMinutes = v) }
+                updateSchedule(getString(R.string.set_reward)) { it.copy(rewardMinutes = v) }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .create()
         dialog.show()
         ParentTools.submitOnEnter(input, dialog)
@@ -572,7 +588,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun askCustomLimit(cur: Int) {
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "分钟数，0 = 不限制"
+            hint = getString(R.string.set_limit_input_hint)
             if (cur > 0) setText(cur.toString())
             setSelection(text.length)
             setTextColor(0xFFF2F4F8.toInt())
@@ -581,17 +597,17 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(40, 24, 40, 24)
         }
         val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("每天最多看多少分钟")
+            .setTitle(getString(R.string.set_limit_ask_title))
             .setView(input)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(getString(R.string.common_save)) { _, _ ->
                 val v = input.text.toString().trim().toIntOrNull()
                 if (v == null || v < 0 || v > 720) {
-                    Toast.makeText(this, "请输入 0~720 之间的分钟数", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.set_limit_invalid), Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
-                updateSchedule("每日观看上限") { it.copy(dailyLimitMinutes = v, enabled = true) }
+                updateSchedule(getString(R.string.set_limit)) { it.copy(dailyLimitMinutes = v, enabled = true) }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .create()
         dialog.show()
         ParentTools.submitOnEnter(input, dialog)
@@ -599,31 +615,33 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun chooseWindows(weekend: Boolean) {
         val presets = listOf(
-            "全天不限" to emptyList<TimeWindow>(),
-            "早上 07:00-08:00" to listOf(TimeWindow(7 * 60, 8 * 60)),
-            "放学后 16:00-19:00" to listOf(TimeWindow(16 * 60, 19 * 60)),
-            "下午 17:00-20:00" to listOf(TimeWindow(17 * 60, 20 * 60)),
-            "晚饭后 18:00-20:00" to listOf(TimeWindow(18 * 60, 20 * 60)),
-            "睡前 19:00-21:00" to listOf(TimeWindow(19 * 60, 21 * 60)),
-            "上午 + 下午" to listOf(
+            getString(R.string.set_win_all_free) to emptyList<TimeWindow>(),
+            getString(R.string.set_win_morning) to listOf(TimeWindow(7 * 60, 8 * 60)),
+            getString(R.string.set_win_after_school) to listOf(TimeWindow(16 * 60, 19 * 60)),
+            getString(R.string.set_win_afternoon) to listOf(TimeWindow(17 * 60, 20 * 60)),
+            getString(R.string.set_win_evening) to listOf(TimeWindow(18 * 60, 20 * 60)),
+            getString(R.string.set_win_before_bed) to listOf(TimeWindow(19 * 60, 21 * 60)),
+            getString(R.string.set_win_split) to listOf(
                 TimeWindow(9 * 60, 11 * 60 + 30),
                 TimeWindow(16 * 60, 21 * 60)
             )
         )
         val cur = windowsText(currentWindows(weekend))
         val labels = presets.map { if (it.first == cur) "✓ ${it.first}" else "   ${it.first}" } +
-            "   自定义…"
-        val dayName = if (weekend) "周六周日" else "周一到周五"
+            getString(R.string.set_custom_indent)
+        val dayName = if (weekend) getString(R.string.set_days_weekend) else getString(R.string.set_days_weekday)
         // 当前值不在预设里时（例如 17:30-20:30），标题里也写一遍，家长知道现在是什么
-        val title = if (cur == "全天" || presets.any { it.first == cur }) "$dayName 允许时段"
-        else "$dayName 允许时段（现在 $cur）"
+        val title =
+            if (cur == getString(R.string.set_window_all_day) || presets.any { it.first == cur })
+                getString(R.string.set_win_title, dayName)
+            else getString(R.string.set_win_title_now, dayName, cur)
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle(title)
             .setItems(labels.toTypedArray()) { _, which ->
                 if (which == presets.size) askCustomWindows(weekend)
                 else setWindows(weekend, presets[which].second)
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -637,7 +655,7 @@ class SettingsActivity : AppCompatActivity() {
             .joinToString(",") { compactHm(it.startMin) + "-" + compactHm(it.endMin) }
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT
-            hint = "例如 1800-2000，多段用逗号隔开，留空 = 全天"
+            hint = getString(R.string.set_win_input_hint)
             setText(initial)
             setSelection(text.length)
             setTextColor(0xFFF2F4F8.toInt())
@@ -646,17 +664,17 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(40, 24, 40, 24)
         }
         val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(if (weekend) "自定义周末时段" else "自定义平日时段")
+            .setTitle(if (weekend) getString(R.string.set_win_custom_weekend) else getString(R.string.set_win_custom_weekday))
             .setView(input)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(getString(R.string.common_save)) { _, _ ->
                 val parsed = parseWindows(input.text.toString())
                 if (parsed == null) {
-                    Toast.makeText(this, "格式看不懂，例如 1800-2000 或 18:00-20:00", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.set_win_invalid), Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 setWindows(weekend, parsed)
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .create()
         dialog.show()
         ParentTools.submitOnEnter(input, dialog)
@@ -672,7 +690,9 @@ class SettingsActivity : AppCompatActivity() {
             putWindows(o, "weekday", next.weekday)
             putWindows(o, "weekend", next.weekend)
             o.put("enabled", true)
-        }, { Extras.saveSchedule(next) }, if (weekend) "周末时段" else "平日时段")
+        }, { Extras.saveSchedule(next) },
+            if (weekend) getString(R.string.set_window_weekend) else getString(R.string.set_window_weekday)
+        )
     }
 
     private fun putWindows(o: JSONObject, key: String, w: List<TimeWindow>) {
@@ -684,37 +704,37 @@ class SettingsActivity : AppCompatActivity() {
     private fun toggleSchedule() {
         val sch = Extras.schedule() ?: Schedule(pin = Extras.pin())
         val next = !sch.enabled
-        updateSchedule("时段限制") { it.copy(enabled = next) }
+        updateSchedule(getString(R.string.set_window_enable)) { it.copy(enabled = next) }
         if (next && sch.weekday.isEmpty() && sch.dailyLimitMinutes == 0) {
-            Toast.makeText(this, "现在是全天不限，建议再设一下时段或上限", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.set_hint_no_limits), Toast.LENGTH_LONG).show()
         }
     }
 
     private fun askPin() {
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = "4~8 位数字，留空不改"
+            hint = getString(R.string.set_pin_input_hint)
             setTextColor(0xFFF2F4F8.toInt())
             setHintTextColor(0xFF7C8797.toInt())
             textSize = 20f
             setPadding(40, 24, 40, 24)
         }
         val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("修改家长密码")
+            .setTitle(getString(R.string.set_pin_title))
             .setView(input)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(getString(R.string.common_save)) { _, _ ->
                 val v = input.text.toString().trim()
                 if (v.isEmpty()) return@setPositiveButton
                 if (v.length < 4 || v.length > 8 || !v.all { it.isDigit() }) {
-                    Toast.makeText(this, "请输入 4~8 位数字", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, getString(R.string.set_pin_invalid), Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 save({ root ->
                     root.put("pin", v)
                     root.optJSONObject("schedule")?.put("pin", v)
-                }, { Extras.savePin(v) }, "家长密码")
+                }, { Extras.savePin(v) }, getString(R.string.set_pin))
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .create()
         dialog.show()
         ParentTools.submitOnEnter(input, dialog)
@@ -726,10 +746,10 @@ class SettingsActivity : AppCompatActivity() {
         val labels = values.map { "${(it * 100).toInt()}%" }
         val cur = Math.round(Extras.passRatio() * 100)
         val idx = values.indexOfFirst { (it * 100).toInt() == cur }
-        choose("看完判定", labels, idx) { i ->
+        choose(getString(R.string.set_pass_ratio), labels, idx) { i ->
             val v = values[i]
             save({ root -> root.put("passRatio", v) },
-                { Extras.savePassRatio(v.toFloat()) }, "看完判定")
+                { Extras.savePassRatio(v.toFloat()) }, getString(R.string.set_pass_ratio))
         }
     }
 
@@ -740,41 +760,44 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("开启应用入口？")
-            .setMessage("开启后，主界面会多出一个「${cfg.title}」分区，放家长勾选的第三方 App。")
-            .setPositiveButton("开启") { _, _ ->
+            .setTitle(getString(R.string.set_apps_confirm))
+            .setMessage(getString(R.string.set_apps_confirm_msg, cfg.title))
+            .setPositiveButton(getString(R.string.common_on)) { _, _ ->
                 save({ root ->
                     val o = root.optJSONObject("apps") ?: JSONObject().also { root.put("apps", it) }
                     o.put("enabled", true)
                 }, {
                     Extras.saveApps(cfg.copy(enabled = true))
                     ParentTools.pickApps(this) { render() }
-                }, "应用入口")
+                }, getString(R.string.set_apps))
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
     private fun chooseTemp() {
         val active = Extras.tempRemainingMs() > 0L
-        val labels = (if (active) arrayListOf("结束放行（立刻恢复限制）") else arrayListOf()) +
-            listOf("放行 15 分钟", "放行 30 分钟", "放行 60 分钟", "放行 120 分钟")
+        val labels = (if (active) arrayListOf(getString(R.string.set_temp_end)) else arrayListOf()) +
+            listOf(
+                getString(R.string.temp_15), getString(R.string.temp_30),
+                getString(R.string.temp_60), getString(R.string.temp_120)
+            )
         val minutes = listOf(15, 30, 60, 120)
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("临时放行")
+            .setTitle(getString(R.string.set_temp_release))
             .setItems(labels.toTypedArray()) { _, which ->
                 if (active && which == 0) {
                     Extras.clearTemp()
-                    Toast.makeText(this, "已恢复时间限制", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.set_temp_restored), Toast.LENGTH_SHORT).show()
                 } else {
                     val idx = if (active) which - 1 else which
                     val m = minutes.getOrNull(idx) ?: return@setItems
                     Extras.grantTemp(m)
-                    Toast.makeText(this, "已放行 $m 分钟", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.set_temp_granted, m), Toast.LENGTH_SHORT).show()
                 }
                 render()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -794,68 +817,72 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /** 后台拉回是「老行为」，默认开；个别电视上会和投屏/系统弹窗打架，可以在这里关掉 */
-    private fun togglePullback() = toggleFeature("kioskPullback", "后台拉回")
+    private fun togglePullback() = toggleFeature("kioskPullback", getString(R.string.set_pullback))
 
     /**
      * 外部应用计时默认开：2026-11-10 实机确认孩子从应用入口进优酷 2 小时不入账，
      * 等于绕过每日上限。这是修 bug 不是灰度，装上就生效；出问题在这里关掉，15 秒回滚。
      */
-    private fun toggleExtWatch() = toggleFeature("extWatchMs", "外部应用计时")
+    private fun toggleExtWatch() = toggleFeature("extWatchMs", getString(R.string.set_extwatch))
 
-    private fun toggleRemainingNotice() = toggleFeature("remainingNotice", "剩余时间预告")
+    private fun toggleRemainingNotice() = toggleFeature("remainingNotice", getString(R.string.set_notice))
 
-    private fun toggleRemoteControl() = toggleFeature("remoteControl", "远程控制")
+    private fun toggleRemoteControl() = toggleFeature("remoteControl", getString(R.string.set_remote))
 
-    private fun toggleContinueWatching() = toggleFeature("continueWatching", "首页继续看")
+    private fun toggleContinueWatching() = toggleFeature("continueWatching", getString(R.string.set_continue))
 
     /** 默认关：连播会让时长消耗明显变快，家长要自己决定要不要打开 */
-    private fun toggleAutoNext() = toggleFeature("autoNext", "自动连播")
+    private fun toggleAutoNext() = toggleFeature("autoNext", getString(R.string.set_autonext))
 
     /** 周报只读、不改变任何行为，默认开；万一某个电视上渲染出问题，这里一键收起入口 */
-    private fun toggleReport() = toggleFeature("report", "本周报告")
+    private fun toggleReport() = toggleFeature("report", getString(R.string.set_report))
 
     /** 排障用：版本、构建时间、功能开关现状一次看全，不用连电脑 */
     private fun showAbout() {
         val names = linkedMapOf(
-            "kioskPullback" to "后台拉回",
-            "extWatchMs" to "外部应用计时",
-            "remainingNotice" to "剩余时间预告",
-            "remoteControl" to "远程控制",
-            "continueWatching" to "首页继续看",
-            "autoNext" to "自动连播",
-            "report" to "本周报告"
+            "kioskPullback" to getString(R.string.set_pullback),
+            "extWatchMs" to getString(R.string.set_extwatch),
+            "remainingNotice" to getString(R.string.set_notice),
+            "remoteControl" to getString(R.string.set_remote),
+            "continueWatching" to getString(R.string.set_continue),
+            "autoNext" to getString(R.string.set_autonext),
+            "report" to getString(R.string.set_report)
         )
         val switches = names.entries.joinToString("\n") { (k, label) ->
             "$label：${if (Extras.feature(k)) "开" else "关"}"
         }
         val anomalies = ClockGuard.anomalyCount()
         val msg = buildString {
-            append("版本：v${BuildConfig.VERSION_NAME}（versionCode ${BuildConfig.VERSION_CODE}）\n")
-            append("构建：${BuildConfig.BUILD_TIME}\n")
-            append("包名：${packageName}\n\n")
-            append("功能开关（tv.json 的 features 段，改完 15 秒生效）\n")
+            append(getString(R.string.set_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+            append(getString(R.string.set_about_built, BuildConfig.BUILD_TIME))
+            append(getString(R.string.set_about_pkg, packageName))
+            append(getString(R.string.set_about_features))
             append(switches)
-            append("\n\n今日外部应用：${Extras.extMsToday() / 60_000L} 分钟（已计入每日上限）")
-            append("\n计时模式：${ExtWatchTracker.modeText(this@SettingsActivity)}")
-            append("\n远程控制卡：${Store.playlistShare}:${RemoteControl.controlPath()}")
-            append("（最近指令 ${Store.lastControlAt.ifBlank { "无" }}）")
-            if (Extras.remoteLockActive()) append("\n家长远程锁定中：剩余 ${Extras.remoteLockRemainingMs() / 60_000L + 1} 分钟")
+            append(getString(R.string.set_about_ext, Extras.extMsToday() / 60_000L))
+            append(getString(R.string.set_about_mode, ExtWatchTracker.modeText(this@SettingsActivity)))
+            append(getString(R.string.set_about_remote, Store.playlistShare, RemoteControl.controlPath()))
+            append(
+                getString(R.string.set_about_last_cmd, Store.lastControlAt.ifBlank { getString(R.string.word_none) })
+            )
+            if (Extras.remoteLockActive()) append(
+                getString(R.string.set_about_remote_lock, Extras.remoteLockRemainingMs() / 60_000L + 1)
+            )
             if (anomalies > 0) {
-                append("\n\n系统时间被改过 $anomalies 次")
-                if (ClockGuard.frozen()) append("（当前按校正时间计算）")
+                append(getString(R.string.set_about_anomaly, anomalies))
+                if (ClockGuard.frozen()) append(getString(R.string.set_about_frozen))
             }
         }
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("关于")
+            .setTitle(getString(R.string.set_about_title))
             .setMessage(msg)
-            .setPositiveButton("知道了", null)
+            .setPositiveButton(getString(R.string.common_got_it), null)
             .show()
     }
 
     private fun reloadPlaylist() {
         if (busy) return
         busy = true
-        b.tvBusy.text = "正在重新读取清单…"
+        b.tvBusy.text = getString(R.string.set_reloading)
         Thread {
             Smb.reset()
             val res = Repo.load()
@@ -866,7 +893,7 @@ class SettingsActivity : AppCompatActivity() {
                 b.tvBusy.text = footer
                 Toast.makeText(
                     this,
-                    if (ok) "已重新读取清单" else "连不上 NAS，正在用上次的清单",
+                    if (ok) getString(R.string.set_reloaded) else getString(R.string.set_reload_failed),
                     Toast.LENGTH_SHORT
                 ).show()
                 render()
@@ -881,7 +908,7 @@ class SettingsActivity : AppCompatActivity() {
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle(title)
             .setItems(shown.toTypedArray()) { _, which -> onPick(which) }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -893,17 +920,18 @@ class SettingsActivity : AppCompatActivity() {
     private fun showStateBackup() {
         val days = Extras.stamps().size
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("记录备份 · 打卡 $days 天")
+            .setTitle(getString(R.string.set_state_title, days))
             .setMessage(
-                "${StateBackup.lastSavedText()}。\n\n" +
-                    "备份在 NAS 的 ${StateBackup.statePath()}，和片单分开存，" +
-                    "手改片单碰不坏记录。重装 App、恢复出厂或清了数据之后，" +
-                    "可以用它把打卡墙和播放进度接回来。"
+                getString(
+                    R.string.set_state_msg,
+                    StateBackup.lastSavedText(),
+                    StateBackup.statePath()
+                )
             )
-            .setItems(arrayOf("立即备份到 NAS", "从 NAS 恢复记录")) { _, which ->
+            .setItems(arrayOf(getString(R.string.set_state_do_backup), getString(R.string.set_state_do_restore))) { _, which ->
                 when (which) {
                     0 -> {
-                        Toast.makeText(this, "正在备份…", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.set_state_backing_up), Toast.LENGTH_SHORT).show()
                         StateBackup.exportAsync("manual") { r ->
                             Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
                             if (!isFinishing) render()
@@ -912,7 +940,7 @@ class SettingsActivity : AppCompatActivity() {
                     else -> confirmRestore()
                 }
             }
-            .setNegativeButton("关闭", null)
+            .setNegativeButton(getString(R.string.common_close), null)
             .show()
     }
 
@@ -924,43 +952,41 @@ class SettingsActivity : AppCompatActivity() {
      */
     private fun showDiag() {
         val msg = buildString {
-            append("出问题时电视会自己记一笔，方便回头查是哪儿不对。\n\n")
-            append("本地待上传：").append(Diag.pending()).append(" 条\n")
-            append("NAS 归档：").append(Diag.logDirPath()).append("\n")
-            append("（只保留最近 7 天，单个文件最多 200 KB，写满自动丢最旧的）\n\n")
-            append("最近的记录：\n").append(Diag.recentText())
+            append(getString(R.string.set_diag_intro))
+            append(getString(R.string.set_diag_pending, Diag.pending()))
+            append(getString(R.string.set_diag_archive, Diag.logDirPath()))
+            append(getString(R.string.set_diag_keep))
+            append(getString(R.string.set_diag_recent)).append(Diag.recentText())
         }
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("诊断日志")
+            .setTitle(getString(R.string.set_diag))
             .setMessage(msg)
-            .setItems(arrayOf("立即上传到 NAS", "清空本地日志")) { _, which ->
+            .setItems(arrayOf(getString(R.string.set_diag_upload_now), getString(R.string.set_diag_clear))) { _, which ->
                 when (which) {
                     0 -> {
-                        Toast.makeText(this, "正在上传…", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.set_diag_uploading), Toast.LENGTH_SHORT).show()
                         Diag.uploadAsync { r ->
                             Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
                             if (!isFinishing) render()
                         }
                     }
-                    else -> confirm("清空本地日志？", "NAS 上已经归档的不会删。") {
+                    else -> confirm(getString(R.string.set_diag_clear_confirm), getString(R.string.set_diag_clear_msg)) {
                         Diag.clear()
-                        Toast.makeText(this, "已清空本地日志", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, getString(R.string.set_diag_cleared), Toast.LENGTH_SHORT).show()
                         render()
                     }
                 }
             }
-            .setNegativeButton("关闭", null)
+            .setNegativeButton(getString(R.string.common_close), null)
             .show()
     }
 
     private fun confirmRestore() {
         confirm(
-            "从 NAS 恢复记录？",
-            "只会补充，不会把本地更新的进度改小。\n" +
-                "今天已经看过的时间也会一并算回去 —— 如果因此超过每日上限，" +
-                "恢复后会马上锁屏，这是正常的。"
+            getString(R.string.set_restore_confirm),
+            getString(R.string.set_restore_msg)
         ) {
-            Toast.makeText(this, "正在恢复…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.set_restoring), Toast.LENGTH_SHORT).show()
             StateBackup.importAsync { r ->
                 Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
                 if (!isFinishing) render()
@@ -972,8 +998,8 @@ class SettingsActivity : AppCompatActivity() {
         AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle(title)
             .setMessage(message)
-            .setPositiveButton("确定") { _, _ -> onOk() }
-            .setNegativeButton("取消", null)
+            .setPositiveButton(getString(R.string.common_confirm)) { _, _ -> onOk() }
+            .setNegativeButton(getString(R.string.common_cancel), null)
             .show()
     }
 
@@ -982,7 +1008,9 @@ class SettingsActivity : AppCompatActivity() {
     /** "1800-2000" / "18:00-20:00" / "18:00-20:00,21:00-21:30" 都认；空 = 全天 */
     private fun parseWindows(text: String): List<TimeWindow>? {
         val t = text.trim()
-        if (t.isEmpty() || t == "全天" || t == "全天不限") return emptyList()
+        if (t.isEmpty() || t == getString(R.string.set_window_all_day) ||
+            t == getString(R.string.set_win_all_free)
+        ) return emptyList()
         val re = Regex("(\\d{1,2})[:：]?(\\d{2})\\s*[-~至–—]\\s*(\\d{1,2})[:：]?(\\d{2})")
         val out = re.findAll(t).mapNotNull { m ->
             try {
