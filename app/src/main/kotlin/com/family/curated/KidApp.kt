@@ -9,6 +9,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import com.family.curated.data.AppGuard
+import com.family.curated.data.Diag
 import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
@@ -70,8 +71,12 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 PlaylistSync.tick()
                 // 打卡与进度备份：内部按 5 分钟节流，退到后台 / 打卡时会插队（OPT-09）
                 StateBackup.tick()
+                // 诊断日志上传：内部按 60 秒节流、失败退避 5 分钟，播放中不传（OPT-17）
+                Diag.tick()
             } catch (e: Exception) {
-                // 守卫不能把应用搞崩
+                // 守卫不能把应用搞崩 —— 但也不能把线索咽掉：
+                // 早先这里是空 catch，电视上出问题时只能靠猜（OPT-17）
+                Diag.warn("tick", "守卫心跳异常（本轮已跳过，下一秒继续）", e)
             }
             handler.postDelayed(this, 1000)
         }
@@ -93,6 +98,7 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
             )
         } catch (e: Exception) {
             // 后台启动被 ROM 拦下时，下一秒 tick 会再试一次
+            Diag.warn("gate", "时段/限额拉回主界面失败（下一秒重试）", e)
         }
     }
 
@@ -150,6 +156,29 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
             )
         } catch (e: Exception) {
             // 有些 ROM 在后台启动 Activity 会拦，忽略即可，默认桌面那层还在兜底
+            Diag.warn("kiosk", "儿童锁拉回失败（默认桌面仍兜底）", e)
+        }
+    }
+
+    /**
+     * 未捕获异常兜底：先落一条本地日志，再原样交回系统。
+     *
+     * **不吞异常** —— 该崩还是要崩（带着一个记错的账继续跑，比崩掉更糟），
+     * 只是别再让「崩了」这件事凭空消失：写一行到 `filesDir/diag`，
+     * 下次启动后由 [Diag] 传到 NAS 的 `data:curated/logs/`。
+     */
+    private fun installCrashHandler() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            try {
+                Diag.crash(e)
+            } catch (ignored: Throwable) {
+            }
+            if (prev != null) {
+                prev.uncaughtException(t, e)
+            } else {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
         }
     }
 
@@ -157,6 +186,9 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         super.onCreate()
         Store.init(this)
         Extras.init(this)
+        // 诊断日志要在最早期就绪：崩溃兜底与后面的初始化都要用它（OPT-17）
+        Diag.init(this)
+        installCrashHandler()
         PlaylistSync.init(this)
         registerActivityLifecycleCallbacks(this)
         // 重装 / 恢复出厂后本地用量是 0，等于白送孩子一段额度（EX-13）。

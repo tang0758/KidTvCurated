@@ -3,6 +3,7 @@ package com.family.curated
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.family.curated.data.Diag
 import com.family.curated.data.Extras
 
 /**
@@ -40,7 +41,13 @@ class BootReceiver : BroadcastReceiver() {
             )
         } catch (e: Exception) {
             // 个别 ROM 限制后台启动 Activity，忽略即可：
-            // 默认桌面 + KidApp 前台守卫仍会在按 Home 或切后台时兜底
+            // 默认桌面 + KidApp 前台守卫仍会在按 Home 或切后台时兜底。
+            // 但「开机没起来」是家长最常反馈的那一类，得留下记录（OPT-17）
+            try {
+                Diag.init(context)
+                Diag.warn("boot", "开机自启失败（儿童锁可能没及时生效）", e)
+            } catch (ignored: Throwable) {
+            }
         }
     }
 

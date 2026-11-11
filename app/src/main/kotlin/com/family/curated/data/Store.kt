@@ -192,6 +192,11 @@ object Store {
         get() = sp.getInt("state_saved_bytes", 0)
         set(v) = sp.edit().putInt("state_saved_bytes", v).apply()
 
+    /** 上次把诊断日志传到 NAS 的时间（OPT-17），设置页用它说明「日志有没有在走」 */
+    var diagUploadedAt: Long
+        get() = sp.getLong("diag_uploaded_at", 0L)
+        set(v) = sp.edit().putLong("diag_uploaded_at", v).apply()
+
     /**
      * 已经问过家长「要不要恢复上次记录」并得到了「不用了」。
      * 这个键和记录本身一起被 `pm clear` 清掉，所以下次真清空时还会再问一次。

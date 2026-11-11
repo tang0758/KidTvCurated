@@ -18,9 +18,10 @@ android {
         applicationId = "com.family.curated"
         minSdk = 24
         targetSdk = 34
-        // 每个 Wave 发一版：Wave 0 + OPT-03 → 2；OPT-04 → 3；Wave 1 → 4；Wave 2 → 5；Wave 3 → 6 / 7
-        versionCode = 7
-        versionName = "1.6"
+        // 每个 Wave 发一版：Wave 0 + OPT-03 → 2；OPT-04 → 3；Wave 1 → 4；Wave 2 → 5；
+        // Wave 3 → 6 / 7；Wave 4（OPT-17 异常落盘）→ 8
+        versionCode = 8
+        versionName = "1.7"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
 
         ndk {

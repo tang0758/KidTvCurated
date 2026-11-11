@@ -14,6 +14,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.ClockGuard
+import com.family.curated.data.Diag
 import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.Features
@@ -264,6 +265,13 @@ class SettingsActivity : AppCompatActivity() {
                 "${StateBackup.lastSavedText()} · 打卡 ${Extras.stamps().size} 天",
                 "备份 ›"
             ) { showStateBackup() }
+        )
+        list.add(
+            Entry.Row(
+                "诊断日志",
+                Diag.statusText(),
+                if (Diag.pending() > 0) "上传 ›" else "查看 ›"
+            ) { showDiag() }
         )
         list.add(
             Entry.Row("重新读取清单", "从 NAS 重新拉一次", "") { reloadPlaylist() }
@@ -902,6 +910,43 @@ class SettingsActivity : AppCompatActivity() {
                         }
                     }
                     else -> confirmRestore()
+                }
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+    }
+
+    /**
+     * 诊断日志（OPT-17）：出问题时电视把线索写在这里，家长不用连电脑。
+     *
+     * 只显示本地最近几条（够判断「是不是一直在报同一个错」），
+     * 归档在 NAS 上，需要看全的可以去电脑上开 `data:curated/logs/`。
+     */
+    private fun showDiag() {
+        val msg = buildString {
+            append("出问题时电视会自己记一笔，方便回头查是哪儿不对。\n\n")
+            append("本地待上传：").append(Diag.pending()).append(" 条\n")
+            append("NAS 归档：").append(Diag.logDirPath()).append("\n")
+            append("（只保留最近 7 天，单个文件最多 200 KB，写满自动丢最旧的）\n\n")
+            append("最近的记录：\n").append(Diag.recentText())
+        }
+        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle("诊断日志")
+            .setMessage(msg)
+            .setItems(arrayOf("立即上传到 NAS", "清空本地日志")) { _, which ->
+                when (which) {
+                    0 -> {
+                        Toast.makeText(this, "正在上传…", Toast.LENGTH_SHORT).show()
+                        Diag.uploadAsync { r ->
+                            Toast.makeText(this, r.message, Toast.LENGTH_LONG).show()
+                            if (!isFinishing) render()
+                        }
+                    }
+                    else -> confirm("清空本地日志？", "NAS 上已经归档的不会删。") {
+                        Diag.clear()
+                        Toast.makeText(this, "已清空本地日志", Toast.LENGTH_SHORT).show()
+                        render()
+                    }
                 }
             }
             .setNegativeButton("关闭", null)

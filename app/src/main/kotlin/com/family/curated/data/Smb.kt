@@ -463,6 +463,62 @@ object Smb {
         }
     }
 
+    /**
+     * 用一条独立的临时连接做「一组」操作（建目录、列目录、删文件、读、写）。
+     *
+     * 诊断日志需要一次做完整套动作：`logs` 目录可能还不存在，要先把旧文件清掉，
+     * 再读旧内容合并、写回去。这些如果各开一条连接，就是四五次握手；
+     * 而且 `Smb.list` 走的是主连接 —— 播放时那是孩子正在读视频的那条。
+     *
+     * 与 [readAllIsolated] / [writeIsolated] 同一套隔离原则：卡住只掐自己，
+     * 掐的是 [SMBClient]（关 socket 能让阻塞的调用抛出来），不碰主连接。
+     *
+     * 注：上面那两个函数没有改成调用它 —— 它们是喂视频和喂片单的热路径，
+     * 已在电视上跑了几十个版本，没有理由为了少二十行重复去动它们。
+     */
+    fun <T> withIsolatedShare(
+        cfg: NasConfig,
+        shareName: String,
+        label: String,
+        timeoutMs: Long = 25_000,
+        block: (DiskShare) -> T
+    ): T {
+        val holder = AtomicReference<SMBClient?>(null)
+        return withDeadline(
+            label, timeoutMs,
+            onTimeout = {
+                try {
+                    holder.get()?.close()
+                } catch (e: Exception) {
+                }
+            }
+        ) {
+            val conf = SmbConfig.builder()
+                .withTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
+                .withSoTimeout(timeoutMs / 2, TimeUnit.MILLISECONDS)
+                .withMultiProtocolNegotiate(true)
+                .build()
+            val c = SMBClient(conf)
+            holder.set(c)
+            val conn = c.connect(cfg.host, cfg.port)
+            try {
+                val ac = AuthenticationContext(cfg.user, cfg.password.toCharArray(), null)
+                val sess = conn.authenticate(ac)
+                val sh = sess.connectShare(shareName) as DiskShare
+                block(sh)
+            } finally {
+                try {
+                    conn.close()
+                } catch (e: Exception) {
+                }
+                try {
+                    c.close()
+                } catch (e: Exception) {
+                }
+            }
+        }
+    }
+
     @Synchronized
     fun closeQuietly() {
         extraShares.values.forEach { try { it.close() } catch (e: Exception) { } }
