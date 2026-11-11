@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.11（Wave 4 全部五项收口：OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19 之后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-11 夜 · OPT-19） |
+| 文档版本 | V1.12（Wave 4 五项收口 + PR #1 真缺口移植：SHA-256 清单指纹 / 握手期可强关 / 并发安全） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 深夜 · PR #1 评估与移植） |
 | 撰写角色 | 产品经理 / 测试工程师 |
 | 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（26.7 MB，versionCode 10 / versionName 1.9 —— OPT-15 为零运行时改动的工程项，不单独发版）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip`、`小剧场.bat`（统一启动页入口） |
+| 对应交付物 | `app-debug.apk`（25.4 MB）。**电视上跑的是 versionCode 11 / 1.9.1**（11-11 三轮实机验收过的那版）；`versionCode 12 / 1.9.2` 只构建未装包，等下次上电视按[待实机验证清单](待实机验证.md) 7.2 节回归。另有 `dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip`、`小剧场.bat`（统一启动页入口） |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
