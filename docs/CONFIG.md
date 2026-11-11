@@ -16,7 +16,7 @@
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `nas` | 建议 | `{host, port, user, password, share}`。省略时 App 用编译时 `LocalSecrets.kt` 里的账号，换 NAS / 换密码就得重编译 |
+| `nas` | 建议 | `{host, port, user, password, share}`。省略时 App 用编译时的默认账号（`BuildConfig.NAS_USER / NAS_PASS`，来自 `local.properties` 的 `nas.user` / `nas.pass` 或环境变量），换 NAS / 换密码就得重编译 |
 | `playlistShare` | 否 | `tv.json` 所在共享名，默认 `data`。`儿童资源` 常是只读的，所以清单单独放可写共享 |
 | `sections` | 是 | 一行行海报分区，数组顺序即电视上的上下顺序 |
 | `pin` | 否 | 家长密码 4 位数字，默认 `1234`。**装好请改掉** |
@@ -318,7 +318,7 @@ adb shell appops set com.family.curated GET_USAGE_STATS allow
 |---|---|
 | `tv.json`（本地生成的） | 含 **NAS 明文账号密码 + PIN**，以及你家真实片库目录结构；且是运行时产物，每台 NAS 都不同 |
 | `nas.local.json` | 存 NAS 地址 / 账号 / 密码，供 Python 脚本使用 |
-| `data/LocalSecrets.kt` | 编译进 APK 的兜底凭据，含明文密码 |
+| `local.properties` 的 `nas.user` / `nas.pass` | 编译进 APK 的兜底凭据（`data/LocalSecrets.kt` 只读 `BuildConfig`，本身不含密钥） |
 | `local.properties` | 本机 Android SDK 绝对路径 |
 
 模板 [`examples/tv.json`](../examples/tv.json) 里全是 `YOUR_NAS_*` 占位符和虚构目录，可以安全公开。
@@ -337,4 +337,4 @@ adb shell appops set com.family.curated GET_USAGE_STATS allow
 | 锁屏右半边是空的 | `learning.enabled` 是否为 false；或 `useBuiltin: false` 但 `custom` 一张都没写 |
 | 名画显示「加载中」 | `artFolder` 路径是否相对 `artShare` 根目录、共享名是否写对、图片是不是 jpg/png；不配就用内置图 |
 | 学习卡片不自动换 | 按了播放 / 暂停键会暂停轮播，再按一次继续；或看 `intervalSeconds` 是否填得很大 |
-| 密码泄露过 | 先改 NAS 密码，再更新 `tv.json` / `nas.local.json` / `LocalSecrets.kt`，重新编译安装 |
+| 密码泄露过 | 先改 NAS 密码，再更新 `tv.json` / `nas.local.json` / `local.properties`（`nas.pass`），重新编译安装 |

@@ -1,5 +1,6 @@
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -9,6 +10,25 @@ plugins {
 // 排障第一句永远是「电视上装的是哪版」，所以把构建时间编译进 APK，
 // 设置页页脚直接显示，不用连电脑查 dumpsys。
 val buildStamp: String = SimpleDateFormat("MM-dd HH:mm").format(Date())
+
+// 首次启动的默认 NAS 账号。**真实账号密码不进 Git**：
+//   1. `local.properties`（已 gitignore）里的 nas.user / nas.pass；
+//   2. 环境变量 NAS_USER / NAS_PASS（CI 或临时构建）。
+// 两边都没有时是空串 —— 仓库 clone 下来照样能编译，只是首次启动要在设置页手填。
+// 之前这份是 gitignore 掉的 `LocalSecrets.kt`，导致「只有作者本机能编过」，
+// GitHub Actions 第一次跑就在编译阶段红了。
+val localProps: Properties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun secret(key: String, env: String): String =
+    (localProps.getProperty(key) ?: System.getenv(env) ?: "")
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+
+val nasUser: String = secret("nas.user", "NAS_USER")
+val nasPass: String = secret("nas.pass", "NAS_PASS")
 
 android {
     namespace = "com.family.curated"
@@ -23,6 +43,9 @@ android {
         versionCode = 10
         versionName = "1.9"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
+        // 默认 NAS 账号：来自 local.properties / 环境变量，缺失时是空串（见文件上方说明）
+        buildConfigField("String", "NAS_USER", "\"$nasUser\"")
+        buildConfigField("String", "NAS_PASS", "\"$nasPass\"")
 
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a")

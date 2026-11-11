@@ -907,7 +907,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-35 | 日志两段式、绝不拖累主流程 | 异常先同步落本地、再由心跳后台传 NAS；`record()` 自身任何失败只 `Log.w`，不向上抛；同一指纹 60 秒一条；滚动整行丢、按 UTF-8 字节计上限；`logs/` 只删 `tv-yyyyMMdd.txt`，其它文件一律不动；读失败（非「文件不存在」）不得当空文件覆盖 |
 | R-36 | 界面文案只在 strings.xml | 新增/修改面向用户的中文必须加进 `res/values/strings.xml` 并用 `getString`（object 里用 `activity.getString`）；带变量的句子必须用位置占位符 `%1$s / %2$d`，不得用字符串拼接；教学数据（`data/builtin/`）与日志文本不进资源；`tools/check_strings.py` 的预算只降不升 |
 | R-37 | 设置页按分组拆文件 | 设置页由「外壳 + 分组 + 弹窗工具箱」三层组成：外壳（`SettingsActivity`）独占布局、列表装配、写回（`save()`）、焦点保持；每个分组只产出 `Entry` 列表与自己的弹窗，**不得**自己调 `PlaylistWriter` 或改 `busy` 状态；弹窗样式只在 `SettingsDialogs.kt` 一处定义。新增设置项只改对应分组，不改外壳 |
-| R-38 | 合并前必须过 CI | 每次 push / PR 由 `.github/workflows/android.yml` 跑两个 job：`tools/check_strings.py`（文案守卫）与 `./gradlew testDebugUnitTest assembleDebug`。**新增的可测逻辑必须同时提交单测**；单测只许放 `data/*Math` 这类**不 import `android.*` / `org.json`** 的纯函数（纯 JVM 单测里它们是桩，一碰就 `RuntimeException: Stub!`）。CI 红的提交不进 `main`；电视上的实机验证不进 CI，见[待实机验证清单](待实机验证.md) |
+| R-38 | 合并前必须过 CI | 每次 push / PR 由 `.github/workflows/android.yml` 跑两个 job：`tools/check_strings.py`（文案守卫）与 `./gradlew testDebugUnitTest assembleDebug`。**新增的可测逻辑必须同时提交单测**；单测只许放 `data/*Math` 这类**不 import `android.*` / `org.json`** 的纯函数（纯 JVM 单测里它们是桩，一碰就 `RuntimeException: Stub!`）。CI 红的提交不进 `main`；电视上的实机验证不进 CI，见[待实机验证清单](待实机验证.md)。**被 `.gitignore` 排除的文件不得被源码直接 `import`**：本机私有配置（账号密码等）一律走 `local.properties` / 环境变量 → `BuildConfig`，否则仓库 clone 下来编不过（2026-11-11 第一次跑 CI 的翻车原因） |
 
 ---
 

@@ -889,4 +889,34 @@ python tools/check_strings.py --update   # 认账：把当前值写成新基线
 **验证**：单测 **130 条全绿**（新增 18 条）；`assembleDebug` 通过；APK 26.7 MB / `v1.9(10)` / 构建时间 11-11 18:30；
 `python tools/check_strings.py` 通过（271 处基线，唯一变化是那条时段正则从 `TimeGroup.kt` 记到了 `WindowMath.kt`）。
 workflow 先做静态校验：YAML 能被解析、5 段 `run:` 脚本逐个 `bash -n` 通过、用例汇总脚本喂真数据与空数据各跑一次。
-真正的执行结果见下一段的推送记录。
+推送后第一次真跑：`文案守卫` **34 秒绿**，`单测与打包` 在**编译阶段**失败。
+失败原因不是 workflow 写错，而是**仓库本身不能独立构建** —— 见下一小节。
+
+**第一次跑 CI 就红了，但红得值**
+
+- 现象：`unit-test` job 在「跑单测并构建调试包」这步失败，`文案守卫` 正常。
+- 原因：`data/LocalSecrets.kt` 被 `.gitignore` 排除（里面是明文 NAS 账号密码），
+  而 `Store.kt` 直接引用 `LocalSecrets.USER / PASS` 当首次启动的默认账号。
+  本机有这份文件所以永远编得过，**任何干净检出都必然 `Unresolved reference: LocalSecrets`**。
+- 讽刺的是仓库里一直有一份 `docs/LocalSecrets.example.kt.txt`，要求「复制 → 去掉说明 → 填密码」，
+  三步都能忘，而且忘了只在别人机器上炸。
+
+改法（`versionCode` 不变，仍是 `v1.9(10)`）：
+
+| 之前 | 现在 |
+|---|---|
+| gitignore 掉的 `LocalSecrets.kt` 里写 `const val USER / PASS` | `LocalSecrets.kt` **进 Git**，只读 `BuildConfig.NAS_USER / NAS_PASS` |
+| — | `app/build.gradle.kts` 从 `local.properties` 的 `nas.user` / `nas.pass`（或环境变量 `NAS_USER` / `NAS_PASS`）生成 `buildConfigField` |
+| 缺文件就编不过 | 两边都没有时是空串，照样编译；`LocalSecrets.isConfigured` 可判断有没有配 |
+
+顺带删掉过时的 `docs/LocalSecrets.example.kt.txt`，并把 README / `CONFIG.md` / `tv.schema.json` /
+`examples/tv.json` 里「用编译时 `LocalSecrets.kt` 里的账号」这类说法统一改成
+「`BuildConfig.NAS_USER / NAS_PASS`」。
+
+**怎么验证的**（不必真推两遍）：把 `local.properties` 换成只剩 `sdk.dir`，
+`./gradlew :app:compileDebugKotlin --rerun-tasks` 编过且 `BuildConfig.NAS_USER` 是空串；
+还原后又跑一遍 `testDebugUnitTest assembleDebug`，130 条全绿、`NAS_USER` 回到真值。
+
+**留下的规矩**：**「本机能编过」≠「仓库能编过」**。任何被 `.gitignore` 排除却被源码 `import` 的文件，
+都会在第一次 CI 上现形。以后的本机私有配置一律走 `local.properties` / 环境变量 → `BuildConfig`，
+源码里不留对 gitignore 文件的引用。

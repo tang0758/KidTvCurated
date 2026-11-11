@@ -14,9 +14,11 @@ captures/
 # 本机私有配置（绝不上传）
 .env
 nas.local.json
-app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt
 .console_token
 .console_desktop.json
+# 注：`data/LocalSecrets.kt` 现在**要提交**（它只读 BuildConfig，不含密钥）。
+# 默认 NAS 账号改放 local.properties 的 nas.user / nas.pass，或环境变量 NAS_USER / NAS_PASS。
+# 早先这份 .kt 被 ignore 掉，结果是「只有作者本机能编过」，CI 一上去就红。
 
 # PC 配置助手：打包产物 / 浏览器独立配置 / 运行数据
 /dist/

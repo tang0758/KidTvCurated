@@ -483,11 +483,23 @@ adb shell appops set app.orchard.tv SYSTEM_ALERT_WINDOW allow
 
 ```bash
 cp nas.example.json nas.local.json       # 改 NAS 地址 / 账号 / 密码 / 共享名
-cp docs/LocalSecrets.example.kt.txt \
-   app/src/main/kotlin/com/family/curated/data/LocalSecrets.kt   # 去掉说明，填同一组账号密码
 ```
 
-`local.properties` 里写 `sdk.dir=...`（Gradle 会自动生成本地路径，已忽略）。
+再往 `local.properties`（Gradle 自动生成、已忽略）里加两行，写首次启动时的默认 NAS 账号：
+
+```properties
+sdk.dir=/path/to/android/sdk    # 这一行 Gradle 自己会写
+nas.user=你的NAS账号
+nas.pass=你的NAS密码
+```
+
+这两行由 `app/build.gradle.kts` 编进 `BuildConfig.NAS_USER / NAS_PASS`，`data/LocalSecrets.kt` 只是读它。
+**不写也能编译**（GitHub Actions 就没有这两行，编出来是空串），只是首次开机要在设置页手填；
+也可以用环境变量 `NAS_USER` / `NAS_PASS` 覆盖。
+
+> 早先把账号密码写在一个被 gitignore 的 `LocalSecrets.kt` 里，代价是**仓库 clone 下来编不过** ——
+> 除了作者本机，谁都编不了，CI 一上去就在编译阶段红。现在这份 `.kt` 本身进 Git，里面只有读
+> `BuildConfig` 的代码，不含任何密钥。
 
 ### 3. 编译安装
 
@@ -973,7 +985,6 @@ examples/tv.json         公开的配置模板，复制改名即可用
 docs/CONFIG.md           字段手册 / 常见配方 / 排错
 docs/ART_SOURCES.md      内置名画来源与许可
 docs/tv.schema.json      JSON Schema（编辑器补全与校验）
-docs/LocalSecrets.example.kt.txt   私有凭据模板
 ```
 
 ## 安全说明 · 为什么这几个文件不进 Git
@@ -981,14 +992,14 @@ docs/LocalSecrets.example.kt.txt   私有凭据模板
 | 文件 | 里面有什么 | 不上传的原因 |
 |---|---|---|
 | `nas.local.json` | NAS 地址、账号、**明文密码**，供 Python 脚本连接 | 纯凭据文件，每台机器不同 |
-| `app/.../data/LocalSecrets.kt` | 同一组账号密码，会被**编译进 APK** | 同上；仓库里只有占位符版 `docs/LocalSecrets.example.kt.txt` |
 | `tv.json`（根目录 / NAS 上那份） | `nas` 段的**明文账号密码**、家长 PIN，以及你家真实的片库目录和片名 | 既是凭据也是隐私，还是「扫描 NAS 自动生成」的运行时产物，每台 NAS 都不一样 |
-| `local.properties` | 本机 Android SDK 绝对路径 | 只对当前电脑有效 |
+| `local.properties` | 本机 Android SDK 路径 + 默认 NAS 账号（`nas.user` / `nas.pass`） | 前者只对当前电脑有效，后者是明文凭据 |
 
 仓库里公开的模板是 [`examples/tv.json`](examples/tv.json)：所有地址、账号、路径都换成了示例值，
 别人复制一份填上自己的即可。`.gitignore` 只忽略**根目录**的 `tv.json`，不会误伤 `examples/tv.json`。
 
 - NAS 账号密码只存在于电视本机（APK + NAS 上的 tv.json）和上述本地文件；Git 历史里只有 `YOUR_NAS_USER`
+- `data/LocalSecrets.kt` 现在会进 Git，但它**只读 `BuildConfig`**，不含密钥；密钥在 `local.properties`（忽略）或环境变量里
 - 家长 PIN 明文写在 NAS 的 `tv.json` 里，仅用于防止孩子随手解锁，不是安全加密；装好请改掉默认 `1234`
 - 网页控制台默认只监听 `127.0.0.1`，开 `--lan` 后所有 API 都要求访问码；要放到外网先看「外网也能改片单」，别直接做端口映射
 - 访问码失败 5 次会锁定 5 分钟；登录门把访问码只存在浏览器本地，不写进 URL / 历史 / 代理日志

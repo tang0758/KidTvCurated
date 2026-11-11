@@ -13,7 +13,7 @@
     "password": "YOUR_NAS_PASSWORD",
     "share": "儿童资源"
   },
-  "_nas说明": "这段是 App 连 SMB 用的凭据。不写也行，App 会用编译时 LocalSecrets.kt 里的账号；用现成 APK 又不重编译时必须写。密码是明文，填好真实密码的 tv.json 千万别传 Git。",
+  "_nas说明": "这段是 App 连 SMB 用的凭据。不写也行，App 会用编译时的默认账号（BuildConfig.NAS_USER / NAS_PASS，来自 local.properties 或环境变量）；用现成 APK 又不重编译时必须写。密码是明文，填好真实密码的 tv.json 千万别传 Git。",
   "playlistShare": "data",
   "_playlistShare说明": "tv.json 自己所在的共享名。儿童资源常常只读，所以单独放一个可写共享；App 找不到时会依次试 data / nas.share / 普通数据 / 迅雷下载。",
   "pin": "1234",
