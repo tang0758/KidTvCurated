@@ -45,6 +45,17 @@ object StateBackup {
     @Volatile private var pending = false
     @Volatile private var pendingReason = ""
 
+    /**
+     * 上次真正发起备份尝试的时刻（成功、失败都算）。
+     *
+     * 不能拿 [Store.stateSavedAt] 当节流依据：那个只在**成功**时更新，
+     * 失败后 5 分钟阈值会一直成立，tick 每秒都能进来 —— 实测 NAS 一断线就是每秒重连一次。
+     */
+    @Volatile private var lastTryAt = 0L
+
+    /** 连续失败次数；成功一次清零。退避间隔见 [BackoffMath] */
+    @Volatile private var failStreak = 0
+
     data class Result(val ok: Boolean, val message: String = "", val raised: Int = 0)
 
     // ---------- 路径 ----------
@@ -76,10 +87,15 @@ object StateBackup {
         // 播放中只做「被明确请求」的那次（退到后台 / 打卡），定时备份等播完再说：
         // 小文件虽然走独立短连接，也没必要在孩子看得正顺的时候去动 NAS
         if (SmbPlaybackContext.playing && !pending) return
+        // 失败退避：NAS 不可达时不要每秒重连一次。家长明确点的「立即备份」照做（pending），
+        // 定时任务才受限 —— 反正这段时间里试也是白试
+        val backoff = BackoffMath.retryDelayMs(failStreak)
+        if (!pending && backoff > 0 && now - lastTryAt < backoff) return
         val reason = pendingReason.ifEmpty { "timer" }
         pending = false
         pendingReason = ""
         busy = true
+        lastTryAt = now
         PlaylistSync.submit {
             try {
                 exportNow(reason)
@@ -121,13 +137,17 @@ object StateBackup {
         val bytes = json.toByteArray(Charsets.UTF_8)
         return try {
             Smb.writeIsolated(cfg, share(), statePath(), bytes, WRITE_TIMEOUT_MS)
+            failStreak = 0
             Store.stateSavedAt = System.currentTimeMillis()
             Store.stateSavedReason = reason
             Store.stateSavedBytes = bytes.size
             Log.i(TAG, "记录已备份到 NAS（$reason）：${StateMerge.summary(snap)}，${bytes.size} 字节")
             Result(true, "已备份", 0)
         } catch (e: Exception) {
-            Log.w(TAG, "备份失败（$reason）: ${e.javaClass.simpleName}: ${e.message}")
+            failStreak += 1
+            // 日志里带上退避时间，下次查「为什么半小时才备份一次」时不用再翻代码
+            val waitMin = BackoffMath.retryDelayMs(failStreak) / 60_000
+            Log.w(TAG, "备份失败（$reason，连续 $failStreak 次，$waitMin 分钟后再试）: ${e.javaClass.simpleName}: ${e.message}")
             Result(false, "备份失败：${e.message ?: e.javaClass.simpleName}")
         }
     }
