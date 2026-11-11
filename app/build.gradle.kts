@@ -19,9 +19,9 @@ android {
         minSdk = 24
         targetSdk = 34
         // 每个 Wave 发一版：Wave 0 + OPT-03 → 2；OPT-04 → 3；Wave 1 → 4；Wave 2 → 5；
-        // Wave 3 → 6 / 7；Wave 4：OPT-17 异常落盘 → 8，OPT-16 文案收口 → 9
-        versionCode = 9
-        versionName = "1.8"
+        // Wave 3 → 6 / 7；Wave 4：OPT-17 异常落盘 → 8，OPT-16 文案收口 → 9，OPT-18 设置页拆分 → 10
+        versionCode = 10
+        versionName = "1.9"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
 
         ndk {

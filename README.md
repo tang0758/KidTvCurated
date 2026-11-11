@@ -260,9 +260,36 @@ python tools/check_strings.py --update   # 认账（唯一能把预算改高的�
 还没搬的：首页（55 处）、勋章名（30）、播放页（16）、周报页（16）。都记在
 `tools/string_budget.json` 里，只许降不许升 —— 这类「以后再收」的活，没有基线就会被永远忘掉。
 
+### 想给家长控制加一项设置：改 `settings/` 里对应的分组
+
+设置页是「外壳 + 分组」两层：`SettingsActivity` 只管布局、列表装配、写回和焦点；
+每一行是什么、点了弹什么框，在 `settings/` 下按分组放好了 —— 加设置项不用打开那个外壳。
+
+| 分组 | 文件 | 放什么 |
+|---|---|---|
+| 概览 | `OverviewGroup` | 周报入口、未同步修改的重试 |
+| 时间与时长 | `TimeGroup` | 每日上限、平日 / 周末时段、时段开关、完成奖励 |
+| 规则 | `RulesGroup` | 家长 PIN、必修通过率、应用入口 |
+| 维护 | `MaintGroup` | 临时放行、清今日 / 清进度、记录备份、诊断日志、重载片单、退出桌面 |
+| 系统 | `SystemGroup` | 功能开关、时钟校准、版本与开关一览 |
+
+加一行大概就是这个形状（`rows()` 里按显示顺序 `add`，`h.save(...)` 已经处理好
+「写成功才更新本机、失败挂红色错误条」）：
+
+```kotlin
+add(Entry.Row(h.str(R.string.set_xxx), h.str(R.string.set_xxx_hint), valueText) {
+    h.act.darkDialog().setTitle(h.str(R.string.set_xxx)).setItems(labels) { _, which ->
+        h.save({ root -> root.put("xxx", newValue) }, { Extras.saveXxx(newValue) }, h.str(R.string.set_xxx))
+    }.show()
+})
+```
+
+两条硬规矩：**分组里不要自己调 `PlaylistWriter`**（绕开它就丢了 OPT-07 的「失败不更新本机」），
+**弹窗样式只用 `SettingsDialogs.kt`**（深色主题、20sp、留白全项目一份）。
+
 ### 怎么知道电视上装的是哪一版
 
-设置页页脚一直显示 `v1.8(9) 11-11 17:38`（版本名 / versionCode / 构建时间，
+设置页页脚一直显示 `v1.9(10) 11-11 18:09`（版本名 / versionCode / 构建时间，
 构建时间由 `build.gradle.kts` 编进 `BuildConfig.BUILD_TIME`），排障第一句不用再连电脑查。
 
 ---
@@ -881,7 +908,9 @@ app/src/main/kotlin/com/family/curated/
   PlayerActivity.kt      ExoPlayer + 防跳看 + 时长累计
   EpisodesActivity.kt    剧集列表
   RewardsActivity.kt     打卡墙 + 勋章墙
-  SettingsActivity.kt    家长控制：电视上改时段 / 上限 / 密码，写回 NAS
+  SettingsActivity.kt    家长控制外壳：列表装配 / 写回 NAS / 焦点保持（各行见 settings/）
+  settings/  OverviewGroup / TimeGroup / RulesGroup / MaintGroup / SystemGroup（每组自产 Entry）
+             SettingsAdapter（列表）/ SettingsDialogs（弹窗样式）/ SettingsHost（分组能用的能力）
   ParentTools.kt         家长共用动作：输 PIN / 勾应用 / 退出到桌面
   LockActivity.kt        锁屏：左 42% 大倒计时 / 右 58% 学习角轮播
   KidApp.kt              全局时间守卫

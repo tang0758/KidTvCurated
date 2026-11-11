@@ -23,6 +23,8 @@
     <string name="act_upload">上传 ›</string>
     <string name="act_view">查看 ›</string>
     <string name="act_calibrate">校准 ›</string>
+    <string name="word_on">开</string>
+    <string name="word_off">关</string>
     <string name="word_none">无</string>
     <string name="word_write_failed">写入失败</string>
     <string name="word_wrong_pin">密码不对</string>

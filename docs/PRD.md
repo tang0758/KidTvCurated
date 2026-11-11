@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.8（Wave 4：OPT-17 异常落盘、OPT-16 文案收口后同步） |
+| 文档版本 | V1.9（Wave 4：OPT-17 异常落盘、OPT-16 文案收口、OPT-18 设置页拆分后同步） |
 | 撰写日期 | 2026-11-10（最后更新 2026-11-11 夜） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（25.5 MB，versionCode 9 / versionName 1.8）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16 / OPT-18），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（26.6 MB，versionCode 10 / versionName 1.9）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -906,6 +906,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-34 | 周报只读且不读 NAS | 周报所有数字来自本地 prefs；`ext_<day>` 必须夹到不超过 `watch_<day>`（防手改后画出负段）；没有数据就显示空状态，不显示 0；平均只按有记录的天算 |
 | R-35 | 日志两段式、绝不拖累主流程 | 异常先同步落本地、再由心跳后台传 NAS；`record()` 自身任何失败只 `Log.w`，不向上抛；同一指纹 60 秒一条；滚动整行丢、按 UTF-8 字节计上限；`logs/` 只删 `tv-yyyyMMdd.txt`，其它文件一律不动；读失败（非「文件不存在」）不得当空文件覆盖 |
 | R-36 | 界面文案只在 strings.xml | 新增/修改面向用户的中文必须加进 `res/values/strings.xml` 并用 `getString`（object 里用 `activity.getString`）；带变量的句子必须用位置占位符 `%1$s / %2$d`，不得用字符串拼接；教学数据（`data/builtin/`）与日志文本不进资源；`tools/check_strings.py` 的预算只降不升 |
+| R-37 | 设置页按分组拆文件 | 设置页由「外壳 + 分组 + 弹窗工具箱」三层组成：外壳（`SettingsActivity`）独占布局、列表装配、写回（`save()`）、焦点保持；每个分组只产出 `Entry` 列表与自己的弹窗，**不得**自己调 `PlaylistWriter` 或改 `busy` 状态；弹窗样式只在 `SettingsDialogs.kt` 一处定义。新增设置项只改对应分组，不改外壳 |
 
 ---
 
@@ -1177,6 +1178,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-53 | 断网不丢 | 断开 NAS 后触发 3 次异常，再恢复网络等 5 分钟 | 断网期间本地条数递增、不上传；恢复后一次补齐；过程中界面不卡、播放不受影响（FR-33 / R-35） |
 | TC-54 | 文案来源可改 | 把 `strings.xml` 里 `set_group_maint`（维护）改成别的词，重新安装 | 设置页分组名跟着变，其余行为不变（FR-34） |
 | TC-55 | 文案守卫 | 在任意界面文件里加一句中文 `Toast`，跑 `python tools/check_strings.py` | 返回 1 并指出文件与条数；删掉后返回 0，`--list` 能看到每一处的行号（FR-34 / R-36） |
+| TC-56 | 设置页拆分后回归 | 拆分组件后逐组点开：上限 / 奖励 / 时段 / 密码 / 应用 / 临时放行 / 清今日 / 清进度 / 记录备份 / 诊断日志 / 重载 / 退出桌面 | 行数、顺序、标题、提示、右侧值与 `v1.8` 完全一致；每项改动都能在 NAS `tv.json` 对应字段看到；改完焦点仍停在原行（R-37） |
 
 ### 15.4 异常与恢复用例
 
