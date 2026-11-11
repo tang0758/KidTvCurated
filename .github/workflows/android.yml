@@ -1,7 +1,8 @@
-# 每次 push / PR 自动跑三件事：
+# 每次 push / PR 自动跑四件事：
 #   1. 文案守卫（tools/check_strings.py）：Kotlin 里不许再写中文界面文字
-#   2. 单测（纯 JVM，不碰 Android API，112 条）
+#   2. 单测（纯 JVM，不碰 Android API，130 条）
 #   3. 打个调试包，确认资源 / 清单 / 混淆相关的东西没被改坏
+#   4. PC 侧工具的纯逻辑单测 + 启动器自检（tools/test_launcher.py，28 条）
 #
 # 电视上的实机验证不在 CI 里，按约定（周一到周五白天不做实机安装测试）
 # 集中在晚上或周末跑，清单见 docs/待实机验证.md。
@@ -103,3 +104,23 @@ jobs:
             app/build/test-results/testDebugUnitTest
           if-no-files-found: ignore
           retention-days: 7
+
+  # ------------------------------------------------------- PC 侧工具（Python）
+  # 启动页只负责「探测 / 拉起 / 跳转」，但它拼的命令和 URL 写错了家长就打不开工具，
+  # 所以把这部分抽成纯函数单测；再加一次 --self-test 真起本地服务打接口。
+  # 全程不连 NAS、不开浏览器、不拉起三个真实工具，Linux runner 上也能跑。
+  python-tools:
+    name: PC 工具单测
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 跑纯逻辑单测
+        run: python3 -m unittest discover -s tools -p "test_*.py" -v
+
+      - name: 启动器接口自检
+        run: python3 tools/launcher.py --self-test --port 8700
+
+      - name: 语法检查
+        run: python3 -m py_compile tools/launcher.py tools/launcher_math.py tools/test_launcher.py

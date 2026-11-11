@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#4f6bed">
+<title>小剧场 · 统一启动页</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+  --brand:#4f6bed; --brand-soft:#eef1ff; --ok:#16a34a; --ok-soft:#e8f7ee;
+  --warn:#e07b00; --warn-soft:#fff5e6; --err:#dc2626;
+  --shadow:0 2px 10px rgba(30,41,90,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+button{font-family:inherit;font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 14px;min-height:38px;color:var(--ink);transition:.12s}
+button:hover{border-color:var(--brand);color:var(--brand)}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.55;cursor:default;transform:none}
+button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600;padding:8px 18px}
+button.primary:hover{background:#3f58d6;color:#fff}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+button.ghost:hover{background:var(--brand-soft)}
+a{color:var(--brand);text-decoration:none}
+a:hover{text-decoration:underline}
+code{background:#f6f7fb;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:12px/1.5 ui-monospace,Consolas,monospace}
+
+.wrap{max-width:1120px;margin:0 auto;padding:26px 22px 44px}
+header{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.logo{width:46px;height:46px;border-radius:13px;background:var(--brand);color:#fff;font-weight:700;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 16px rgba(79,107,237,.28);flex:none}
+h1{margin:0;font-size:21px;letter-spacing:.3px}
+.sub{color:var(--muted);font-size:13px;margin-top:2px}
+.hspace{flex:1}
+
+.notice{background:#fff8e8;border:1px solid #f6dfae;color:#8a5a00;border-radius:12px;padding:11px 15px;font-size:13px;margin:20px 0 22px;line-height:1.7}
+.notice b{color:#6b4300}
+.notice .sep{display:inline-block;width:1px;height:12px;background:#e8cb92;margin:0 9px;vertical-align:-1px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(305px,1fr));gap:16px;align-items:stretch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;transition:.15s}
+.card:hover{box-shadow:0 6px 22px rgba(30,41,90,.11);transform:translateY(-2px)}
+.ctop{display:flex;align-items:flex-start;gap:12px}
+.mark{width:42px;height:42px;border-radius:11px;color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none}
+.card h2{margin:0;font-size:17px}
+.tagline{color:var(--muted);font-size:12.5px;margin:1px 0 0}
+.desc{font-size:13px;color:#374151;margin:15px 0 0;min-height:63px;line-height:1.7}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0;font-size:11.5px}
+.chip{background:#f6f7fb;border:1px solid var(--line);border-radius:20px;padding:3px 10px;color:var(--muted)}
+.chip.port{font-family:ui-monospace,Consolas,monospace}
+
+.state{display:flex;align-items:center;gap:8px;margin:16px 0 5px;padding:9px 11px;background:#fafbfe;border:1px solid var(--line);border-radius:10px;font-size:12.5px}
+.dot{width:9px;height:9px;border-radius:50%;background:#cbd5e1;flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+.dot.reuse{background:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.badge{font-weight:600}
+.badge.on{color:var(--ok)} .badge.reuse{color:var(--brand)} .badge.off{color:var(--muted)}
+.hint{font-size:11.5px;color:var(--muted);margin:7px 0 0;min-height:34px;line-height:1.55}
+
+.actions{margin-top:auto;padding-top:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.actions .primary{flex:1;min-width:132px;white-space:nowrap}
+.link{font-size:12px;color:var(--muted);white-space:nowrap}
+.err{color:var(--err);font-size:12px;margin:8px 0 0;min-height:0}
+
+footer{margin-top:28px;border-top:1px solid var(--line);padding-top:18px;color:var(--muted);font-size:12.5px;line-height:1.9}
+footer .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+footer b{color:var(--ink);font-weight:600}
+
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);background:#1f2937;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;max-width:88vw;opacity:0;pointer-events:none;transition:.2s;z-index:60;box-shadow:0 6px 22px rgba(0,0,0,.2)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--err)}
+
+@media(max-width:700px){
+  .wrap{padding:18px 14px 32px}
+  header{flex-wrap:wrap}
+  .grid{grid-template-columns:1fr}
+  .desc,.hint{min-height:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">小</div>
+    <div>
+      <h1>小剧场 · 一个入口，三种用法</h1>
+      <div class="sub">选一个模式开始。三个工具各干各的，这里只负责帮你打开。</div>
+    </div>
+    <div class="hspace"></div>
+    <button class="ghost" id="btnRefresh">刷新状态</button>
+  </header>
+
+  <div class="notice" id="notice">
+    <b>只是入口收在一起，功能没有合并。</b>
+    三个工具仍然各自独立运行、各自的页面，改的都是 NAS 上同一份 <code>tv.json</code>。
+    <span class="sep"></span>
+    <b>网页控制台</b>和<b>PC 桌面助手</b>共用同一个服务（端口 8765），一次只会起一个，另一个直接复用，不会撞端口。
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    <div class="row"><b>只监听 127.0.0.1</b>，家里局域网的设备访问不到这个启动页；想让手机改片单，用「网页控制台」的手机访问页开二维码。</div>
+    <div class="row">关掉启动页的窗口 / 按 Ctrl+C，<b>已经打开的工具不受影响</b>；它们仍在自己的端口上跑，要停就关各自的窗口。</div>
+    <div class="row">从这里启动的工具，原本打印在黑窗口里的横幅和访问码会写进上面的日志文件；<b>页面链接已经带好访问码</b>，不用再去抄。原来的三个 bat 仍可单独用，行为不变。</div>
+    <div class="row">命令行：<code>python tools/launcher.py</code>　·　换端口 <code>--port 8800</code>　·　自检 <code>--self-test</code>　·　不开浏览器 <code>--no-browser</code></div>
+    <div class="row" id="footMeta"></div>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var STATE = { modes: [], hasExe: false, consoleShared: false, root: "", logDir: "" };
+var busy = {};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+}); }
+function toast(msg, bad){
+  var t = $("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.className = "toast"; }, 3600);
+}
+function api(path, opts){
+  return fetch(path, opts).then(function(r){
+    return r.json().catch(function(){ return {ok:false, error:"HTTP " + r.status}; });
+  });
+}
+
+function card(m){
+  var cls = m.running ? "on" : (m.reuse ? "reuse" : "off");
+  var badge = m.running ? "运行中" : (m.reuse ? "可直接打开" : "未启动");
+  var hint = esc(m.hint);
+  var secondary = m.kind === "window"
+    ? '<a class="link" href="' + esc(m.url) + '" target="_blank" rel="noopener">在浏览器打开</a>'
+    : '<a class="link" href="' + esc(m.url) + '" target="_blank" rel="noopener">直接打开链接</a>';
+  return '' +
+  '<section class="card">' +
+    '<div class="ctop">' +
+      '<div class="mark" style="background:' + esc(m.accent) + '">' + esc(m.mark) + '</div>' +
+      '<div><h2>' + esc(m.title) + '</h2><div class="tagline">' + esc(m.tagline) + '</div></div>' +
+    '</div>' +
+    '<p class="desc">' + esc(m.desc) + '</p>' +
+    '<div class="meta">' +
+      '<span class="chip">适合：' + esc(m.forwhom) + '</span>' +
+      '<span class="chip port">127.0.0.1:' + esc(m.port) + '</span>' +
+      '<span class="chip">' + (m.kind === "window" ? "独立窗口" : "浏览器") + '</span>' +
+    '</div>' +
+    '<div class="state"><span class="dot ' + cls + '"></span>' +
+      '<span class="badge ' + cls + '">' + badge + '</span></div>' +
+    '<p class="hint">' + hint + '</p>' +
+    '<div class="actions">' +
+      '<button class="primary" data-key="' + esc(m.key) + '">' + esc(m.action) + '</button>' +
+      secondary +
+    '</div>' +
+    '<p class="err" id="err-' + esc(m.key) + '"></p>' +
+  '</section>';
+}
+
+function render(){
+  $("grid").innerHTML = STATE.modes.map(card).join("");
+  $("footMeta").innerHTML = 'PC 助手独立 exe：' +
+    (STATE.hasExe ? '<span style="color:var(--ok)">已就绪（优先用它）</span>' : '未打包，用 Python 源码启动') +
+    '　·　启动日志：<code>' + esc(STATE.logDir || '.tmp/launcher-logs') + '</code>' +
+    '　·　仓库：' + esc(STATE.root);
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-key]"), function(b){
+    b.onclick = function(){ go(b.getAttribute("data-key"), b); };
+  });
+}
+
+function load(){
+  return api("/api/status").then(function(d){
+    if(!d.ok) throw new Error(d.error || "状态读取失败");
+    STATE = { modes: d.modes, hasExe: d.hasExe, consoleShared: d.consoleShared,
+              root: d.root, logDir: d.logDir };
+    render();
+  }).catch(function(e){ toast("读取状态失败：" + e.message, true); });
+}
+
+function go(key, btn){
+  if(busy[key]) return;
+  busy[key] = true;
+  var old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "正在启动…";
+  $("err-" + key).textContent = "";
+  api("/api/launch", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({mode: key})
+  }).then(function(d){
+    if(!d.ok) throw new Error(d.error || "启动失败");
+    // window 模式刚拉起的 exe 会自己开独立窗口，别再弹一个浏览器标签
+    if(!(d.window && !d.reused)){
+      window.open(d.url, "_blank", "noopener");
+    }
+    toast(d.reused ? "服务已经在跑，直接打开了。" :
+          (d.window ? "已打开 PC 桌面助手的独立窗口。" : "已启动，页面在新标签打开。"));
+    return load();
+  }).catch(function(e){
+    $("err-" + key).textContent = e.message;
+    toast(e.message, true);
+  }).then(function(){
+    busy[key] = false;
+    var b = document.querySelector('button[data-key="' + key + '"]');
+    if(b){ b.disabled = false; b.textContent = old; }
+  });
+}
+
+$("btnRefresh").onclick = function(){ load().then(function(){ toast("状态已刷新"); }); };
+load();
+setInterval(function(){ if(!Object.keys(busy).some(function(k){ return busy[k]; })) load(); }, 15000);
+</script>
+</body>
+</html>

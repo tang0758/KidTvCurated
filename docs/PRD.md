@@ -3,11 +3,11 @@
 | 项目 | 内容 |
 |---|---|
 | 产品名 | 小剧场 · KidTvCurated |
-| 文档版本 | V1.10（Wave 4 收口：OPT-17 / OPT-16 / OPT-18 / OPT-15 之后同步） |
-| 撰写日期 | 2026-11-10（最后更新 2026-11-11 夜 · OPT-15） |
+| 文档版本 | V1.11（Wave 4 全部五项收口：OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19 之后同步） |
+| 撰写日期 | 2026-11-10（最后更新 2026-11-11 夜 · OPT-19） |
 | 撰写角色 | 产品经理 / 测试工程师 |
-| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16 / OPT-18 / OPT-15），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（26.7 MB，versionCode 10 / versionName 1.9 —— OPT-15 为零运行时改动的工程项，不单独发版）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip` |
+| 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
+| 对应交付物 | `app-debug.apk`（26.7 MB，versionCode 10 / versionName 1.9 —— OPT-15 为零运行时改动的工程项，不单独发版）、`dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip`、`小剧场.bat`（统一启动页入口） |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
@@ -907,7 +907,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | R-35 | 日志两段式、绝不拖累主流程 | 异常先同步落本地、再由心跳后台传 NAS；`record()` 自身任何失败只 `Log.w`，不向上抛；同一指纹 60 秒一条；滚动整行丢、按 UTF-8 字节计上限；`logs/` 只删 `tv-yyyyMMdd.txt`，其它文件一律不动；读失败（非「文件不存在」）不得当空文件覆盖 |
 | R-36 | 界面文案只在 strings.xml | 新增/修改面向用户的中文必须加进 `res/values/strings.xml` 并用 `getString`（object 里用 `activity.getString`）；带变量的句子必须用位置占位符 `%1$s / %2$d`，不得用字符串拼接；教学数据（`data/builtin/`）与日志文本不进资源；`tools/check_strings.py` 的预算只降不升 |
 | R-37 | 设置页按分组拆文件 | 设置页由「外壳 + 分组 + 弹窗工具箱」三层组成：外壳（`SettingsActivity`）独占布局、列表装配、写回（`save()`）、焦点保持；每个分组只产出 `Entry` 列表与自己的弹窗，**不得**自己调 `PlaylistWriter` 或改 `busy` 状态；弹窗样式只在 `SettingsDialogs.kt` 一处定义。新增设置项只改对应分组，不改外壳 |
-| R-38 | 合并前必须过 CI | 每次 push / PR 由 `.github/workflows/android.yml` 跑两个 job：`tools/check_strings.py`（文案守卫）与 `./gradlew testDebugUnitTest assembleDebug`。**新增的可测逻辑必须同时提交单测**；单测只许放 `data/*Math` 这类**不 import `android.*` / `org.json`** 的纯函数（纯 JVM 单测里它们是桩，一碰就 `RuntimeException: Stub!`）。CI 红的提交不进 `main`；电视上的实机验证不进 CI，见[待实机验证清单](待实机验证.md)。**被 `.gitignore` 排除的文件不得被源码直接 `import`**：本机私有配置（账号密码等）一律走 `local.properties` / 环境变量 → `BuildConfig`，否则仓库 clone 下来编不过（2026-11-11 第一次跑 CI 的翻车原因） |
+| R-38 | 合并前必须过 CI | 每次 push / PR 由 `.github/workflows/android.yml` 跑三个 job：`tools/check_strings.py`（文案守卫）、`./gradlew testDebugUnitTest assembleDebug`、`python-tools`（PC 侧 Python 单测 + 启动器自检）。**新增的可测逻辑必须同时提交单测**；单测只许放 `data/*Math` 这类**不 import `android.*` / `org.json`** 的纯函数（纯 JVM 单测里它们是桩，一碰就 `RuntimeException: Stub!`）。CI 红的提交不进 `main`；电视上的实机验证不进 CI，见[待实机验证清单](待实机验证.md)。**被 `.gitignore` 排除的文件不得被源码直接 `import`**：本机私有配置（账号密码等）一律走 `local.properties` / 环境变量 → `BuildConfig`，否则仓库 clone 下来编不过（2026-11-11 第一次跑 CI 的翻车原因） |
+| R-39 | PC 侧三个入口收敛为一个启动页 | 家长从根目录 `小剧场.bat` 进入 `http://127.0.0.1:8700/` 启动页，三张卡片对应极简编辑器（8787）/ 网页控制台（8765）/ PC 桌面助手（8765 独立窗口）。**启动页只做「探测在不在跑 → 按白名单拉起 → 跳转」，不得代理流量、不得读写 `tv.json`、不得改动三个工具**；三个原 bat 继续可用。`/api/launch` 的 `mode` 必须是白名单枚举，**禁止把外部输入拼进命令**（`launcher_math.build_command`）。`console` 与 `desktop` 共用 8765 后端，一方已在跑时另一方只「打开」不重复拉起。启动页只监听 127.0.0.1，不向局域网开放 |
 
 ---
 
@@ -1182,6 +1183,8 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 | TC-56 | 设置页拆分后回归 | 拆分组件后逐组点开：上限 / 奖励 / 时段 / 密码 / 应用 / 临时放行 / 清今日 / 清进度 / 记录备份 / 诊断日志 / 重载 / 退出桌面 | 行数、顺序、标题、提示、右侧值与 `v1.8` 完全一致；每项改动都能在 NAS `tv.json` 对应字段看到；改完焦点仍停在原行（R-37） |
 | TC-57 | CI 两个 job 都绿 | 推一次改动后看 GitHub → Actions → `Android CI`；再故意在界面文件里加一句中文 `Toast` 推一次 | 平时两 job 全绿，`unit-test` 日志里有「单测 130 条，失败 0 条」；加中文那次 `文案守卫` 红而 `单测` 仍绿；删掉再推恢复绿（R-38，纯电脑侧，不占电视） |
 | TC-58 | 时段输入容错 | 设置 → 时间与时长 → 自定义时段，依次输入 `1800-2000`、`18：00－20：00`、`0900-1130、1600-2100`、`18-20`、`全天` | 前三种等价生效；`18-20` 提示格式不对且**不写回**（不能悄悄变成全天）；`全天` 清空时段；NAS `tv.json` 里是 `18:00-20:00` 这种补零写法（R-08 / `WindowMath`） |
+| TC-59 | 统一启动页三模式 | 双击根目录 `小剧场.bat`；依次点三个模式的「启动并打开」；开完控制台再点 PC 桌面助手；最后刷新启动页 | 启动页列出三张卡片并显示「未启动 / 运行中」；三个工具都能打开且页面正常；**控制台与桌面助手不撞 8765**（第二个只复用、不报端口占用）；状态每 15 秒自动刷新（R-39，纯电脑侧，不占电视） |
+| TC-60 | 启动页安全与自检 | 命令行跑 `python tools/launcher.py --self-test`；再 POST `/api/launch` 一个非法 mode；检查 `小剧场.bat` 启动的服务监听地址 | 自检 6 项全过、退出码 0；非法 mode 返回 `ok=false` 且不拉起任何进程；只监听 `127.0.0.1`；三个工具的横幅写进 `.tmp/launcher-logs/` 且中文不乱码（R-39，纯电脑侧） |
 
 ### 15.4 异常与恢复用例
 
@@ -1237,6 +1240,7 @@ Repo.load() → 复用 adapter 重绘（保留滚动位置、焦点、门禁状�
 4. 多娃档案、成长报告、奖励兑换等仍在 Roadmap。
 5. 电视端 `tv.json` 里 `schedule.pin` 为历史冗余字段，以顶层 `pin` 为准（建议后续清理）。
 6. `Schedule.parse` 里「JSON 数组 → 时间窗」那一小段（字符串 / 对象 / 数组三个分支）**没有单测**：它依赖 `org.json`，纯 JVM 单测里是桩。解析与判定两头已由 `WindowMath` + `TimeWindow.contains` 覆盖（R-38）。
+7. PC 侧三个工具（极简编辑器 / 网页控制台 / PC 桌面助手）**功能仍是三套**，统一启动页只收敛入口（R-39）；本轮明确不做功能合并，也不把启动页打包进 exe 或向局域网开放。
 
 ---
 

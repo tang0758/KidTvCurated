@@ -296,12 +296,13 @@ add(Entry.Row(h.str(R.string.set_xxx), h.str(R.string.set_xxx_hint), valueText) 
 
 ### 提交前会跑什么（CI）
 
-`.github/workflows/android.yml` 在每次 push / PR 时跑两个 job：
+`.github/workflows/android.yml` 在每次 push / PR 时跑三个 job：
 
 | job | 干什么 | 耗时 |
 |---|---|---|
 | 文案守卫 | `python3 tools/check_strings.py` | 半分钟 |
 | 单测与打包 | `./gradlew testDebugUnitTest assembleDebug` | 首次约 6 分钟，有缓存 1 分半 |
+| PC 工具单测 | `python3 -m unittest discover -s tools -p "test_*.py"` + `launcher.py --self-test` | 几秒 |
 
 文案守卫单独一个 job、先跑：**「随手写一句中文 Toast」是最容易顺手犯的错**，
 不想让人为了这一条等 Gradle 下载依赖。
@@ -311,6 +312,8 @@ add(Entry.Row(h.str(R.string.set_xxx), h.str(R.string.set_xxx_hint), valueText) 
 ```bash
 python3 tools/check_strings.py
 ./gradlew testDebugUnitTest assembleDebug
+python3 -m unittest discover -s tools -p "test_*.py" -v
+python3 tools/launcher.py --self-test
 ```
 
 两个坑，都在这套 CI 里踩过：
@@ -510,7 +513,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### 4. 生成片单 / 编排内容
 
-**推荐用 PC 桌面配置助手**（下两节，双击即用）或网页控制台：浏览 NAS 目录、勾文件夹、改时段、一键写回。
+**推荐双击根目录的 [`小剧场.bat`](小剧场.bat)**：一个启动页里选「极简编辑器 / 网页控制台 / PC 桌面助手」（见下一节）。
+也可以继续用原来的三个入口，行为不变。命令行方式：
 命令行方式：
 
 ```bash
@@ -522,6 +526,38 @@ python set_schedule.py --show           # 查看当前时段设置
 想手编就从 **[`examples/tv.json`](examples/tv.json)** 复制一份改名 `tv.json` —— 这是提交的**公开模板**，
 里面全是 `YOUR_NAS_*` 占位符和虚构目录。字段手册见 [docs/CONFIG.md](docs/CONFIG.md)，
 编辑器补全 / 校验见 [docs/tv.schema.json](docs/tv.schema.json)。
+
+---
+
+## 统一启动页：一个入口，三种用法
+
+PC 上原本有三个入口（极简编辑器、网页控制台、PC 桌面助手 exe），各自的 bat、各自的端口，
+不知道该双击哪个，而且**网页控制台和 PC 桌面助手共用 8765**，一起开会撞端口。
+
+现在双击仓库根目录的 **`小剧场.bat`**（或 `python tools/launcher.py`），会打开
+`http://127.0.0.1:8700/` 的启动页，三张卡片任选：
+
+| 模式 | 端口 | 适合 |
+|---|---|---|
+| 极简编辑器 | 8787 | 只想改片单、时段，最轻 |
+| 网页控制台 | 8765 | 完整编排、浏览 NAS、手机访问、远程控制 |
+| PC 桌面助手 | 8765 | 不想敲命令，独立窗口里改片单、看日志、扫二维码 |
+
+启动页会显示每个模式**在不在跑**，点一下就拉起服务并打开对应页面；
+发现共用后端的另一个已经在跑，就只「打开」不重复拉起，不会撞端口。
+
+> **只是入口收在一起，功能没有合并**：三个工具各跑各的进程、各用各的页面，
+> 启动页不代理流量、不碰 `tv.json`，拉起之后浏览器直达原服务端口。
+> 三个原 bat 也仍然能单独用，习惯了不用改。
+
+几点说明：
+
+- 启动页**只监听 127.0.0.1**，局域网设备访问不到；想让手机改片单，用控制台的「手机访问」页开二维码。
+- 关掉启动页的窗口（或 Ctrl+C），**已经打开的工具不受影响**，它们仍在自己的端口上跑。
+- 从这里启动的工具，原本打印在黑窗口里的横幅和访问码会写进 `.tmp/launcher-logs/`；
+  页面链接已经带好访问码，不用再抄。启动失败时页面会显示日志末尾几行。
+- 自检：`python tools/launcher.py --self-test`（不连 NAS、不开浏览器，退出码 0 = 通过）。
+  换端口：`--port 8800`；不自动开浏览器：`--no-browser`。
 
 ---
 
@@ -967,6 +1003,12 @@ app/src/main/kotlin/com/family/curated/
 app/src/main/assets/art/  50 幅公共领域名画缩略图，离线内置
 make_playlist.py         扫 NAS 生成片单（命令行）
 set_schedule.py          命令行改时段 / 时长 / PIN
+小剧场.bat               ★ 统一入口：打开启动页，选三种模式之一
+tools/launcher.py        启动页服务：探测 / 拉起 / 跳转（不代理流量）
+tools/launcher_math.py   启动页纯逻辑（模式表 / 命令 / URL / 探活解析）
+tools/test_launcher.py   启动页 28 条纯逻辑单测
+tools/static/launcher.html  启动页前端（三张卡片 + 状态灯）
+start-tvjson-editor.bat  极简编辑器单独入口（仍可用）
 KidTvConfig-PC.bat       双击启动 PC 桌面版（优先用 dist 里的 exe）
 tools/desktop.py         PC 桌面启动器：后台服务 + 独立窗口 + 单实例 + 自检
 tools/static/desktop.html  桌面外壳：概览 / 手机二维码 / 日志 / 退出
