@@ -51,6 +51,21 @@ object StateMerge {
 
     fun isUsageKey(k: String): Boolean = USAGE_PREFIXES.any { k.startsWith(it) }
 
+    /**
+     * 冷启动要不要去 NAS 把用量读回来（[StateBackup.autoMergeUsage] 的第一道门）。
+     *
+     * 判据是「今天的 `watch_<day>` **记录本身**是不是 0」，不能图省事传
+     * `Extras.watchMsToday()`：那个取 `max(watch_, daymax_)`，而 `daymax_` 是防篡改下限 ——
+     * 记录被清掉之后它照样顶着原值，于是「恒 > 0」→ 永远不去补。
+     *
+     * 实机教训（TC-46，2026-11-12）：只清 `kid_extras` 里的 `watch_2026-11-12`（NAS 上有
+     * 18522），`daymax_2026-11-12` 仍是 18522，冷启动被这道门挡回去，一条日志都不打，
+     * 从界面看像「补回功能没实现」。实际是判据用错了层。
+     *
+     * @param recordedTodayMs 本地今天 `watch_<day>` 的原值（不是 max 之后的值）
+     */
+    fun shouldMergeUsage(recordedTodayMs: Long): Boolean = recordedTodayMs <= 0L
+
     fun isRecordKey(k: String): Boolean =
         RECORD_PREFIXES.any { k.startsWith(it) } || k == "stamps"
 

@@ -156,17 +156,21 @@ object StateBackup {
 
     /** 冷启动静默补回「用量」。返回补回来的键数量（0 = 没什么可补） */
     fun autoMergeUsage(): Int {
-        // 本地今天已经有用量就说明不是「重装清零」，不必多读一次 NAS
-        if (Extras.watchMsToday() > 0L) return 0
+        // 今天的记录还在就说明不是「重装清零」，不必多读一次 NAS。
+        // 判据必须是 `watch_<day>` 原值：`watchMsToday()` 带 daymax 下限，
+        // 清掉记录之后仍然 > 0，会把这整段补回逻辑永久挡在门外（TC-46 实机踩到）
+        if (!StateMerge.shouldMergeUsage(Extras.watchRecordedToday())) return 0
         val remote = readRemote() ?: return 0
         val usage = StateMerge.onlyUsage(remote)
         if (usage.isEmpty) return 0
-        val before = Extras.watchMsToday()
+        // 这里比的也必须是记录原值：用 watchMsToday() 的话，daymax 顶着原值，
+        // 「补回来了」和「什么都没发生」算出来一模一样，日志会静默（同 TC-46）
+        val before = Extras.watchRecordedToday()
         Extras.applyState(emptySet(), usage.longs)
-        val after = Extras.watchMsToday()
+        val after = Extras.watchRecordedToday()
         val n = usage.longs.size
         if (after > before) {
-            Log.i(TAG, "冷启动已补回今日用量：${before / 60_000} → ${after / 60_000} 分钟（$n 个键）")
+            Log.i(TAG, "冷启动已补回今日用量：$before → $after ms（$n 个键）")
         }
         return n
     }

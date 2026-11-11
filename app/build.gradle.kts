@@ -44,8 +44,9 @@ android {
         // PR #1 真缺口移植：SHA-256 清单指纹、握手期可强关、SMB 线程池有界 → 12
         // 实机发现：NAS 不可达时记录备份退化成每秒重连一次 → 13
         // 实机发现：远端日志超 400 KB 时从头部读、截断处留残句 → 14
-        versionCode = 14
-        versionName = "1.9.4"
+        // 实机发现：清掉 watch_ 后 daymax 顶着原值，冷启动补用量被误判成「今天已有用量」→ 15
+        versionCode = 15
+        versionName = "1.9.5"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
         // 默认 NAS 账号：来自 local.properties / 环境变量，缺失时是空串（见文件上方说明）
         buildConfigField("String", "NAS_USER", "\"$nasUser\"")

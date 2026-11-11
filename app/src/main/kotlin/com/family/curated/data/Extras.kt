@@ -91,6 +91,14 @@ object Extras {
 
     fun watchMsToday(): Long = watchMsOn(day())
 
+    /**
+     * 今天**记录本身**的用量（不加 `daymax_` 下限）。
+     *
+     * 只给「记录是不是被清过」这类判断用 —— 判断「今天还剩多少额度」必须走
+     * [watchMsToday]，那个才是防篡改后的真实值。两者混用的后果见 [StateMerge.shouldMergeUsage]。
+     */
+    fun watchRecordedToday(): Long = p().getLong("watch_" + day(), 0L)
+
     fun extMsToday(): Long = p().getLong("ext_" + day(), 0L)
 
     /** 某天里第三方应用那段（周报里画成条形图的第二段） */

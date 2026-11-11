@@ -1124,3 +1124,27 @@ EX-27 的构造是往 NAS 塞 1.4 MB 的 `logs/tv-<今天>.txt`。第一次跑�
 
 **验证**：Android 单测 150（+3）、PC 单测 28、文案守卫 270 持平、`assembleDebug` 通过；
 `logs/` 与其中的测试文件测完全部删除，NAS 三文件仍按原字节。
+
+### 2026-11-12 晨（再续）· TC-46 验掉 + 修「冷启动补用量判据用错层」（`v1.9.5(15)`）
+
+TC-46（只清本地 `watch_<day>`，看能否从 NAS 补回）本来排在「破坏性、留周末」，但它只动本地一个键、
+随时可补回，电视在线就能跑。第一次跑**不通过**：NAS 上明明有 `watch_2026-11-12 = 18522`，
+清掉本地该键后冷启动，本地不长键、首页仍「今天 0/50 分钟」、`StateBackup` 一条日志都没有。
+
+根因是判据用错层：`autoMergeUsage()` 的第一道门 `if (Extras.watchMsToday() > 0L) return 0`，
+而 `watchMsToday()` 取的是 `max(watch_<day>, daymax_<day>)`。`daymax_<day>` 是当日用量的防篡改下限，
+`watch_` 被清掉之后它照样顶着原值（18522），于是这道门恒成立、函数在第一个 `if` 就静默返回。
+首页「0/50」则是因为 18522 ms 不足 1 分钟被截断 —— 两个假象叠起来，很像「功能根本没写」。
+
+修法：新增 `Extras.watchRecordedToday()`（只读 `watch_<day>` 原值）与
+`StateMerge.shouldMergeUsage(recordedTodayMs)`（纯函数、可单测），日志里的 `before/after`
+也换成记录原值 —— 原来用带下限的值，即使真补回来了也打不出那条日志。
+
+复跑通过：先让 App 自己把 18522 备到 NAS（启动 → 按 HOME 触发 `nudge("background")`），
+再清本地键冷启动，日志 `冷启动已补回今日用量：0 → 18522 ms（13 个键）`，
+prefs 出现 `watch_2026-11-12 = 18522`；再冷启动一次无任何日志（记录已在就不再读 NAS）。
+
+**验证**：Android 单测 **151**（+1）、PC 单测 28、文案守卫 270 持平、`assembleDebug` 通过。
+`tv.json` / `tv.backup.json` 本轮字节未动（回读 sha 与 06:30 备份一致）；`state.json`
+只多了 `watch_2026-11-12=18522` 与 `savedAt` 前进，`stamps` 一致，保留。
+「已超限开机直接锁屏」没造数（会同步抬 `daymax_`，属破坏性），留你在场。

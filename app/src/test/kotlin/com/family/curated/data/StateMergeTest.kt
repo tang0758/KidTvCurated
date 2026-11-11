@@ -213,6 +213,20 @@ class StateMergeTest {
     }
 
     @Test
+    fun `记录原值为 0 才去 NAS 补用量`() {
+        // 正常冷启动：今天已经有记录 → 不读 NAS（省一次 SMB 往返）
+        assertFalse(StateMerge.shouldMergeUsage(60_000L))
+        // 重装 / pm clear → 记录是 0，必须去补
+        assertTrue(StateMerge.shouldMergeUsage(0L))
+        // TC-46 的现场：只清 kid_extras 里的 watch_，daymax 还顶着 18522。
+        // 传进来的必须是记录原值 0，不能是 max(watch_, daymax_) = 18522，
+        // 否则这里会返回 false，补回逻辑被永久关在门外
+        assertTrue(StateMerge.shouldMergeUsage(0L))
+        // 脏数据（负数）也当「没有记录」处理，宁可多读一次
+        assertTrue(StateMerge.shouldMergeUsage(-1L))
+    }
+
+    @Test
     fun `摘要文案能看懂`() {
         assertEquals("空记录", StateMerge.summary(snap()))
         assertEquals("3 天打卡", StateMerge.summary(snap(setOf("2026-11-01", "2026-11-02", "2026-11-03"))))
