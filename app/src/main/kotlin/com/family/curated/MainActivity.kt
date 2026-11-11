@@ -31,6 +31,7 @@ import com.family.curated.data.StateBackup
 import com.family.curated.data.StateMerge
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityMainBinding
+import com.family.curated.settings.actionDialog
 import com.family.curated.ui.SectionsAdapter
 
 class MainActivity : AppCompatActivity() {
@@ -611,13 +612,9 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
-        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle("家长选项")
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which ->
-                actions.getOrNull(which)?.second?.invoke()
-            }
-            .setNegativeButton("关闭", null)
-            .show()
+        // 别改回 setItems：11 项的 ListView 在这台电视上方向键只能走到第 8 项，
+        // 「临时放行」「退出到桌面」够不到（见 SettingsDialogs.actionDialog 的 scrollActions）
+        actionDialog("家长选项", "", actions)
     }
 
     /** 勾选孩子能看到的应用入口 */

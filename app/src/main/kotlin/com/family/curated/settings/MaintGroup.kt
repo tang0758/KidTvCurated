@@ -135,31 +135,21 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
      */
     private fun showStateBackup() {
         val days = Extras.stamps().size
-        h.act.darkDialog()
-            .setTitle(h.str(R.string.set_state_title, days))
-            .setMessage(
-                h.str(
-                    R.string.set_state_msg,
-                    StateBackup.lastSavedText(),
-                    StateBackup.statePath()
-                )
-            )
-            .setItems(
-                arrayOf(h.str(R.string.set_state_do_backup), h.str(R.string.set_state_do_restore))
-            ) { _, which ->
-                when (which) {
-                    0 -> {
-                        h.toast(h.str(R.string.set_state_backing_up))
-                        StateBackup.exportAsync("manual") { r ->
-                            h.toast(r.message, long = true)
-                            if (!h.act.isFinishing) h.refresh()
-                        }
+        // 别改回 setItems：这条和 setMessage 同用会把操作项挤没（见 SettingsDialogs.actionDialog）
+        h.act.actionDialog(
+            h.str(R.string.set_state_title, days),
+            h.str(R.string.set_state_msg, StateBackup.lastSavedText(), StateBackup.statePath()),
+            listOf(
+                h.str(R.string.set_state_do_backup) to {
+                    h.toast(h.str(R.string.set_state_backing_up))
+                    StateBackup.exportAsync("manual") { r ->
+                        h.toast(r.message, long = true)
+                        if (!h.act.isFinishing) h.refresh()
                     }
-                    else -> confirmRestore()
-                }
-            }
-            .setNegativeButton(h.str(R.string.common_close), null)
-            .show()
+                },
+                h.str(R.string.set_state_do_restore) to { confirmRestore() }
+            )
+        )
     }
 
     private fun confirmRestore() {
@@ -191,21 +181,20 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
             append(h.str(R.string.set_diag_keep))
             append(h.str(R.string.set_diag_recent)).append(Diag.recentText())
         }
-        h.act.darkDialog()
-            .setTitle(h.str(R.string.set_diag))
-            .setMessage(msg)
-            .setItems(
-                arrayOf(h.str(R.string.set_diag_upload_now), h.str(R.string.set_diag_clear))
-            ) { _, which ->
-                when (which) {
-                    0 -> {
-                        h.toast(h.str(R.string.set_diag_uploading))
-                        Diag.uploadAsync { r ->
-                            h.toast(r.message, long = true)
-                            if (!h.act.isFinishing) h.refresh()
-                        }
+        // 别改回 setItems：这条和 setMessage 同用会把操作项挤没（见 SettingsDialogs.actionDialog）
+        h.act.actionDialog(
+            h.str(R.string.set_diag),
+            msg,
+            listOf(
+                h.str(R.string.set_diag_upload_now) to {
+                    h.toast(h.str(R.string.set_diag_uploading))
+                    Diag.uploadAsync { r ->
+                        h.toast(r.message, long = true)
+                        if (!h.act.isFinishing) h.refresh()
                     }
-                    else -> h.act.confirmDialog(
+                },
+                h.str(R.string.set_diag_clear) to {
+                    h.act.confirmDialog(
                         h.str(R.string.set_diag_clear_confirm),
                         h.str(R.string.set_diag_clear_msg)
                     ) {
@@ -214,9 +203,8 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
                         h.refresh()
                     }
                 }
-            }
-            .setNegativeButton(h.str(R.string.common_close), null)
-            .show()
+            )
+        )
     }
 
     // ---------------- 重载片单 ----------------

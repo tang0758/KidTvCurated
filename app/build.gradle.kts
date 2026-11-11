@@ -39,9 +39,10 @@ android {
         minSdk = 24
         targetSdk = 34
         // 每个 Wave 发一版：Wave 0 + OPT-03 → 2；OPT-04 → 3；Wave 1 → 4；Wave 2 → 5；
-        // Wave 3 → 6 / 7；Wave 4：OPT-17 异常落盘 → 8，OPT-16 文案收口 → 9，OPT-18 设置页拆分 → 10
-        versionCode = 10
-        versionName = "1.9"
+        // Wave 3 → 6 / 7；Wave 4：OPT-17 异常落盘 → 8，OPT-16 文案收口 → 9，OPT-18 设置页拆分 → 10；
+        // 实机修复：维护分组两个对话框被 message 挤没 + 家长选项菜单末尾项够不到 → 11
+        versionCode = 11
+        versionName = "1.9.1"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
         // 默认 NAS 账号：来自 local.properties / 环境变量，缺失时是空串（见文件上方说明）
         buildConfigField("String", "NAS_USER", "\"$nasUser\"")
