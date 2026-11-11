@@ -8,6 +8,7 @@ import com.family.curated.data.GateKeeper
 import com.family.curated.data.RewardMath
 import com.family.curated.data.Schedule
 import com.family.curated.data.TimeWindow
+import com.family.curated.data.WindowMath
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -199,8 +200,7 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
     }
 
     private fun askCustomWindows(weekend: Boolean) {
-        val initial = currentWindows(weekend)
-            .joinToString(",") { compactHm(it.startMin) + "-" + compactHm(it.endMin) }
+        val initial = WindowMath.compact(currentWindows(weekend))
         val input = h.act.inputField(
             hint = h.str(R.string.set_win_input_hint),
             initial = initial
@@ -274,39 +274,18 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
 
     private fun putWindows(o: JSONObject, key: String, w: List<TimeWindow>) {
         o.put(key, JSONArray().also { a ->
-            w.forEach { a.put("${hhmm(it.startMin)}-${hhmm(it.endMin)}") }
+            WindowMath.toJsonStrings(w).forEach { a.put(it) }
         })
     }
 
-    // ---------------- 文案 ----------------
+    // ---------------- 文案 / 解析（实现在 data/WindowMath，有单测） ----------------
 
-    private fun windowsText(w: List<TimeWindow>): String {
-        if (w.isEmpty()) return h.str(R.string.set_window_all_day)
-        return w.joinToString("、") { "${hhmm(it.startMin)}-${hhmm(it.endMin)}" }
-    }
+    private fun windowsText(w: List<TimeWindow>): String =
+        WindowMath.text(w, h.str(R.string.set_window_all_day))
 
-    private fun hhmm(min: Int) = String.format("%02d:%02d", min / 60, min % 60)
-
-    private fun compactHm(min: Int) = String.format("%02d%02d", min / 60, min % 60)
-
-    /** "1800-2000" / "18:00-20:00" / "18:00-20:00,21:00-21:30" 都认；空 = 全天 */
-    private fun parseWindows(text: String): List<TimeWindow>? {
-        val t = text.trim()
-        if (t.isEmpty() || t == h.str(R.string.set_window_all_day) ||
-            t == h.str(R.string.set_win_all_free)
-        ) return emptyList()
-        val re = Regex("(\\d{1,2})[:：]?(\\d{2})\\s*[-~至–—]\\s*(\\d{1,2})[:：]?(\\d{2})")
-        val out = re.findAll(t).mapNotNull { m ->
-            try {
-                val s = m.groupValues[1].toInt().coerceIn(0, 23) * 60 +
-                    m.groupValues[2].toInt().coerceIn(0, 59)
-                val e = m.groupValues[3].toInt().coerceIn(0, 23) * 60 +
-                    m.groupValues[4].toInt().coerceIn(0, 59)
-                TimeWindow(s, e)
-            } catch (e: Exception) {
-                null
-            }
-        }.toList()
-        return if (out.isEmpty()) null else out
-    }
+    /** 「全天」在界面上有两种写法（`全天` / `全天不限`），都当成「全天」 */
+    private fun parseWindows(text: String): List<TimeWindow>? = WindowMath.parse(
+        text,
+        listOf(h.str(R.string.set_window_all_day), h.str(R.string.set_win_all_free))
+    )
 }

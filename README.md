@@ -1,5 +1,7 @@
 # 小剧场 · KidTvCurated
 
+[![Android CI](https://github.com/tang0758/KidTvCurated/actions/workflows/android.yml/badge.svg)](https://github.com/tang0758/KidTvCurated/actions/workflows/android.yml)
+
 给家里电视用的**家长编排型儿童点播应用**。电视上只出现你在 NAS 清单里写好的内容，
 不扫全盘、不联网刮削、不被推荐算法带跑。
 
@@ -291,6 +293,36 @@ add(Entry.Row(h.str(R.string.set_xxx), h.str(R.string.set_xxx_hint), valueText) 
 
 设置页页脚一直显示 `v1.9(10) 11-11 18:09`（版本名 / versionCode / 构建时间，
 构建时间由 `build.gradle.kts` 编进 `BuildConfig.BUILD_TIME`），排障第一句不用再连电脑查。
+
+### 提交前会跑什么（CI）
+
+`.github/workflows/android.yml` 在每次 push / PR 时跑两个 job：
+
+| job | 干什么 | 耗时 |
+|---|---|---|
+| 文案守卫 | `python3 tools/check_strings.py` | 半分钟 |
+| 单测与打包 | `./gradlew testDebugUnitTest assembleDebug` | 首次约 6 分钟，有缓存 1 分半 |
+
+文案守卫单独一个 job、先跑：**「随手写一句中文 Toast」是最容易顺手犯的错**，
+不想让人为了这一条等 Gradle 下载依赖。
+
+本地等价命令（Windows 上把 `python3` 换成 `python`）：
+
+```bash
+python3 tools/check_strings.py
+./gradlew testDebugUnitTest assembleDebug
+```
+
+两个坑，都在这套 CI 里踩过：
+
+- `gradlew` 在 Windows 上勾不出可执行位，仓库里原本是 `100644`，Linux runner 直接
+  `Permission denied`。现在仓库里是 `100755`，workflow 里另有一句 `chmod +x` 兜底。
+- workflow 的 `run:` 是 bash 脚本，带 `\r` 会报 `$'\r': command not found`。
+  `.gitattributes` 把 `*.yml` / `*.sh` / `*.py` / `gradlew` 钉死为 LF；其余文件不动
+  （没有全局 `* text=auto`，否则一次提交会冒出几千行「只是换行符」的改动）。
+
+**CI 不跑实机验证**：装包、遥控器、锁屏拦截这些只能在电视上验，按约定集中在晚上或周末，
+清单见[待实机验证](docs/待实机验证.md)。
 
 ---
 

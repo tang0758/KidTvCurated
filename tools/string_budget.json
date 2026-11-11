@@ -32,7 +32,7 @@
     "app/src/main/kotlin/com/family/curated/data/Store.kt": 3,
     "app/src/main/kotlin/com/family/curated/data/TimeNotice.kt": 1,
     "app/src/main/kotlin/com/family/curated/data/TimeNoticeMath.kt": 9,
-    "app/src/main/kotlin/com/family/curated/settings/TimeGroup.kt": 1,
+    "app/src/main/kotlin/com/family/curated/data/WindowMath.kt": 1,
     "app/src/main/kotlin/com/family/curated/ui/PosterAdapter.kt": 1,
     "app/src/main/kotlin/com/family/curated/ui/SectionIcons.kt": 7,
     "app/src/main/kotlin/com/family/curated/ui/SectionsAdapter.kt": 3,

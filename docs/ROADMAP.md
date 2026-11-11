@@ -3,8 +3,8 @@
 | 项目 | 内容 |
 |---|---|
 | 产品 | 小剧场 · KidTvCurated |
-| 文档 | 优化计划 V2.0 |
-| 日期 | 2026-11-10（最后更新 2026-11-11 夜 · OPT-18） |
+| 文档 | 优化计划 V2.2 |
+| 日期 | 2026-11-10（最后更新 2026-11-11 夜 · OPT-15） |
 | 基线 | `main` @ `3e7193b` |
 | 输入 | [PRD](PRD.md) 的风险与待办、[用户使用说明书](用户使用说明书.md) 的常见问题、一次代码评审结论、[外部应用计时方案对比](外部应用计时方案对比.md) 与 [ADR-01](ADR-外部应用计时.md) |
 | 目标 | 从「能用」到「可信 + 有反馈」：规则绕不过、数据丢不了、家长看得见 |
@@ -52,6 +52,16 @@ Kotlin 里再写中文界面文字会直接报错，剩下的 271 处按文件�
 **行为与文案一字未改**：`R.string.set_*` 的 201 处使用点逐条对齐（脚本比对出现次数与顺序），单测仍 112 条全绿。
 另外把「关于」框里 `开 / 关` 两个字收进资源（223 → 225 条），设置页至此**零 UI 硬编码**（只剩一条时段时间正则）。
 另：**周一到周五白天不做实机安装测试**，实机项统一登记在[待实机验证清单](待实机验证.md)。
+
+**V2.2 变更（2026-11-11 夜）**：**OPT-15 CI + 时段解析单测**落地。
+新增 `.github/workflows/android.yml`：每次 push / PR 跑两个 job —— **文案守卫**（`tools/check_strings.py`，半分钟）
+与 **单测 + 打包**（`testDebugUnitTest assembleDebug`，有缓存约 1 分半）；单测从 112 条涨到 **130 条**。
+同时把电视端「可看时段」的解析从 `TimeGroup` 搬进 `data/WindowMath.kt` 并补 18 条单测（跨零点、全角符号、
+`18-20` 这种缺分钟的写法必须返回 `null` 而不是悄悄变成「全天」）。顺带修掉两个只在 Linux 上暴露的问题：
+`gradlew` 在 Git 里是 `100644`（Windows 勾不出可执行位），runner 上 `./gradlew` 直接 `Permission denied`，
+已改 `100755` 并在 workflow 里 `chmod +x` 兜底；新增 `.gitattributes` 把 `*.yml` / `*.sh` / `*.py` / `gradlew`
+钉死为 LF，否则 workflow 的 bash 会报 `$'\r': command not found`。
+**本次零运行时改动、不新增版本号**，APK 仍是 `v1.9(10)`。
 
 **V1.3 进度（2026-11-10）**：**Wave 0（OPT-00 / OPT-01 / OPT-02）+ OPT-03 已落地，`versionCode 2`**。
 落地范围与偏差见第 14 节「落地记录」。可绕过路径：**3 → 2**（「改时钟」已闭合；「外部应用不计时」待 OPT-04、「重装清零」待 OPT-09）。
@@ -262,7 +272,7 @@ Kotlin 里再写中文界面文字会直接报错，剩下的 271 处按文件�
 
 | 编号 | 项 | 估时 | 说明 |
 |---|---|---|---|
-| OPT-15 | 单测 + CI | 2 | 加 `testImplementation("junit:junit:4.13.2")` 与 `src/test/kotlin`；先覆盖纯函数：`Schedule` 时段解析与跨零点、`GateKeeper.nextOpening`、`Badges` 判定、`PlaylistParser` 路径解码（`+` 号事故回归）、`Kiosk` 解析。新增 `.github/workflows/android.yml` 跑 `gradlew test` |
+| OPT-15 | 单测 + CI ✅ | 2 | 加 `testImplementation("junit:junit:4.13.2")` 与 `src/test/kotlin`；先覆盖纯函数：`Schedule` 时段解析与跨零点、`GateKeeper.nextOpening`、`Badges` 判定、`PlaylistParser` 路径解码（`+` 号事故回归）、`Kiosk` 解析。已落地：`junit` 早在 OPT-02 就引入，`src/test/kotlin` 现有 **130 条**（本轮新增 `WindowMathTest` 18 条：时段解析 / 跨零点 / 全角符号 / 缺分钟返回 `null`）；`.github/workflows/android.yml` 跑 `check_strings.py` + `testDebugUnitTest assembleDebug`，两 job 并行。`Schedule.parse` 的 JSON 分支上不了纯 JVM 单测（`org.json` 是桩），解析与判定改由 `WindowMath` + `TimeWindow.contains` 覆盖。见第 14 节 |
 | OPT-16 | 文案收口 `strings.xml` ✅ | 1.5 | 已落地（`v1.8`）：设置页 / 锁屏页 / 家长工具 236 条搬进资源，文案未改；新增 `tools/check_strings.py` 守住回潮。见第 14 节 |
 | OPT-17 | 异常落盘 ✅ | 1 | 已落地（`v1.7`）：`DiagMath` 纯逻辑 + `Diag`；本地先落盘、后台合并上传 `data:curated/logs/tv-yyyyMMdd.txt`（200 KB 滚动、留 7 天、60 秒去重）；接管崩溃兜底。见第 14 节 |
 | OPT-18 | 设置页拆分 ✅ | 1.5 | 已落地（`v1.9`）：`SettingsActivity` 1094 → 256 行，只留外壳；按「概览 / 时间与时长 / 规则 / 维护 / 系统」拆成 5 个 `SettingsGroup` + 适配器 + 弹窗工具箱，行为与文案零变化（201 处文案使用点逐条比对）。见第 14 节 |
@@ -408,10 +418,9 @@ graph LR
    **OPT-09 的实机 EX-13 / EX-24 未跑**（2026-11-11 16:00 电视离线），
    与 OPT-08 / OPT-10 的新用例一起登记在 [待实机验证清单](待实机验证.md)。
    **周一到周五白天不做实机安装测试**，这部分只能在晚上或周末集中跑。
-7. ~~Wave 4 的 OPT-17 / OPT-16 / OPT-18~~ ✅ 已完成（`v1.7` / `v1.8` / `v1.9`），见第 14 节。
-   代码侧下一步：**OPT-15 CI** —— 单测 112 条与 `tools/check_strings.py` 都已能跑，
-   缺的只是「每次 push 自动跑」：`.github/workflows/android.yml` 挂 `gradlew testDebugUnitTest` 与
-   `python tools/check_strings.py`。之后 Wave 4 只剩 OPT-19（家长工具收敛，视情况）。
+7. ~~Wave 4 的 OPT-17 / OPT-16 / OPT-18 / OPT-15~~ ✅ 已完成（`v1.7` / `v1.8` / `v1.9`，CI 为零版本号变更），
+   见第 14 节。**Wave 4 只剩 OPT-19（家长工具收敛，视情况）**，代码侧的四个 Wave 到此收口；
+   接下来优先级：① 把待实机验证清单跑完（含 v1.5~v1.9 的存量），② OPT-19，③ Wave 5 的体验项。
    文案还剩 271 处：`MainActivity` 55、`Badges` 30（勋章名）、`PlayerActivity` 16、`ReportActivity` 16 是主要头寸；
    数据层（`Diag` / `StateBackup` / `ReportMath`）那些是**回给 UI 显示的消息**，要动就得改成 `@StringRes + args`，单独排一项。
 8. Wave 3 周报读 `ext_<day>` 分段时，注意这台 ROM 的 `totalTimeInForeground` 实时增量为 0，
@@ -843,3 +852,41 @@ python tools/check_strings.py --update   # 认账：把当前值写成新基线
 **实机验证：未跑（按约定，周一到周五白天不做实机安装测试）**。用例已登记在
 [待实机验证清单](待实机验证.md)：五个分组逐项点一遍、改动是否真的写回 `tv.json`、
 改完焦点是否还停在原行、页脚显示 `v1.9(10)`。
+
+---
+
+### 2026-11-11 夜 · Wave 4 第四项：OPT-15 CI + 时段解析单测（零版本号变更，APK 仍 `v1.9(10)`）
+
+| 项 | 落地内容 | 新增 / 改动 |
+|---|---|---|
+| CI | `.github/workflows/android.yml`：`strings` job（`check_strings.py`，半分钟）与 `unit-test` job（`testDebugUnitTest assembleDebug` + 用例数汇总 + 失败上传测试报告）；`concurrency` 取消同分支的旧任务 | 新增 `.github/workflows/android.yml`、`.gitattributes` |
+| 时段解析 | `WindowMath`：解析 / 显示 / 写回 / 紧凑四种转换，全部纯 JVM；`TimeGroup` 只剩两行包装 | 新增 `data/WindowMath.kt`、`WindowMathTest.kt`；`settings/TimeGroup.kt` 净减约 30 行 |
+| 权限 | `gradlew` 在 Git 里是 `100644`（Windows 勾不出可执行位），Linux runner 上 `./gradlew` 报 `Permission denied` | `git update-index --chmod=+x gradlew` → `100755` |
+
+**为什么这次不发新版本号**：代码侧唯一的运行时改动是「全角减号 `－` 也算时段分隔符」，
+用户可见行为与 `v1.9(10)` 一致；再发一版只会让待实机清单里那条「页脚应该是 `vX`」又飘一次。
+
+**两个只在 Linux 上暴露的坑**
+1. **`gradlew` 权限位**：Windows 的文件系统不记录可执行位，本机永远跑得通，到 runner 上必挂。
+   修两处 —— 仓库改 `100755`，workflow 里再加一句 `chmod +x` 兜底（历史克隆的旧工作区不会自动拿到新权限位）。
+2. **workflow 的行尾**：`run:` 是 bash 脚本，行尾带 `\r` 会报 `$'\r': command not found`，
+   而且报错位置毫无提示性（看起来像是某条命令本身有问题）。加 `.gitattributes` 把 `*.yml` / `*.sh` /
+   `*.py` / `gradlew` 钉死为 LF；**故意没写全局 `* text=auto`** —— 那会让所有历史文件在下次检出时变行尾，
+   一次提交冒出几千行「只是换行符」的假改动，diff 就没法看了。
+
+**为什么 `Schedule.parse` 没上单测**：它读 `org.json`，纯 JVM 单测里 `org.json` 是桩（`RuntimeException: Stub!`）。
+可拆，但要动 `Schedule` 的公开 API，收益不抵风险。现在的覆盖是两头：
+`WindowMath.parse`（家长输入框那条路）与 `TimeWindow.contains`（判断「现在能不能看」那条路）；
+中间只剩「JSON 数组 → 时间窗」这一小段没测（三个分支：字符串 / 对象 / 数组），已在 PRD 第 15 节记为未覆盖。
+
+**顺带钉住的四条边界**（都是真实会遇到的输入）
+- `18-20`（只写小时不写分钟）→ **`null`**，提示格式不对、**不写回**。若误判成「全天」，家长以为设了 18:00–20:00，
+  实际孩子全天可看 —— 这是本节最贵的一条单测。
+- `22:00-01:00` 真的跨到凌晨（`00:30` 可看、`01:00` 整不可看）。
+- 起止相同（`22:00-22:00`）按全天算，不是「一分钟都不许看」。
+- `18：00－20：00`（中文输入法的全角冒号与全角减号）也认。
+
+**验证**：单测 **130 条全绿**（新增 18 条）；`assembleDebug` 通过；APK 26.7 MB / `v1.9(10)` / 构建时间 11-11 18:30；
+`python tools/check_strings.py` 通过（271 处基线，唯一变化是那条时段正则从 `TimeGroup.kt` 记到了 `WindowMath.kt`）。
+workflow 先做静态校验：YAML 能被解析、5 段 `run:` 脚本逐个 `bash -n` 通过、用例汇总脚本喂真数据与空数据各跑一次。
+真正的执行结果见下一段的推送记录。

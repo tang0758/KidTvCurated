@@ -1,0 +1,16 @@
+# 行尾约定。
+#
+# 这个仓库主要在 Windows 上开发（多数文件是 CRLF），但 GitHub Actions 跑在 Linux 上：
+# workflow 里的 `run:` 是 bash 脚本，只要带 \r 就会报 `$'\r': command not found`，
+# 而且报错位置常常毫无提示性。所以下面这些「会被 Linux 执行或解析」的文件强制 LF。
+#
+# 故意不写 `* text=auto`：那会让所有历史文件的检出行为变化，一次提交里冒出几千行
+# 「改动」其实只是换行符，diff 就没法看了。谁需要归一化，单独加一行。
+
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Python 工具同样在 Linux 上跑（CI 里调 tools/check_strings.py）
+*.py text eol=lf
