@@ -16,7 +16,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.family.curated.data.AppCatalog
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.Badges
-import com.family.curated.data.ContinueMath
 import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
@@ -170,46 +169,13 @@ class MainActivity : AppCompatActivity() {
         return Section(key = "__apps", title = cfg.title, requires = requires, items = items)
     }
 
-    /**
-     * OPT-12「继续看」动态分区：取最近点开过、且确实有未看完进度的条目。
-     * 条目 key 一律沿用原路径派生的 key，家长在编辑器里调顺序也不会错位；
-     * 剧集页动态列出的单集不在清单里，按路径现造一个（ContinueMath 会确认它还在片单范围内）。
-     */
-    private fun buildContinueSection(pl: Playlist): Section? {
-        if (!Extras.feature("continueWatching")) return null
-        val recent = Store.recentPlayed(30)
-        if (recent.isEmpty()) return null
-        val eligible = ContinueMath.eligible(
-            recent, { Store.progress(it) }, { Store.duration(it) }
-        )
-        if (eligible.isEmpty()) return null
-
-        val all = pl.sections.flatMap { it.items }
-        val known = HashMap<String, Item>()
-        all.forEach { known[it.key()] = it }
-        val exactFiles = all.mapNotNull { it.file }.toHashSet()
-        val folders = all.mapNotNull { it.folder }
-        val items = eligible.mapNotNull {
-            ContinueMath.itemFor(it, known, exactFiles, folders)
-        }
-        Log.i(TAG, "继续看: recent=${recent.size} eligible=${eligible.size} items=${items.size}")
-        if (items.isEmpty()) return null
-        return Section(
-            key = ContinueMath.SECTION_KEY,
-            title = ContinueMath.SECTION_TITLE,
-            items = items,
-            icon = "play"
-        )
-    }
-
     private fun render(error: String?) {
         val pl = playlist ?: return
         val cfg = pl.nas
         val appSection = buildAppsSection(pl)
-        val continueSection = buildContinueSection(pl)
-        // 继续看放在最上面：孩子回来第一眼就是没看完的那集；应用分区仍在最后
-        val sections = ArrayList<Section>(pl.sections.size + 2)
-        if (continueSection != null) sections.add(continueSection)
+        // 分区顺序完全按清单来：清单怎么排就怎么显示，应用分区固定在最后。
+        // （2026-11-12 按家长要求去掉首页「继续看」动态分区，首页不再插播记录区。）
+        val sections = ArrayList<Section>(pl.sections.size + 1)
         sections.addAll(pl.sections)
         if (appSection != null) sections.add(appSection)
         val shown = pl.copy(sections = sections)
@@ -460,8 +426,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // 从播放页回来时进度变了，「继续看」这一行要重算；render 复用同一个 adapter，
-        // 不重建 RecyclerView，焦点与横向滚动位置都留着。
+        // 从播放页回来时「今天看过」标记和进度都可能变了，需要重绘；render 复用同一个
+        // adapter，不重建 RecyclerView，焦点与横向滚动位置都留着。
         if (playlist != null) render(null)
         else adapter?.notifyDataSetChanged()
         updateHeader()

@@ -24,7 +24,6 @@ class SystemGroup(private val h: SettingsHost) : SettingsGroup {
         "extWatchMs" to R.string.set_extwatch,
         "remainingNotice" to R.string.set_notice,
         "remoteControl" to R.string.set_remote,
-        "continueWatching" to R.string.set_continue,
         "autoNext" to R.string.set_autonext,
         "report" to R.string.set_report
     )
@@ -65,14 +64,6 @@ class SystemGroup(private val h: SettingsHost) : SettingsGroup {
                 else h.str(R.string.set_remote_off),
                 onOff("remoteControl")
             ) { toggleFeature("remoteControl", h.str(R.string.set_remote)) }
-        )
-        add(
-            Entry.Row(
-                h.str(R.string.set_continue),
-                if (Extras.feature("continueWatching")) h.str(R.string.set_continue_on)
-                else h.str(R.string.set_continue_off),
-                onOff("continueWatching")
-            ) { toggleFeature("continueWatching", h.str(R.string.set_continue)) }
         )
         // 默认关：连播会让时长消耗明显变快，家长要自己决定要不要打开
         add(

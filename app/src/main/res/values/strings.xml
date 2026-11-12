@@ -118,9 +118,6 @@
     <string name="set_remote">远程控制</string>
     <string name="set_remote_on">读 NAS 的 control.json，15 秒生效</string>
     <string name="set_remote_off">已关闭：不读 control.json</string>
-    <string name="set_continue">首页继续看</string>
-    <string name="set_continue_on">顶部显示没看完的 5 条</string>
-    <string name="set_continue_off">已关闭：不显示继续看</string>
     <string name="set_autonext">自动连播</string>
     <string name="set_autonext_on">播完 5 秒接下一集，限额到点停</string>
     <string name="set_autonext_off">已关闭：播完回剧集列表</string>

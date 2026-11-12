@@ -953,7 +953,6 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
         <label class="f chk"><input type="checkbox" data-path="features.extWatchMs" data-bool="1" id="ft-ext"> 外部应用计时</label>
         <label class="f chk"><input type="checkbox" data-path="features.remainingNotice" data-bool="1" id="ft-notice"> 剩余时间预告</label>
         <label class="f chk"><input type="checkbox" data-path="features.remoteControl" data-bool="1" id="ft-remote"> 远程控制</label>
-        <label class="f chk"><input type="checkbox" data-path="features.continueWatching" data-bool="1" id="ft-continue"> 首页「继续看」</label>
         <label class="f chk"><input type="checkbox" data-path="features.autoNext" data-bool="1" id="ft-autonext"> 自动连播下一集</label>
       </div>
     </div>
@@ -1192,7 +1191,6 @@ function renderFeatures(){
   $("#ft-ext").checked = f.extWatchMs!==false;
   $("#ft-notice").checked = f.remainingNotice!==false;
   $("#ft-remote").checked = f.remoteControl===true;
-  $("#ft-continue").checked = f.continueWatching!==false;
   $("#ft-autonext").checked = f.autoNext===true;
 }
 function renderForm(){ renderGlobal(); renderAutoRefresh(); renderFeatures(); renderApps(); renderSections(); renderExtra(); }

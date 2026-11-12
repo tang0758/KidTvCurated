@@ -27,7 +27,7 @@ PRD 15.4 已把 EX-11～EX-20 用在 Wave 0 与 OPT-04 上，原提案里 Wave 1
 **V1.6 变更（2026-11-11 凌晨）**：Wave 2 孩子体验四项（OPT-11 / OPT-12 / OPT-13 / OPT-14）全部落地并实机验收，
 发 `versionCode 5 / versionName 1.4`（见第 14 节）。与计划的偏差：**连播队列由剧集页整串传给播放页**，
 播完不再回 SMB 列目录（避免刚播完时连接半死、也避免播放期间抢主连接）；
-另新增 `features.continueWatching` 作为「继续看」的远程回滚闸门。下一步改为 Wave 3。
+另新增 `features.continueWatching` 作为「继续看」的远程回滚闸门（该功能已于 2026-11-12 整体移除，见 14 节）。下一步改为 Wave 3。
 
 **V1.8 变更（2026-11-11 傍晚）**：Wave 3 第二批落地 —— **OPT-08 电视端周报**与 **OPT-10 完成必看自动奖励加时**，
 发 `versionCode 7 / versionName 1.6`（见第 14 节）。两处与计划的偏差：① 奖励加时**没有**用 `Extras.grantTemp`，
@@ -188,7 +188,7 @@ CI 新增第三个 job。本次**零 APK 改动、不新增版本号**（PC 侧�
 | 编号 | 项 | 依赖 | 估时 |
 |---|---|---|---|
 | OPT-11 | 自动连播下一集 ✅ | OPT-00、OPT-01 | 2 |
-| OPT-12 | 首页「继续看」 ✅ | — | 1.5 |
+| OPT-12 | 首页「继续看」 ⛔ 已移除 | — | 1.5 |
 | OPT-13 | 占位封面（缺图不再灰块） ✅ | — | 1.5 |
 | OPT-14 | 分区图标 + 今日任务进度条 ✅ | — | 2 |
 
@@ -206,7 +206,7 @@ CI 新增第三个 job。本次**零 APK 改动、不新增版本号**（PC 侧�
   第 2 集倒计时按返回 → `自动连播已取消` 回剧集页；关开关后 `不连播：autoNext=false`；
   把限额压到已用量以下，清单同步后 1 秒内前台变 `LockActivity`。
 
-### OPT-12 首页「继续看」
+### OPT-12 首页「继续看」（⛔ 2026-11-12 已移除，以下为历史留档）
 
 - **做法**：动态分区 key 固定为 `p:continue`（守住「id 必须路径派生」的原则，不能用下标），取 `Store.progress` 最近 5 条，封面复用现有缓存；无进度则不显示。
 - **落地（V1.6）**：新增 `data/ContinueMath.kt`；`Store.notePlayed()` 单独记「点开过」的时间，
@@ -610,7 +610,7 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
 | 项 | 落地内容 | 新增 / 改动 |
 |---|---|---|
 | OPT-11 | 自动连播：剧集页整季队列 → 播放页 `STATE_ENDED` → 5 秒可取消倒计时 → 复用 `EXTRA_*` 启动自身；`autoNext` / 门禁 / 远程暂停三道闸门 | 新增 `data/AutoNext.kt`；`EpisodesActivity.kt`、`PlayerActivity.kt`、`activity_player.xml`、`next_overlay_bg.xml` |
-| OPT-12 | 首页「继续看」动态分区，最近 5 条未看完进度，路径派生 key 不错位 | 新增 `data/ContinueMath.kt`；`Store.notePlayed/recentPlayed`、`MainActivity.kt`；新增 `features.continueWatching` |
+| OPT-12 | ~~首页「继续看」动态分区~~ ⛔ 2026-11-12 移除：`ContinueMath.kt` 删除，`MainActivity` 去掉动态分区，`Store.recentPlayed` 删除（`notePlayed` 保留给周报排序） | `data/ContinueMath.kt`（已删）、`MainActivity.kt`、`Model.kt` |
 | OPT-13 | 缺图不再灰块：稳定色相渐变 + 标题大字占位图进同一 LRU | 新增 `data/PlaceholderMath.kt`；`Covers.kt`、`ui/PosterAdapter.kt` |
 | OPT-14 | 分区图标（6 套内置矢量）+ 首页「今天任务 n/m」进度条 | 新增 `ui/SectionIcons.kt` 与 6 个 `ic_sec_*.xml`；`Model.kt`（`Section.icon`）、`ui/SectionsAdapter.kt`、`item_section.xml`、`activity_main.xml` |
 | 配置层 | schema 加 `sections[].icon` 枚举与两个新开关；两个编辑器加分区图标下拉与功能开关；设置页加「首页继续看 / 自动连播」 | `docs/tv.schema.json`、`tools/static/index.html`、`tools/tvjson_simple.py`、`SettingsActivity.kt`、`Model.kt` |
@@ -632,7 +632,7 @@ APK 26542672 字节，已装电视（`dumpsys package` → `versionCode=4 versio
   第 2 集倒计时按返回 → `自动连播已取消` 回剧集页；队列下标正确递增到第 3 集。
 - 约束：`autoNext=false` 时 `不连播：autoNext=false 有下一集=true`；限额压到已用量以下，
   清单同步后 1 秒内前台变 `LockActivity`；`AutoNext.allowed(gateOpen=false)` 单测覆盖。
-- 继续看：播 20 秒返回首页出现「继续看 · 1 个」；片单前两项对调后仍指向同一张卡。
+- 继续看：~~播 20 秒返回首页出现「继续看 · 1 个」~~ ⛔ 功能移除，验收改看「首页第一个分区就是片单第一个分区」（2026-11-12）。
 - 占位封面：强制缺图卡下 `ivCover` 全 `V.ED`、`tvFallback` 全 `G.ED`；
   海报墙连续左右 30 次无 ANR / OOM / 崩溃。
 - 图标与进度条：`ivSectionIcon` 可见，首页显示「今天任务 0/3」，`pbTask` 可见。
@@ -1148,3 +1148,21 @@ prefs 出现 `watch_2026-11-12 = 18522`；再冷启动一次无任何日志（�
 `tv.json` / `tv.backup.json` 本轮字节未动（回读 sha 与 06:30 备份一致）；`state.json`
 只多了 `watch_2026-11-12=18522` 与 `savedAt` 前进，`stamps` 一致，保留。
 「已超限开机直接锁屏」没造数（会同步抬 `daymax_`，属破坏性），留你在场。
+
+### 2026-11-12 上午 · 按家长要求移除首页「继续看」（`v1.9.6(16)`）
+
+家长明确要求去掉这个功能，不做成「开关默认关」——**代码一起删**，避免留一条永远不用的分支。
+
+- **删代码**：`data/ContinueMath.kt` 与 `ContinueMathTest.kt` 整文件删除；`MainActivity` 去掉
+  `buildContinueSection()` 与 render 里的插入逻辑，分区顺序恢复成「清单原样 + 应用分区最后」；
+  `Store.recentPlayed()` 删除；`Model.Features` 去掉 `continueWatching` 字段与默认值。
+- **删配置**：`docs/tv.schema.json` 去掉 `features.continueWatching`；两个编辑器
+  （`tools/tvjson_simple.py`、`tools/static/index.html`）去掉复选框与默认值；设置页系统分组
+  少一行（6 行 + 版本行）。当前 NAS 的 `tv.json` 本来就没有 `features` 段，**无需改配置**。
+- **保留记录**：`Store.notePlayed()` 与 `played_<key>` 照旧写。周报的「看到一半」
+  按 `playedAt` 排序（`ReportMath`），记录备份也把它当记录类键同步，删了会让周报少一列依据。
+- **文案**：`strings.xml` 少 3 条（222 条）；`string_budget.json` 基线 270 → **269**（ContinueMath 那处中文没了）。
+- **验证**：Android 单测 **143**（151 − ContinueMathTest 8）、PC 单测 28、`assembleDebug` 通过。
+  实机 `v1.9.6(16)`：首页第一个分区就是片单第一个分区「今天要看的」；设置页系统分组
+  后台拉回 / 外部应用计时 / 剩余时间预告 / 远程控制 / 自动连播 / 本周报告 六行 + 版本行。
+  截图 `backup-20261112-0920/shots/96-home.png`、`96-system.png`。

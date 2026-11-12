@@ -234,25 +234,19 @@ object Store {
         }
     }
 
-    // ---------- 最近看过（OPT-12 首页「继续看」） ----------
+    // ---------- 最近看过 ----------
     /**
      * 记一次「真的点开看过」。不复用 setProgress 的写入时间：进度在暂停、退出、
      * 自动重连时都会落盘，拿它当「最近看」会把刚翻过的老片刷到最前面。
+     *
+     * 首页「继续看」已于 2026-11-12 按家长要求移除，但 `played_` 记录**继续写**：
+     * 周报的「看到一半」列表靠它按最近观看排序（`ReportMath` 的 `playedAt`），
+     * 记录备份（`StateMerge`）也把它当记录类键一起同步。
      */
     fun notePlayed(key: String) {
         if (key.isBlank()) return
         sp.edit().putLong("played_$key", System.currentTimeMillis()).apply()
     }
-
-    /** 按最近点开时间倒序，多取一些交给 ContinueMath 过滤掉已看完 / 已不在片单的 */
-    fun recentPlayed(limit: Int = 30): List<String> =
-        sp.all.entries
-            .mapNotNull { (k, v) ->
-                if (k.startsWith("played_") && v is Long) k.removePrefix("played_") to v else null
-            }
-            .sortedByDescending { it.second }
-            .take(limit)
-            .map { it.first }
 
     // ---------- 今日完成 ----------
     // 走 ClockGuard：这一套 done_ 键也是「日期派生」的，改电视日期同样不该让它清零
