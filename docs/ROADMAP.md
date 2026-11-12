@@ -1166,3 +1166,18 @@ prefs 出现 `watch_2026-11-12 = 18522`；再冷启动一次无任何日志（�
   实机 `v1.9.6(16)`：首页第一个分区就是片单第一个分区「今天要看的」；设置页系统分组
   后台拉回 / 外部应用计时 / 剩余时间预告 / 远程控制 / 自动连播 / 本周报告 六行 + 版本行。
   截图 `backup-20261112-0920/shots/96-home.png`、`96-system.png`。
+
+#### 发版副本同步（同日 09:43）
+
+工作区的 `小剧场.apk` 从 `v1.4(5)` 换成 `v1.9.6(16)` —— 之前一直故意停在 v1.4(5)，
+是因为实机清单没跑完、不想让家长装到未验收的包；现在清单 33 条已到「通过 15 / 部分通过 11 /
+失败 0 / 待验证 7」，且 v1.9.x 在电视上连跑多轮无回归，可以发版。
+
+- 源文件 `app/build/outputs/apk/debug/app-debug.apk`（26,639,950 B，`aapt2 dump badging`
+  读出 `versionCode='16' versionName='1.9.6'`）；替换后两份 sha256 一致 `29c9c47e…`。
+- **签名核对**：新旧包证书同为 `C=US, O=Android, CN=Android Debug`，SHA-256
+  `386f08ba981fddb9da250a70062ccccc4af91a1f370abfcea807c85597671021` → 覆盖安装不会
+  `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。
+- 旧包备份在 `.workbuddy/tmp/apk-old/小剧场-v1.4.5.apk`（sha256 `96a51bc3…`）。
+- `dist/` 整个目录在 `.gitignore`（第 24 行），`*.apk` 也在（第 11 行），所以这项工作区文件
+  不进版本库，提交里看不到——记录在此备查。

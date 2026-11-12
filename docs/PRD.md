@@ -7,7 +7,7 @@
 | 撰写日期 | 2026-11-10（最后更新 2026-11-12 晨 · 12/13 实机验收） |
 | 撰写角色 | 产品经理 / 测试工程师 |
 | 对应代码 | `curated-tv` 仓库 `main`：Wave 3 代码完成（OPT-09 / OPT-08 / OPT-10）、Wave 4（OPT-17 / OPT-16 / OPT-18 / OPT-15 / OPT-19），实机待验项见[待实机验证清单](待实机验证.md)，见 [ROADMAP 第 14 节](ROADMAP.md) |
-| 对应交付物 | `app-debug.apk`（25.7 MB）。**电视上跑的是 versionCode 16 / 1.9.6**（11-12 上午实机：首页已无「继续看」、设置页系统分组 6 行 + 版本行，见[待实机验证清单](待实机验证.md) 第 10 节；第 7.2 节三条 + EX-27 + TC-46 见第 8、9 节）；`versionCode 12` 只在验证「旧指纹兼容」时临时装过一次。另有 `dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip`、`小剧场.bat`（统一启动页入口） |
+| 对应交付物 | `app-debug.apk`（26.6 MB）。**电视上跑的是 versionCode 16 / 1.9.6**（11-12 上午实机：首页已无「继续看」、设置页系统分组 6 行 + 版本行，见[待实机验证清单](待实机验证.md) 第 10 节；第 7.2 节三条 + EX-27 + TC-46 见第 8、9 节）；`versionCode 12` 只在验证「旧指纹兼容」时临时装过一次。项目根目录的发版副本 `小剧场.apk` 已同步为同一份（sha256 `29c9c47e…`，签名与旧版一致，可覆盖安装）。另有 `dist/KidTvConfig-PC.exe`、`dist/kidtv-console-ugospro.zip`、`小剧场.bat`（统一启动页入口） |
 | 文档状态 | 家庭生产环境已上线，功能持续迭代 |
 | 关联文档 | [README](../README.md)（功能与部署）、[CONFIG.md](CONFIG.md)（字段手册）、[用户使用说明书](用户使用说明书.md)、[优化计划 ROADMAP](ROADMAP.md)（后续版本与优先级）、[ADR-01 外部应用计时](ADR-外部应用计时.md)（架构定稿）与[方案对比](外部应用计时方案对比.md) |
 
