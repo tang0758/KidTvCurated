@@ -45,9 +45,9 @@ android {
         // 实机发现：NAS 不可达时记录备份退化成每秒重连一次 → 13
         // 实机发现：远端日志超 400 KB 时从头部读、截断处留残句 → 14
         // 实机发现：清掉 watch_ 后 daymax 顶着原值，冷启动补用量被误判成「今天已有用量」→ 15
-        // 产品决定：按家长要求移除首页「继续看」动态分区（含 features.continueWatching）→ 16
-        versionCode = 16
-        versionName = "1.9.6"
+        // Wave 5 里程碑：v2.0 独立维护分支建立，构建新包发布 → 17
+        versionCode = 17
+        versionName = "2.0"
         buildConfigField("String", "BUILD_TIME", "\"$buildStamp\"")
         // 默认 NAS 账号：来自 local.properties / 环境变量，缺失时是空串（见文件上方说明）
         buildConfigField("String", "NAS_USER", "\"$nasUser\"")
@@ -62,6 +62,8 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // 电视端侧载安装需要签名，发布构建默认使用 debug 签名以便即装即用
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

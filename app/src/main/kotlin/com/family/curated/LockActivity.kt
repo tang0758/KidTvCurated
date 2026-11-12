@@ -303,12 +303,14 @@ class LockActivity : AppCompatActivity() {
     private val pinBuffer = StringBuilder()
 
     private fun appendPinDigit(d: Int) {
-        if (pinBuffer.length >= 6) pinBuffer.setLength(0)
+        val targetPin = Extras.pin().ifBlank { "1234" }
+        val targetLen = targetPin.length.coerceIn(4, 8)
+        if (pinBuffer.length >= 8) pinBuffer.setLength(0)
         pinBuffer.append(d)
-        if (pinBuffer.length >= 4) {
-            val entered = pinBuffer.toString().takeLast(4)
+        if (pinBuffer.length >= targetLen) {
+            val entered = pinBuffer.toString().takeLast(targetLen)
             pinBuffer.setLength(0)
-            if (entered == Extras.pin()) {
+            if (entered == targetPin) {
                 Extras.grantTemp(15)
                 Toast.makeText(this, getString(R.string.lock_granted_15), Toast.LENGTH_SHORT).show()
                 finish()
@@ -327,7 +329,7 @@ class LockActivity : AppCompatActivity() {
             textSize = 20f
             setPadding(40, 24, 40, 24)
         }
-        AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+        val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
             .setTitle(getString(R.string.lock_pin_title))
             .setMessage(getString(R.string.lock_pin_msg))
             .setView(input)
@@ -341,6 +343,8 @@ class LockActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton(getString(R.string.common_cancel), null)
-            .show()
+            .create()
+        dialog.show()
+        ParentTools.submitOnEnter(input, dialog)
     }
 }
