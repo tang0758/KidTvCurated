@@ -452,4 +452,31 @@ object Extras {
         s.addAll(ids)
         p().edit().putStringSet("badges_seen", s).apply()
     }
+
+    // ---------- 学习角 2.0 掌握度标签 ----------
+
+    fun cardMastery(cardId: String): CardMastery {
+        val v = p().getLong("ltag_$cardId", 0L).toInt()
+        return CardMastery.of(v)
+    }
+
+    fun setCardMastery(cardId: String, mastery: CardMastery) {
+        val now = ClockGuard.now()
+        p().edit()
+            .putLong("ltag_$cardId", mastery.value.toLong())
+            .putLong("ltag_ts_$cardId", now)
+            .apply()
+    }
+
+    fun allCardMasteries(): Map<String, CardMastery> {
+        val all = p().all
+        val result = HashMap<String, CardMastery>()
+        all.forEach { (k, v) ->
+            if (k.startsWith("ltag_") && !k.startsWith("ltag_ts_") && v is Long) {
+                val cardId = k.removePrefix("ltag_")
+                result[cardId] = CardMastery.of(v.toInt())
+            }
+        }
+        return result
+    }
 }

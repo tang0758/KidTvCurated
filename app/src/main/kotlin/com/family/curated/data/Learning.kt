@@ -31,15 +31,21 @@ data class LearningCard(
     val sub: String = "",
     val lines: List<String> = emptyList(),
     val note: String = "",
-    val image: String? = null
+    val image: String? = null,
+    val id: String = "",
+    val audio: String? = null,
+    val ttsText: String = ""
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("type", type.key)
         put("title", title)
+        if (id.isNotBlank()) put("id", id)
         if (sub.isNotBlank()) put("sub", sub)
         if (lines.isNotEmpty()) put("lines", JSONArray(lines))
         if (note.isNotBlank()) put("note", note)
         if (!image.isNullOrBlank()) put("image", image)
+        if (!audio.isNullOrBlank()) put("audio", audio)
+        if (ttsText.isNotBlank()) put("ttsText", ttsText)
     }
 
     companion object {
@@ -60,7 +66,10 @@ data class LearningCard(
                 sub = o.optString("sub").ifBlank { o.optString("author") },
                 lines = lines,
                 note = o.optString("note").ifBlank { o.optString("meaning") },
-                image = o.optString("image").ifBlank { null }
+                image = o.optString("image").ifBlank { null },
+                id = o.optString("id").ifBlank { "" },
+                audio = o.optString("audio").ifBlank { null },
+                ttsText = o.optString("ttsText").ifBlank { "" }
             )
         }
     }
@@ -88,8 +97,8 @@ data class Learning(
     val stage: Int = 0,
     val stageSize: Int = 0
 ) {
-    /** 每类先各来一张，再按比例平滑穿插，避免同类连着出现一大串 */
-    fun deck(): List<LearningCard> {
+    /** 每类先各来一张，再按比例平滑穿插，避免同类连着出现一大串；支持掌握度加权抽样 */
+    fun deck(masteryMap: Map<String, CardMastery> = emptyMap()): List<LearningCard> {
         val pools = HashMap<CardType, MutableList<LearningCard>>()
         CardType.values().forEach { pools[it] = ArrayList() }
         if (useBuiltin) {
@@ -123,7 +132,11 @@ data class Learning(
             out.add(pools[pick]!!.removeAt(0))
             last = pick
         }
-        return out
+        return if (masteryMap.isNotEmpty()) {
+            LearningMath.weightedFilter(out, masteryMap)
+        } else {
+            out
+        }
     }
 
     fun toJson(): String = JSONObject().apply {

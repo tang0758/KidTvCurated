@@ -155,7 +155,7 @@ a{color:var(--brand)}
     <button data-tab="sections">片单编排</button>
     <button data-tab="rules">时段与密码</button>
     <button data-tab="control">远程控制</button>
-    <button data-tab="learning">等待学习角</button>
+    <button data-tab="learning">互动学习角 2.0</button>
     <button data-tab="json">JSON / 导入导出</button>
   </div>
 
@@ -748,7 +748,9 @@ function renderLearning(){
         '<textarea data-bind="' + p + 'lines" placeholder="床前明月光，疑是地上霜。">' + esc(lines) + '</textarea></label>' +
       '<div class="fields" style="margin-top:8px">' +
         '<label>注释 / 释义<input data-bind="' + p + 'note" value="' + esc(c.note) + '"></label>' +
-        '<label>图片（仅名画，NAS 路径）<input data-bind="' + p + 'image" value="' + esc(c.image) + '" placeholder="curated/art/画.jpg"></label>' +
+        '<label>图片（配图，NAS 路径）<input data-bind="' + p + 'image" value="' + esc(c.image) + '" placeholder="curated/learning/images/pic.jpg"></label>' +
+        '<label>配音音频（.mp3 路径）<input data-bind="' + p + 'audio" value="' + esc(c.audio) + '" placeholder="curated/learning/audio/read.mp3"></label>' +
+        '<label>TTS 朗读文本（覆盖）<input data-bind="' + p + 'ttsText" value="' + esc(c.ttsText) + '" placeholder="留空则自动按题型朗读"></label>' +
       '</div></div>';
   });
   h += '<div class="rowbtn">' + keys.map(k =>

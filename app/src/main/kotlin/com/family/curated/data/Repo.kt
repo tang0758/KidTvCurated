@@ -219,7 +219,7 @@ object Repo {
     }
 
     private val VIDEO_EXT = setOf(
-        "mp4", "mkv", "avi", "ts", "m2ts", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "rmvb", "iso", "m4v"
+        "mp4", "mkv", "avi", "ts", "m2ts", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "m4v"
     )
 
     fun isVideo(name: String): Boolean {

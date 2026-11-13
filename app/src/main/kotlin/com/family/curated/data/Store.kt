@@ -343,4 +343,38 @@ object Store {
             0
         }
     }
+
+    // ---------- OPT-20: 剧集两级缓存 ----------
+    fun getCachedEpisodes(folder: String): List<Item>? {
+        val s = sp.getString("ep_cache_$folder", null) ?: return null
+        return try {
+            val arr = org.json.JSONArray(s)
+            val list = ArrayList<Item>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                list.add(Item(
+                    id = o.optString("id", ""),
+                    title = o.getString("title"),
+                    file = if (o.has("file")) o.getString("file") else null
+                ))
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun putCachedEpisodes(folder: String, list: List<Item>) {
+        try {
+            val arr = org.json.JSONArray()
+            for (item in list) {
+                val o = org.json.JSONObject()
+                o.put("id", item.id)
+                o.put("title", item.title)
+                o.put("file", item.file)
+                arr.put(o)
+            }
+            sp.edit().putString("ep_cache_$folder", arr.toString()).apply()
+        } catch (_: Exception) { }
+    }
 }

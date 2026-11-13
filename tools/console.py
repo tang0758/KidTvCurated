@@ -77,7 +77,7 @@ DESKTOP_FILE = CONFIG_FILE.parent / ".console_desktop.json"
 
 VIDEO_EXT = {
     ".mp4", ".mkv", ".avi", ".ts", ".m2ts", ".mov", ".wmv", ".flv",
-    ".webm", ".mpg", ".mpeg", ".rmvb", ".iso", ".m4v",
+    ".webm", ".mpg", ".mpeg", ".m4v",
 }
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
 
@@ -449,6 +449,74 @@ def scan(cfg: dict, share: str, path: str) -> dict:
     return {"ok": True, "items": items, "mode": "folders" if subdirs else "files"}
 
 
+def list_episodes(cfg: dict, share: str, folder: str) -> list[dict]:
+    folder = norm(folder)
+    entries = list_path(cfg, share, folder)
+    items = []
+    for f in sorted([e for e in entries if is_video(e.filename)],
+                    key=lambda x: natural_key(x.filename)):
+        full = rel(folder + "/" + f.filename)
+        items.append({
+            "id": "p:" + full,
+            "title": clean_title(f.filename.rsplit(".", 1)[0]),
+            "file": full,
+        })
+    return items
+
+
+LEARNING_PATH = "curated/learning.json"
+
+
+def read_learning_data(cfg: dict) -> dict:
+    share = cfg.get("playlistShare") or "data"
+    try:
+        c = smb(cfg)
+        buf = io.BytesIO()
+        try:
+            c.retrieveFile(share, LEARNING_PATH, buf, timeout=10)
+            text = buf.getvalue().decode("utf-8")
+            return {"ok": True, "data": json.loads(text), "source": "nas"}
+        finally:
+            c.close()
+    except Exception:
+        local = BUNDLE / "dist" / "learning" / "learning.json"
+        if local.exists():
+            try:
+                data = json.loads(local.read_text(encoding="utf-8"))
+                return {"ok": True, "data": data, "source": "local"}
+            except Exception:
+                pass
+        return {"ok": True, "data": {"version": 2, "cards": []}, "source": "empty"}
+
+
+def save_learning_data(cfg: dict, payload: dict) -> str:
+    share = cfg.get("playlistShare") or "data"
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    c = smb(cfg)
+    try:
+        buf = io.BytesIO(text.encode("utf-8"))
+        c.storeFile(share, LEARNING_PATH, buf, timeout=20)
+    finally:
+        c.close()
+    return f"已写入 \\\\{cfg['host']}\\{share}\\{LEARNING_PATH}"
+
+
+def nudge_tv(ip: str | None = None) -> bool:
+    import urllib.request
+    ips = [ip] if ip else ["127.0.0.1", "192.168.31.200"]
+    for target_ip in ips:
+        if not target_ip:
+            continue
+        try:
+            req = urllib.request.Request(f"http://{target_ip}:8899/api/nudge", data=b"{}",
+                                         headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=1):
+                return True
+        except Exception:
+            pass
+    return False
+
+
 def state_payload() -> dict:
     cfg = current_cfg()
     return {
@@ -630,6 +698,60 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
+    def handle_stream(self, share: str, target: str):
+        cfg = current_cfg()
+        c = smb(cfg)
+        try:
+            target = norm(target)
+            attrs = c.getAttributes(share, target)
+            total = int(getattr(attrs, "file_size", 0) or 0)
+            name = target.rsplit("/", 1)[-1]
+            ctype = mimetypes.guess_type(name)[0] or "video/mp4"
+
+            range_header = self.headers.get("Range")
+            start = 0
+            end = total - 1 if total > 0 else 0
+
+            if range_header and range_header.startswith("bytes="):
+                ranges = range_header[6:].split("-")
+                if ranges[0]:
+                    start = int(ranges[0])
+                if len(ranges) > 1 and ranges[1]:
+                    end = int(ranges[1])
+                if total > 0:
+                    end = min(end, total - 1)
+                length = (end - start + 1) if total > 0 else 0
+
+                self.send_response(206)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
+                self.send_header("Content-Length", str(length))
+                self.send_header("Accept-Ranges", "bytes")
+                self.end_headers()
+
+                c.retrieveFileFromOffset(share, target, self.wfile, offset=start, max_query_length=length, timeout=60)
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(total))
+                self.send_header("Accept-Ranges", "bytes")
+                self.end_headers()
+                c.retrieveFile(share, target, self.wfile, timeout=60)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            pass
+        except Exception as e:
+            say(f"流媒体读取失败：{e}")
+            try:
+                self.send_response(500)
+                self.end_headers()
+            except Exception:
+                pass
+        finally:
+            try:
+                c.close()
+            except Exception:
+                pass
+
     def query(self) -> dict:
         return urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
 
@@ -699,6 +821,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(204)
                 self.end_headers()
                 return
+            if path.startswith("/stream/"):
+                parts = path[len("/stream/"):].split("/", 1)
+                if len(parts) == 2:
+                    return self.handle_stream(parts[0], urllib.parse.unquote(parts[1]))
+                return self.json_out({"ok": False, "error": "流媒体路径不完整"}, 400)
             if not path.startswith("/api/"):
                 return self.json_out({"ok": False, "error": "未知路径"}, 404)
             if self.deny_locked():
@@ -772,6 +899,16 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/scan":
                 share = self.one(q, "share") or cfg["share"]
                 return self.json_out(scan(cfg, share, self.one(q, "path")))
+
+            if path == "/api/episodes":
+                folder = self.one(q, "folder")
+                share = self.one(q, "share") or cfg.get("share", "")
+                episodes = cached(("episodes", cfg["host"], share, folder),
+                                  lambda: list_episodes(cfg, share, folder))
+                return self.json_out({"ok": True, "episodes": episodes})
+
+            if path == "/api/learning":
+                return self.json_out(read_learning_data(cfg))
 
             if path == "/api/download":
                 share = self.one(q, "share") or cfg["share"]
@@ -890,8 +1027,19 @@ class Handler(BaseHTTPRequestHandler):
                     msg = f"已写入本地 {LOCAL_TV_FILE}（{len(text.encode('utf-8'))} 字节）"
                 else:
                     msg = write_remote(current_cfg(), text)
+                threading.Thread(target=nudge_tv, daemon=True).start()
                 return self.json_out({"ok": True, "message": msg,
                                       "bytes": len(text.encode("utf-8"))})
+
+            if path == "/api/learning":
+                save_learning_data(current_cfg(), data.get("data", data))
+                threading.Thread(target=nudge_tv, daemon=True).start()
+                return self.json_out({"ok": True, "message": "学习数据已保存并已通知电视"})
+
+            if path == "/api/nudge":
+                tv_ip = data.get("ip") or self.one(self.query(), "ip")
+                nudged = nudge_tv(tv_ip)
+                return self.json_out({"ok": True, "nudged": nudged})
 
             return self.json_out({"ok": False, "error": "未知 API"}, 404)
         except SmbError as e:

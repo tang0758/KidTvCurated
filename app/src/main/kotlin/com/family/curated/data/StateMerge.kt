@@ -17,8 +17,8 @@ object StateMerge {
     /** 备份格式版本。读到更大的版本号就整份忽略，免得旧 App 乱解释新字段 */
     const val VERSION = 1
 
-    /** 备份这些前缀下的长整数键（时长、进度、防跳看、最近点开） */
-    val LONG_PREFIXES = listOf("watch_", "ext_", "vids_", "pos_", "dur_", "front_", "played_")
+    /** 备份这些前缀下的长整数键（时长、进度、防跳看、最近点开、学习掌握度标签） */
+    val LONG_PREFIXES = listOf("watch_", "ext_", "vids_", "pos_", "dur_", "front_", "played_", "ltag_", "ltag_ts_")
 
     /**
      * 其中这一组是「用量」，重装后必须**自动**补回来：
@@ -27,8 +27,8 @@ object StateMerge {
      */
     val USAGE_PREFIXES = listOf("watch_", "ext_", "vids_")
 
-    /** 进度/打卡这类「记录」，导入前要问家长：他可能刚故意清空过 */
-    private val RECORD_PREFIXES = listOf("pos_", "dur_", "front_", "played_")
+    /** 进度/打卡/学习标签这类「记录」，导入前要问家长：他可能刚故意清空过 */
+    private val RECORD_PREFIXES = listOf("pos_", "dur_", "front_", "played_", "ltag_", "ltag_ts_")
 
     /** 单条键名上限，防止备份文件被写坏后塞进超长垃圾 */
     private const val MAX_KEY_LEN = 200
@@ -90,27 +90,36 @@ object StateMerge {
         return LinkedHashSet(keep)
     }
 
-    /** 过滤掉非白名单前缀、负数、超长键；宁可少恢复几条，也别让坏文件污染本地 */
+    /** 过滤掉非白名单前缀、非法值、超长键；ltag_ 允许 -1 (LEARNING) */
     fun sanitizeLongs(raw: Map<String, Long>): Map<String, Long> {
         val out = LinkedHashMap<String, Long>()
         for ((k, v) in raw) {
             if (k.length > MAX_KEY_LEN) continue
             if (!isLongKey(k)) continue
-            if (v < 0L) continue
+            if (v < 0L && !k.startsWith("ltag_")) continue
             out[k] = v
             if (out.size >= MAX_LONGS) break
         }
         return out
     }
 
-    /** 只升不降：同键取大值，打卡取并集 */
+    /** 只升不降：同键取大值，打卡取并集；ltag_ 学习标签按时间戳取最新 (LWW) */
     fun merge(local: Snapshot, remote: Snapshot): Snapshot {
         val stamps = LinkedHashSet(local.stamps)
         stamps.addAll(remote.stamps)
         val longs = LinkedHashMap(local.longs)
         remote.longs.forEach { (k, v) ->
-            val cur = longs[k]
-            if (cur == null || v > cur) longs[k] = v
+            if (k.startsWith("ltag_") && !k.startsWith("ltag_ts_")) {
+                val cardId = k.removePrefix("ltag_")
+                val localTs = local.longs["ltag_ts_$cardId"] ?: 0L
+                val remoteTs = remote.longs["ltag_ts_$cardId"] ?: 0L
+                if (remoteTs >= localTs) {
+                    longs[k] = v
+                }
+            } else {
+                val cur = longs[k]
+                if (cur == null || v > cur) longs[k] = v
+            }
         }
         return Snapshot(stamps, longs, maxOf(local.savedAt, remote.savedAt))
     }

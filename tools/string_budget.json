@@ -1,9 +1,9 @@
 {
   "_comment": "界面文案预算：每个 Kotlin 文件允许残留的中文硬编码条数。只许降，不许升。tools/check_strings.py --update 可认账。",
-  "total": 269,
+  "total": 268,
   "files": {
     "app/src/main/kotlin/com/family/curated/BootReceiver.kt": 1,
-    "app/src/main/kotlin/com/family/curated/EpisodesActivity.kt": 5,
+    "app/src/main/kotlin/com/family/curated/EpisodesActivity.kt": 4,
     "app/src/main/kotlin/com/family/curated/KidApp.kt": 3,
     "app/src/main/kotlin/com/family/curated/MainActivity.kt": 54,
     "app/src/main/kotlin/com/family/curated/PlayerActivity.kt": 16,

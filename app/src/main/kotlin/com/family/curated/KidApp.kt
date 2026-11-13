@@ -195,6 +195,7 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
         // 冷启动先把 NAS 备份里的「用量」静默合回来 —— 只会变大，不存在被滥用的方向。
         // 打卡与进度不在这里动：那可能是家长刚故意清空的，要问过才恢复（OPT-09）。
         PlaylistSync.submit { StateBackup.autoMergeUsage() }
+        com.family.curated.data.PairingServer.start()
         handler.postDelayed(tick, 1200)
     }
 
@@ -216,7 +217,9 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
             StateBackup.nudge("background")
         }
     }
-    override fun onActivityCreated(a: Activity, s: Bundle?) {}
+    override fun onActivityCreated(a: Activity, s: Bundle?) {
+        com.family.curated.data.DensityAdjuster.apply(a, this)
+    }
     override fun onActivityStarted(a: Activity) {}
     override fun onActivityStopped(a: Activity) {}
     override fun onActivitySaveInstanceState(a: Activity, s: Bundle) {}

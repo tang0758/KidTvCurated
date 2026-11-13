@@ -1181,3 +1181,27 @@ prefs 出现 `watch_2026-11-12 = 18522`；再冷启动一次无任何日志（�
 - 旧包备份在 `.workbuddy/tmp/apk-old/小剧场-v1.4.5.apk`（sha256 `96a51bc3…`）。
 - `dist/` 整个目录在 `.gitignore`（第 24 行），`*.apk` 也在（第 11 行），所以这项工作区文件
   不进版本库，提交里看不到——记录在此备查。
+
+### 2026-11-12 下午 · Wave 5 Sprint 1~3 落地（`versionCode 17` / `v2.0`）
+
+完成 Wave 5 三个 Sprint 的全部核心功能落地与版本发版：
+
+| Sprint | 项 | 落地内容 | 新增 / 改动 |
+|---|---|---|---|
+| **Sprint 1** | OPT-20 / OPT-24 | 互动学习角 2.0：稳定 ID 与卡片生成、加权降频抽样（`UNMARKED` 1.0 / `LEARNING` 2.0 / `MASTERED` 15% 抽查保底）；`LearningCard` 扩展字段与掌握度池；LWW 跨端同步；自适应双栏（图 38% / 字 62%）；独立点读（不扣看片时长）；可变 PIN；255 张卡片导出 | 新增 `data/LearningMath.kt`、`LearningMathTest.kt`、`tools/export_learning.py`；改动 `Learning.kt`、`StateMerge.kt`、`StateMergeTest.kt`、`Extras.kt`、`LockActivity.kt`、`activity_lock.xml` |
+| **Sprint 1** | OPT-23 | 剧集秒开缓存：SWR（Stale-While-Revalidate）剧集缓存，列表瞬间展开，后台异步刷新比对 | `Store.kt`、`EpisodesActivity.kt` |
+| **Sprint 2** | OPT-21 | 软解优先回退：零体积软解回退与 4xxx 自动降级解码 | 新增 `data/SoftwareFirstSelector.kt`；改动 `PlayerActivity.kt` |
+| **Sprint 2** | 格式清理 | 清理废弃的 `rmvb` 与 `iso` 格式 | `data/Repo.kt`、`tools/console.py` |
+| **Sprint 2** | 双模网关 | 双模媒体网关（HTTP / WebDAV 优先，失败透明降级 SMB）；支持 HTTP 206 Partial Content | 新增 `data/MediaGateway.kt`；`Model.kt`（`gatewayPort = 8765`）；`tools/console.py`（`/stream/<share>/<path>`） |
+| **Sprint 2** | OPT-22 / 25 / 26 | 播放内核越级：OK 键唤醒与暂停解耦；自动连播无缝切集（复用 ExoPlayer 消除黑屏闪烁）；结构化片头片尾跳过；0.75x~1.25x 慢放与 FIT/ZOOM 比例切换 | `PlayerActivity.kt`、`activity_player.xml`、`Model.kt`（`skipIntroSec` / `skipOutroSec`） |
+| **Sprint 2** | OPT-27 / 28C | 首页卡片微调：海报宽度缩窄 25% 至 150dp x 215dp，一屏容纳 5~6 张；管理控制台新增「互动学习角 2.0」页面 | `item_poster.xml`、`PosterAdapter.kt`、`tools/console.py`、`tools/static/index.html` |
+| **Sprint 3** | OPT-29 | 免遥控配网：TV 内嵌轻量 HTTP 服务的手机扫码配网与 <1s 实时推送 | 新增 `data/PairingServer.kt`；`KidApp.kt` |
+| **Sprint 3** | OPT-30 | 密度锁定：1080p 标准自适应锁定屏幕密度与防错位 | 新增 `data/DensityAdjuster.kt`；`KidApp.kt` |
+| **Sprint 3** | 快捷管理 | 首页海报长按菜单：输入 PIN 快速标记今日完成或重置进度 | `PosterAdapter.kt`、`SectionsAdapter.kt`、`MainActivity.kt` |
+
+**质量保证**：
+- 单测：52 项全部通过（新增 `LearningMathTest` 5 条，加权与抽查全绿）。
+- 文案守卫：`python3 tools/check_strings.py` 严格通过，中文硬编码基线受控认账。
+- PC 脚本：`python3 tools/test_launcher.py` 28 个测试 100% 绿灯。
+- 构建产物：`KidTvCurated-v2.0-release.apk` 与 `KidTvCurated-v2.0-debug.apk` 成功打包并同步。
+

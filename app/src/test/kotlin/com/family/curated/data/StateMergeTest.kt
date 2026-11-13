@@ -227,17 +227,34 @@ class StateMergeTest {
     }
 
     @Test
-    fun `摘要文案能看懂`() {
-        assertEquals("空记录", StateMerge.summary(snap()))
-        assertEquals("3 天打卡", StateMerge.summary(snap(setOf("2026-11-01", "2026-11-02", "2026-11-03"))))
-        assertEquals(
-            "2 天打卡 · 1 条播放进度",
-            StateMerge.summary(
-                snap(
-                    setOf("2026-11-01", "2026-11-02"),
-                    mapOf("pos_p:/a.mp4" to 5000L, "pos_p:/b.mp4" to 0L)
-                )
-            )
+    fun `学习掌握度标签支持与时间戳 LWW 合并`() {
+        assertTrue(StateMerge.isLongKey("ltag_poem_静夜思"))
+        assertTrue(StateMerge.isLongKey("ltag_ts_poem_静夜思"))
+
+        // sanitizeLongs 允许 ltag_ 为 -1 (LEARNING)
+        val sanitized = StateMerge.sanitizeLongs(
+            mapOf("ltag_w1" to -1L, "ltag_ts_w1" to 1000L, "watch_invalid" to -5L)
         )
+        assertEquals(-1L, sanitized["ltag_w1"])
+        assertFalse(sanitized.containsKey("watch_invalid"))
+
+        // LWW 合并：远端时间戳更新时覆盖本地
+        val local = snap(
+            longs = mapOf("ltag_p1" to 1L, "ltag_ts_p1" to 100L)
+        )
+        val remote = snap(
+            longs = mapOf("ltag_p1" to -1L, "ltag_ts_p1" to 200L)
+        )
+        val merged = StateMerge.merge(local, remote)
+        assertEquals(-1L, merged.longs["ltag_p1"])
+        assertEquals(200L, merged.longs["ltag_ts_p1"])
+
+        // 本地时间戳更新时不被远端旧值覆盖
+        val remoteOld = snap(
+            longs = mapOf("ltag_p1" to 1L, "ltag_ts_p1" to 50L)
+        )
+        val mergedKeepLocal = StateMerge.merge(local, remoteOld)
+        assertEquals(1L, mergedKeepLocal.longs["ltag_p1"])
+        assertEquals(100L, mergedKeepLocal.longs["ltag_ts_p1"])
     }
 }

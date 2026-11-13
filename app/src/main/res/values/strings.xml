@@ -248,4 +248,18 @@
     <string name="pt_discard">放弃这次修改</string>
     <string name="pt_discarded">已放弃，继续用 NAS 上的设置</string>
     <string name="pt_resaved">已重新保存到 NAS</string>
+
+    <!-- ==================== 学习角 2.0 ==================== -->
+    <string name="lock_mastered">已认识</string>
+    <string name="lock_learning">重点再学</string>
+    <string name="lock_marked_mastered">已标记：认识了</string>
+    <string name="lock_marked_learning">已标记：重点再学</string>
+    <string name="lock_hint_v2">◀ ▶ 换一张 · OK 朗读 · ▲ 认识了 · ▼ 再学学</string>
+
+    <!-- ==================== 卡片管理与剧集 ==================== -->
+    <string name="ctx_card_manage">卡片管理</string>
+    <string name="ctx_mark_done">标记今日已学完</string>
+    <string name="ctx_unmark_done">取消今日已学完</string>
+    <string name="ctx_reset_progress">重置观看进度</string>
+    <string name="episodes_count">共 %1$d 个</string>
 </resources>

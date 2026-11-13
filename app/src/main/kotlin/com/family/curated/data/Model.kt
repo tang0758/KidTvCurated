@@ -11,7 +11,8 @@ data class NasConfig(
     val port: Int = 445,
     val user: String,
     val password: String,
-    val share: String
+    val share: String,
+    val gatewayPort: Int = 8765
 )
 
 /**
@@ -38,7 +39,9 @@ data class Item(
     val folder: String? = null,
     val cover: String? = null,
     /** 非空表示这是一个第三方应用入口，值为包名或「包名/Activity」 */
-    val app: String? = null
+    val app: String? = null,
+    val skipIntroSec: Int = 0,
+    val skipOutroSec: Int = 0
 ) {
     val isFolder: Boolean get() = folder != null
     fun key(): String = id.ifEmpty { (file ?: folder ?: app ?: title) }
@@ -197,7 +200,8 @@ object PlaylistParser {
                 port = it.optInt("port", 445),
                 user = it.optString("user", ""),
                 password = it.optString("password", ""),
-                share = it.optString("share", "")
+                share = it.optString("share", ""),
+                gatewayPort = it.optInt("gatewayPort", 8765)
             )
         }
 
@@ -231,7 +235,9 @@ object PlaylistParser {
                         file = file,
                         folder = folder,
                         cover = o.optString("cover").ifBlank { null },
-                        app = app
+                        app = app,
+                        skipIntroSec = o.optInt("skipIntroSec", 0),
+                        skipOutroSec = o.optInt("skipOutroSec", 0)
                     )
                 )
             }

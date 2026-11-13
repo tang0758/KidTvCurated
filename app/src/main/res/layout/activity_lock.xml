@@ -164,6 +164,21 @@
                     android:textSize="14sp" />
 
                 <TextView
+                    android:id="@+id/tvCardMastery"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:visibility="gone"
+                    android:text="✅ 已认识"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
                     android:id="@+id/tvCardTimer"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -193,42 +208,62 @@
                 android:layout_weight="1"
                 android:layout_marginTop="10dp">
 
-                <!-- 唐诗 / 单词 / 识字：大字正文 -->
+                <!-- 唐诗 / 单词 / 识字：大字正文（支持自适应左图右字） -->
                 <LinearLayout
                     android:id="@+id/textFrame"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:orientation="vertical"
+                    android:orientation="horizontal"
                     android:gravity="center">
 
-                    <TextView
-                        android:id="@+id/tvCardTitle"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:text="静夜思"
-                        android:textColor="#F2F4F8"
-                        android:textSize="40sp"
-                        android:textStyle="bold"
-                        android:includeFontPadding="false" />
-
-                    <TextView
-                        android:id="@+id/tvCardSub"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center"
-                        android:text="唐 · 李白"
-                        android:textColor="#9FC2FF"
-                        android:textSize="19sp" />
+                    <ImageView
+                        android:id="@+id/ivCardIllust"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="38"
+                        android:layout_marginEnd="16dp"
+                        android:visibility="gone"
+                        android:scaleType="fitCenter"
+                        android:adjustViewBounds="true"
+                        android:contentDescription="插图" />
 
                     <LinearLayout
-                        android:id="@+id/linesHost"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:id="@+id/textContainer"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="62"
                         android:orientation="vertical"
-                        android:gravity="center" />
+                        android:gravity="center">
+
+                        <TextView
+                            android:id="@+id/tvCardTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="静夜思"
+                            android:textColor="#F2F4F8"
+                            android:textSize="40sp"
+                            android:textStyle="bold"
+                            android:includeFontPadding="false" />
+
+                        <TextView
+                            android:id="@+id/tvCardSub"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:gravity="center"
+                            android:text="唐 · 李白"
+                            android:textColor="#9FC2FF"
+                            android:textSize="19sp" />
+
+                        <LinearLayout
+                            android:id="@+id/linesHost"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:orientation="vertical"
+                            android:gravity="center" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- 名画：整幅画 + 加载失败占位 -->

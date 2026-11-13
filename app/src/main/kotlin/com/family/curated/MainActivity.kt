@@ -219,6 +219,10 @@ class MainActivity : AppCompatActivity() {
             onItemFocus = { section, item ->
                 lastFocusSection = section.key
                 lastFocusItem = item.key()
+            },
+            onItemLongClick = { section, item ->
+                showCardContextMenu(section, item)
+                true
             }
         )
         adapter = a
@@ -420,7 +424,35 @@ class MainActivity : AppCompatActivity() {
                     .putExtra(PlayerActivity.EXTRA_KEY, item.key())
                     .putExtra(PlayerActivity.EXTRA_GATE_SECTION, if (section.gate) section.key else null)
                     .putExtra(PlayerActivity.EXTRA_SEEK_LOCK, seekLock)
+                    .putExtra(PlayerActivity.EXTRA_SKIP_INTRO, item.skipIntroSec)
+                    .putExtra(PlayerActivity.EXTRA_SKIP_OUTRO, item.skipOutroSec)
             )
+        }
+    }
+
+    private fun showCardContextMenu(section: Section, item: Item) {
+        ParentTools.askPin(this, getString(R.string.ctx_card_manage)) {
+            val key = item.key()
+            val isDone = Store.isDoneToday(key)
+            val options = arrayOf(
+                if (isDone) getString(R.string.ctx_unmark_done) else getString(R.string.ctx_mark_done),
+                getString(R.string.ctx_reset_progress)
+            )
+            AlertDialog.Builder(this)
+                .setTitle(item.title)
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            if (isDone) Store.unmarkDone(key) else Store.markDone(key)
+                            render(null)
+                        }
+                        1 -> {
+                            Store.setProgress(key, 0)
+                            render(null)
+                        }
+                    }
+                }
+                .show()
         }
     }
 

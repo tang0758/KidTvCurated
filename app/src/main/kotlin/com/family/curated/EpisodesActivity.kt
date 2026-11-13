@@ -62,7 +62,19 @@ class EpisodesActivity : AppCompatActivity() {
     }
 
     private fun loadEpisodes() {
-        b.tvSub.text = "正在读取…"
+        val cached = Store.getCachedEpisodes(folder)
+        if (!cached.isNullOrEmpty()) {
+            episodes = cached
+            queueJson = AutoNext.encode(cached)
+            b.tvSub.text = getString(R.string.episodes_count, cached.size)
+            b.rvEpisodes.adapter = EpAdapter()
+            b.rvEpisodes.post {
+                val first = b.rvEpisodes.findViewHolderForAdapterPosition(0)
+                first?.itemView?.requestFocus()
+            }
+        } else {
+            b.tvSub.text = "正在读取…"
+        }
         loadFailed = false
         Thread {
             val cfg = Store.nas()
@@ -75,18 +87,29 @@ class EpisodesActivity : AppCompatActivity() {
                 emptyList()
             }
             runOnUiThread {
-                episodes = list
-                queueJson = AutoNext.encode(list)
-                loadFailed = failed
-                b.tvSub.text = when {
-                    failed -> "读取超时，按遥控器 OK 重试"
-                    list.isEmpty() -> "没找到视频（按 OK 重试）"
-                    else -> "共 ${list.size} 个"
-                }
-                b.rvEpisodes.adapter = EpAdapter()
-                b.rvEpisodes.post {
-                    val first = b.rvEpisodes.findViewHolderForAdapterPosition(0)
-                    first?.itemView?.requestFocus()
+                if (!failed && list.isNotEmpty()) {
+                    Store.putCachedEpisodes(folder, list)
+                    episodes = list
+                    queueJson = AutoNext.encode(list)
+                    loadFailed = false
+                    b.tvSub.text = getString(R.string.episodes_count, list.size)
+                    if (cached.isNullOrEmpty() || cached.size != list.size) {
+                        b.rvEpisodes.adapter = EpAdapter()
+                        b.rvEpisodes.post {
+                            val first = b.rvEpisodes.findViewHolderForAdapterPosition(0)
+                            first?.itemView?.requestFocus()
+                        }
+                    }
+                } else if (cached.isNullOrEmpty()) {
+                    episodes = list
+                    queueJson = AutoNext.encode(list)
+                    loadFailed = failed
+                    b.tvSub.text = when {
+                        failed -> "读取超时，按遥控器 OK 重试"
+                        list.isEmpty() -> "没找到视频（按 OK 重试）"
+                        else -> getString(R.string.episodes_count, list.size)
+                    }
+                    b.rvEpisodes.adapter = EpAdapter()
                 }
             }
         }.start()

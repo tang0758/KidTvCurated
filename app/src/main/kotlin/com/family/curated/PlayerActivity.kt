@@ -13,20 +13,25 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import com.family.curated.data.AutoNext
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.QueueItem
 import com.family.curated.data.KioskKeys
+import com.family.curated.data.MediaGateway
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.RemoteControl
 import com.family.curated.data.Smb
 import com.family.curated.data.SmbDataSource
 import com.family.curated.data.SmbPlaybackContext
+import com.family.curated.data.SoftwareFirstSelector
 import com.family.curated.data.Store
 import com.family.curated.data.TimeNotice
 import com.family.curated.data.WatchClock
@@ -40,6 +45,8 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_KEY = "key"
         const val EXTRA_GATE_SECTION = "gate"
         const val EXTRA_SEEK_LOCK = "seekLock"
+        const val EXTRA_SKIP_INTRO = "skipIntroSec"
+        const val EXTRA_SKIP_OUTRO = "skipOutroSec"
 
         private const val TAG = "PlayerActivity"
         private const val MAX_AUTO_RETRIES = 3
@@ -53,6 +60,13 @@ class PlayerActivity : AppCompatActivity() {
     private var file: String = ""
     private var doneMarked = false
     private var seekLock = false
+    private var skipIntroSec = 0
+    private var skipOutroSec = 0
+    private var useSoftwareCodec = false
+    private var currentSpeedIndex = 1
+    private val speeds = floatArrayOf(0.75f, 1.0f, 1.25f)
+    private val speedLabels = arrayOf("0.75x", "1.0x", "1.25x")
+    private var isZoomMode = false
 
     /** 这个视频「真正看到过」的最远位置，快进不能超过它 */
     private var frontier = 0L
@@ -122,7 +136,12 @@ class PlayerActivity : AppCompatActivity() {
         key = intent.getStringExtra(EXTRA_KEY) ?: file
         seekLock = intent.getBooleanExtra(EXTRA_SEEK_LOCK, false) ||
             intent.getStringExtra(EXTRA_GATE_SECTION) != null
+        skipIntroSec = intent.getIntExtra(EXTRA_SKIP_INTRO, 0)
+        skipOutroSec = intent.getIntExtra(EXTRA_SKIP_OUTRO, 0)
         val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+
+        b.tvSpeed.setOnClickListener { toggleSpeed(); showControls() }
+        b.tvResize.setOnClickListener { toggleResizeMode(); showControls() }
 
         b.tvTitle.text = title
         b.tvTitle.postDelayed({ b.tvTitle.animate().alpha(0f).setDuration(600).start() }, 4000)
@@ -156,15 +175,25 @@ class PlayerActivity : AppCompatActivity() {
             .setBufferDurationsMs(20_000, 90_000, 2_500, 4_000)
             .build()
 
+        val renderersFactory = DefaultRenderersFactory(this).apply {
+            if (useSoftwareCodec) {
+                setMediaCodecSelector(SoftwareFirstSelector())
+            }
+        }
+
         val p = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(SmbDataSource.Factory()))
+            .setRenderersFactory(renderersFactory)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(MediaGateway.createDataSourceFactory()))
             .setLoadControl(loadControl)
             .build()
 
         player = p
         b.playerView.player = p
+        applySpeed()
+        applyResizeMode()
 
-        val uri = Uri.parse("smb://nas/" + Uri.encode(file))
+        val cfg = Store.nas() ?: return
+        val uri = MediaGateway.resolveMediaUri(cfg, file)
         p.setMediaItem(MediaItem.fromUri(uri))
 
         // 自动重试时接着刚才的位置播，不用等进度落盘
@@ -176,7 +205,13 @@ class PlayerActivity : AppCompatActivity() {
         // 续播位置本身属于「已经看过」，算进可 seek 的边界
         frontier = maxOf(Extras.frontier(key), resumeAt, lastPos)
         lastFrontierSaved = frontier
-        if (shouldResume) p.seekTo(minOf(resumeAt, frontier))
+        if (shouldResume) {
+            p.seekTo(minOf(resumeAt, frontier))
+        } else if (skipIntroSec > 0) {
+            val target = (skipIntroSec * 1000L).coerceAtLeast(0)
+            frontier = maxOf(frontier, target)
+            p.seekTo(target)
+        }
 
         p.playWhenReady = true
         p.addListener(object : Player.Listener {
@@ -240,6 +275,16 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun handleError(error: PlaybackException) {
         Log.w(TAG, "播放出错 code=${error.errorCodeName} message=${error.message}", error)
+        if (!useSoftwareCodec && (error.errorCode in 4000..4999)) {
+            Log.i(TAG, "检测到解码错误 code=${error.errorCodeName}，切换到软解回退 SoftwareFirstSelector")
+            useSoftwareCodec = true
+            scheduleRetry()
+            return
+        }
+        val cfg = Store.nas()
+        if (cfg != null && MediaGateway.isHttpAvailable(cfg)) {
+            MediaGateway.markHttpUnavailable()
+        }
         // 已经正常播了一阵子才出错，算新故障，把重试额度还回来
         if (lastReadyAt > 0 && SystemClock.elapsedRealtime() - lastReadyAt > STABLE_PLAY_MS) {
             retryCount = 0
@@ -398,25 +443,55 @@ class PlayerActivity : AppCompatActivity() {
         Log.i(TAG, "自动连播倒计时：${n.title}（${nextCountdown}s）")
     }
 
-    /** 复用现有 EXTRA_* 启动自身；队列和下标原样带过去，就能一路连到最后一集 */
+    /** 复用现有 ExoPlayer 实例无缝切集，消除黑屏闪烁与 Activity 重建 (OPT-22) */
     private fun playNext() {
         val n = pendingNext ?: return
         autoNextRunning = false
         ui.removeCallbacks(nextTick)
         b.nextOverlay.visibility = View.GONE
-        Log.i(TAG, "自动连播 → ${n.title}")
-        startActivity(
-            android.content.Intent(this, PlayerActivity::class.java)
-                .putExtra(EXTRA_FILE, n.file)
-                .putExtra(EXTRA_TITLE, n.title)
-                .putExtra(EXTRA_KEY, n.key)
-                .putExtra(EXTRA_SEEK_LOCK, seekLock)
-                .putExtra(EXTRA_GATE_SECTION, intent.getStringExtra(EXTRA_GATE_SECTION))
-                .putExtra(AutoNext.EXTRA_QUEUE, queueRaw)
-                .putExtra(AutoNext.EXTRA_QUEUE_INDEX, queueIndex + 1)
-        )
-        // 不叠 Activity 栈：10 集连播结束后，返回键仍只回一次剧集列表
-        finish()
+        Log.i(TAG, "自动连播 (实例复用) → ${n.title}")
+
+        file = n.file
+        key = n.key
+        val title = n.title
+        queueIndex += 1
+        doneMarked = false
+        endedHandled = false
+        lastPos = 0L
+        frontier = Extras.frontier(key)
+        lastFrontierSaved = frontier
+        retryCount = 0
+        useSoftwareCodec = false
+
+        Store.notePlayed(key)
+        Extras.notePlayedVideo(key)
+
+        b.tvTitle.text = title
+        b.tvTitle.alpha = 1f
+        b.tvTitle.postDelayed({ b.tvTitle.animate().alpha(0f).setDuration(600).start() }, 4000)
+
+        val cfg = Store.nas() ?: return
+        val p = player
+        if (p != null) {
+            val uri = MediaGateway.resolveMediaUri(cfg, file)
+            p.setMediaItem(MediaItem.fromUri(uri))
+            val resumeAt = Store.progress(key)
+            val lastDur = Store.duration(key)
+            val shouldResume = resumeAt > 5_000 && (lastDur == 0L || resumeAt < lastDur - 5_000)
+            if (shouldResume) {
+                p.seekTo(minOf(resumeAt, frontier))
+            } else if (skipIntroSec > 0) {
+                val target = (skipIntroSec * 1000L).coerceAtLeast(0)
+                frontier = maxOf(frontier, target)
+                p.seekTo(target)
+            } else {
+                p.seekTo(0)
+            }
+            p.prepare()
+            p.play()
+        } else {
+            startPlayer()
+        }
     }
 
     private fun cancelAutoNext() {
@@ -475,6 +550,14 @@ class PlayerActivity : AppCompatActivity() {
         if (doneMarked || dur <= 0) return
         val ratio = pos.toFloat() / dur
         if (ratio >= Extras.passRatio()) markDone()
+        if (skipOutroSec > 0 && pos >= dur - (skipOutroSec * 1000L)) {
+            if (!endedHandled) {
+                endedHandled = true
+                markDone()
+                savePosition()
+                maybeAutoNext()
+            }
+        }
     }
 
     private fun markDone() {
@@ -506,6 +589,30 @@ class PlayerActivity : AppCompatActivity() {
         b.controls.alpha = 1f
         ui.removeCallbacks(hideUi)
         ui.postDelayed(hideUi, 4000)
+    }
+
+    private fun toggleSpeed() {
+        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.size
+        applySpeed()
+    }
+
+    private fun applySpeed() {
+        val spd = speeds[currentSpeedIndex]
+        player?.playbackParameters = PlaybackParameters(spd)
+        b.tvSpeed.text = speedLabels[currentSpeedIndex]
+    }
+
+    private fun toggleResizeMode() {
+        isZoomMode = !isZoomMode
+        applyResizeMode()
+    }
+
+    private fun applyResizeMode() {
+        b.playerView.resizeMode = if (isZoomMode)
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        else
+            AspectRatioFrameLayout.RESIZE_MODE_FIT
+        b.tvResize.text = if (isZoomMode) "ZOOM" else "FIT"
     }
 
     /** 快进时把目标限制在已看边界内 */
@@ -555,10 +662,32 @@ class PlayerActivity : AppCompatActivity() {
         }
         val p = player ?: return super.onKeyDown(keyCode, event)
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (b.controls.visibility != View.VISIBLE) {
+                    showControls()
+                } else {
+                    if (p.isPlaying) p.pause() else p.play()
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (p.isPlaying) p.pause() else p.play()
                 showControls()
                 return true
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (b.controls.visibility == View.VISIBLE) {
+                    toggleSpeed()
+                    showControls()
+                    return true
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (b.controls.visibility == View.VISIBLE) {
+                    toggleResizeMode()
+                    showControls()
+                    return true
+                }
             }
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                 seekBy(-15_000)

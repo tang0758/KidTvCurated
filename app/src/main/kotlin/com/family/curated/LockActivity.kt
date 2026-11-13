@@ -14,15 +14,18 @@ import android.view.WindowManager
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import android.media.MediaPlayer
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.TextViewCompat
 import com.family.curated.data.ArtImages
+import com.family.curated.data.CardMastery
 import com.family.curated.data.CardType
 import com.family.curated.data.Extras
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.Learning
 import com.family.curated.data.LearningCard
+import com.family.curated.data.LearningMath
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityLockBinding
 import java.text.SimpleDateFormat
@@ -117,7 +120,7 @@ class LockActivity : AppCompatActivity() {
         b.learningPane.visibility = View.VISIBLE
         b.divider.visibility = View.VISIBLE
 
-        val base = learning.deck()
+        val base = learning.deck(Extras.allCardMasteries())
         if (base.isEmpty()) {
             // 家长关掉内置又没写自定义卡片：右侧留一句提示，不显示空白
             b.learningPane.visibility = View.GONE
@@ -165,13 +168,31 @@ class LockActivity : AppCompatActivity() {
             (leftSeconds * 100 / learning.intervalSeconds.coerceAtLeast(1)).coerceIn(0, 100)
         b.tvCardHint.text = if (paused)
             getString(R.string.lock_hint_paused)
-        else getString(R.string.lock_hint_playing)
+        else getString(R.string.lock_hint_v2)
     }
 
     private fun showCard() {
         val c = deck.getOrNull(idx) ?: return
         b.tvCardType.text = c.type.label
         b.tvCardIndex.text = "${idx + 1} / ${deck.size}"
+
+        val cardId = LearningMath.cardId(c)
+        when (Extras.cardMastery(cardId)) {
+            CardMastery.MASTERED -> {
+                b.tvCardMastery.visibility = View.VISIBLE
+                b.tvCardMastery.text = "✅ " + getString(R.string.lock_mastered)
+                b.tvCardMastery.setBackgroundColor(Color.parseColor("#2E7D32"))
+            }
+            CardMastery.LEARNING -> {
+                b.tvCardMastery.visibility = View.VISIBLE
+                b.tvCardMastery.text = "⭐ " + getString(R.string.lock_learning)
+                b.tvCardMastery.setBackgroundColor(Color.parseColor("#F57F17"))
+            }
+            CardMastery.UNMARKED -> {
+                b.tvCardMastery.visibility = View.GONE
+            }
+        }
+
         updateCardTimer()
 
         b.cardBody.animate().cancel()
@@ -184,6 +205,20 @@ class LockActivity : AppCompatActivity() {
     private fun showText(c: LearningCard) {
         b.textFrame.visibility = View.VISIBLE
         b.artFrame.visibility = View.GONE
+
+        if (!c.image.isNullOrBlank()) {
+            ArtImages.load(this, b.ivCardIllust, c, Store.nas(), learning.artShare, 400, 400) { bmp ->
+                if (bmp != null) {
+                    b.ivCardIllust.setImageBitmap(bmp)
+                    b.ivCardIllust.visibility = View.VISIBLE
+                } else {
+                    b.ivCardIllust.visibility = View.GONE
+                }
+            }
+        } else {
+            b.ivCardIllust.setImageDrawable(null)
+            b.ivCardIllust.visibility = View.GONE
+        }
 
         b.tvCardTitle.text = c.title
         b.tvCardTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, when (c.type) {
@@ -274,16 +309,44 @@ class LockActivity : AppCompatActivity() {
         }
         if (!learning.enabled || deck.isEmpty()) return super.onKeyDown(keyCode, event)
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
-            KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN,
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_NEXT,
+            KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
                 nextCard(); return true
             }
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP,
-            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+            KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                 prevCard(); return true
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                val c = deck.getOrNull(idx)
+                if (c != null) {
+                    val cid = LearningMath.cardId(c)
+                    Extras.setCardMastery(cid, CardMastery.MASTERED)
+                    Toast.makeText(this, getString(R.string.lock_marked_mastered), Toast.LENGTH_SHORT).show()
+                    showCard()
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                val c = deck.getOrNull(idx)
+                if (c != null) {
+                    val cid = LearningMath.cardId(c)
+                    val cur = Extras.cardMastery(cid)
+                    val target = if (cur == CardMastery.LEARNING) CardMastery.UNMARKED else CardMastery.LEARNING
+                    Extras.setCardMastery(cid, target)
+                    Toast.makeText(this, getString(R.string.lock_marked_learning), Toast.LENGTH_SHORT).show()
+                    showCard()
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                val c = deck.getOrNull(idx)
+                if (c != null && !c.audio.isNullOrBlank()) {
+                    playCardAudio(c)
+                } else {
+                    nextCard()
+                }
+                return true
             }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY,
             KeyEvent.KEYCODE_SPACE -> {
@@ -298,6 +361,43 @@ class LockActivity : AppCompatActivity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    private var cardAudioPlayer: MediaPlayer? = null
+
+    private fun playCardAudio(c: LearningCard) {
+        val audioPath = c.audio ?: return
+        try {
+            cardAudioPlayer?.release()
+            cardAudioPlayer = MediaPlayer().apply {
+                if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
+                    setDataSource(audioPath)
+                } else {
+                    val localF = java.io.File(filesDir, "audio/" + audioPath.substringAfterLast("/"))
+                    if (localF.exists()) {
+                        setDataSource(localF.absolutePath)
+                    } else {
+                        return
+                    }
+                }
+                setOnCompletionListener {
+                    paused = false
+                    updateCardTimer()
+                }
+                prepare()
+                start()
+                paused = true
+                updateCardTimer()
+            }
+        } catch (_: Exception) {
+            // 静默失败
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cardAudioPlayer?.release()
+        cardAudioPlayer = null
     }
 
     private val pinBuffer = StringBuilder()

@@ -21,7 +21,8 @@ class SectionsAdapter(
     private var cfg: NasConfig?,
     private var skipGate: Boolean = false,
     private val onItemClick: (Section, Item) -> Unit,
-    private val onItemFocus: ((Section, Item) -> Unit)? = null
+    private val onItemFocus: ((Section, Item) -> Unit)? = null,
+    private val onItemLongClick: ((Section, Item) -> Boolean)? = null
 ) : RecyclerView.Adapter<SectionsAdapter.SectionVH>() {
 
     private val scrollMemo = HashMap<String, Int>()
@@ -126,7 +127,8 @@ class SectionsAdapter(
                     ctx.getColor(if (has) R.color.accent else R.color.text_primary)
                 )
             },
-            onItemFocus = { item -> onItemFocus?.invoke(section, item) }
+            onItemFocus = { item -> onItemFocus?.invoke(section, item) },
+            onLongClick = { item -> onItemLongClick?.invoke(section, item) ?: false }
         ) { item ->
             onItemClick(section, item)
         }

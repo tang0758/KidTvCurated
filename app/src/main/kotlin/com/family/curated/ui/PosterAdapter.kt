@@ -38,12 +38,13 @@ class PosterAdapter(
     private val showDone: Boolean,
     private val onRowFocus: ((Boolean) -> Unit)? = null,
     private val onItemFocus: ((Item) -> Unit)? = null,
+    private val onLongClick: ((Item) -> Boolean)? = null,
     private val onClick: (Item) -> Unit
 ) : RecyclerView.Adapter<PosterAdapter.VH>() {
 
     private val density = ctx.resources.displayMetrics.density
-    private val coverW = (200 * density).roundToInt()
-    private val coverH = (284 * density).roundToInt()
+    private val coverW = (150 * density).roundToInt()
+    private val coverH = (215 * density).roundToInt()
     private val accent = ctx.getColor(R.color.accent)
 
     inner class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -126,6 +127,7 @@ class PosterAdapter(
         }
 
         holder.card.setOnClickListener { onClick(item) }
+        holder.card.setOnLongClickListener { onLongClick?.invoke(item) ?: false }
 
         holder.card.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
