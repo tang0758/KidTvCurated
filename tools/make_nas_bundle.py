@@ -47,7 +47,7 @@ ENV PYTHONUNBUFFERED=1 \\
 WORKDIR /app
 
 COPY tools/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r /tmp/requirements.txt
 
 COPY tools/console.py /app/tools/console.py
 COPY tools/static /app/tools/static
@@ -121,7 +121,7 @@ services:
       - ./:/app
       - ./config:/app/config
     command: >
-      sh -c "pip install --no-cache-dir -q -r /app/tools/requirements.txt &&
+      sh -c "pip install --no-cache-dir -q -i https://mirrors.aliyun.com/pypi/simple/ -r /app/tools/requirements.txt &&
              python /app/tools/console.py --lan --no-browser"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/desktop/ping', timeout=3)"]

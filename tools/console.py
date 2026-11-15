@@ -503,7 +503,8 @@ def save_learning_data(cfg: dict, payload: dict) -> str:
 
 def nudge_tv(ip: str | None = None) -> bool:
     import urllib.request
-    ips = [ip] if ip else ["127.0.0.1", "192.168.31.200"]
+    # 电视实机 IP 放最前：容器里的 127.0.0.1 指容器自己，192.168.31.200 是旧地址，都到不了电视
+    ips = [ip] if ip else ["192.168.31.147", "127.0.0.1", "192.168.31.200"]
     for target_ip in ips:
         if not target_ip:
             continue
@@ -671,7 +672,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         msg = fmt % args
-        if "/api/" in msg or msg.startswith("code "):
+        # /stream/ 也要留痕：运维要靠它判断电视到底走了 HTTP 206 还是 SMB 兜底
+        if "/api/" in msg or "/stream/" in msg or msg.startswith("code "):
             say(f"  {msg}")
 
     # ---- helpers ----
@@ -729,7 +731,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Accept-Ranges", "bytes")
                 self.end_headers()
 
-                c.retrieveFileFromOffset(share, target, self.wfile, offset=start, max_query_length=length, timeout=60)
+                c.retrieveFileFromOffset(share, target, self.wfile, offset=start, max_length=length, timeout=60)
             else:
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
@@ -824,7 +826,8 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/stream/"):
                 parts = path[len("/stream/"):].split("/", 1)
                 if len(parts) == 2:
-                    return self.handle_stream(parts[0], urllib.parse.unquote(parts[1]))
+                    # 共享名也可能含中文 / 空格，电视端用 Uri.encode(share) 编码过，这里必须一起解码
+                    return self.handle_stream(urllib.parse.unquote(parts[0]), urllib.parse.unquote(parts[1]))
                 return self.json_out({"ok": False, "error": "流媒体路径不完整"}, 400)
             if not path.startswith("/api/"):
                 return self.json_out({"ok": False, "error": "未知路径"}, 404)
