@@ -5,35 +5,40 @@ import android.util.Log
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultHttpDataSource
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
- * OPT-24: MediaGateway 双模路由层（HTTP/WebDAV 优先，SMB 兜底）。
+ * OPT-24: MediaGateway 双模路由层（HTTP 优先，SMB 兜底）。
  *
- * 优先探测并走 NAS 端由 console.py 或 WebDAV 提供的原生 HTTP 206 流媒体服务；
- * 当 HTTP 网关不可达（离线、未启动服务或超时）时，无感透明降级为 SMB (SmbDataSource)。
+ * 优先走 NAS 端 console.py 提供的原生 HTTP 206 流媒体服务；网关不可达时无感降级 SMB。
+ *
+ * 2026-11-15 修复：探测原先在 `PlayerActivity.onCreate` 的**主线程**直接发
+ * `HttpURLConnection`，Android 会抛 `NetworkOnMainThreadException`，而它被
+ * `catch (_: Exception)` 静默吞掉 → 结果恒为 false → 8765 在线也永远走 SMB。
+ * 现在真正的网络请求只跑在 [probePool] 后台线程，主线程仅读缓存或限时等结果；
+ * 缓存状态机抽到 [GatewayMath] 便于纯 JVM 单测（R-38）。
  */
 object MediaGateway {
     private const val TAG = "MediaGateway"
 
     @Volatile
-    private var httpAvailable: Boolean? = null
-    @Volatile
-    private var lastProbeTime: Long = 0L
-    private const val PROBE_TTL_MS = 60_000L
+    private var state = GatewayMath.State()
 
-    fun isHttpAvailable(cfg: NasConfig): Boolean {
-        val now = System.currentTimeMillis()
-        val cached = httpAvailable
-        if (cached != null && now - lastProbeTime < PROBE_TTL_MS) {
-            return cached
-        }
+    /** 单条 daemon 线程：网络探测绝不落到主线程，也不会留下 App 退出后还在跑的线程 */
+    private val probePool = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "gateway-probe").apply { isDaemon = true }
+    }
+
+    /** 真正发请求；只允许在 [probePool] 里调用 */
+    private fun probe(cfg: NasConfig): Boolean {
         val port = cfg.gatewayPort
         val ok = try {
-            val url = URL("http://${cfg.host}:$port/api/desktop/ping")
-            val conn = url.openConnection() as HttpURLConnection
+            val conn = URL("http://${cfg.host}:$port/api/desktop/ping")
+                .openConnection() as HttpURLConnection
             conn.connectTimeout = 1200
             conn.readTimeout = 1200
             conn.requestMethod = "GET"
@@ -43,25 +48,49 @@ object MediaGateway {
         } catch (_: Exception) {
             false
         }
-        httpAvailable = ok
-        lastProbeTime = now
+        state = GatewayMath.recorded(ok, System.currentTimeMillis())
         Log.i(TAG, "HTTP 媒体网关探测 host=${cfg.host}:$port available=$ok")
         return ok
     }
 
+    /**
+     * 主线程安全：缓存新鲜直接返回；否则把探测交给后台线程，主线程只限时等待结果
+     * （`Future.get` 不是网络操作，不会触发主线程网络限制），超时按 SMB 兜底。
+     */
+    fun isHttpAvailable(cfg: NasConfig): Boolean {
+        val snap = state
+        val now = System.currentTimeMillis()
+        if (GatewayMath.fresh(snap, now)) return snap.available == true
+        val future = probePool.submit(Callable { probe(cfg) })
+        return try {
+            future.get(GatewayMath.PROBE_WAIT_MS, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            state = GatewayMath.invalidated(System.currentTimeMillis())
+            false
+        } catch (_: Exception) {
+            state = GatewayMath.invalidated(System.currentTimeMillis())
+            false
+        }
+    }
+
+    /** 播放出错时主动降级，TTL 内不再重试 HTTP（与修复前语义一致） */
     fun markHttpUnavailable() {
-        httpAvailable = false
-        lastProbeTime = System.currentTimeMillis()
+        state = GatewayMath.invalidated(System.currentTimeMillis())
     }
 
     fun resolveMediaUri(cfg: NasConfig, file: String, share: String = cfg.share): Uri {
-        return if (isHttpAvailable(cfg)) {
+        val useHttp = isHttpAvailable(cfg)
+        val uri = if (useHttp) {
             val encodedPath = file.split("/").joinToString("/") { Uri.encode(it) }
             val port = cfg.gatewayPort
             Uri.parse("http://${cfg.host}:$port/stream/${Uri.encode(share)}/$encodedPath")
         } else {
             Uri.parse("smb://nas/" + Uri.encode(file))
         }
+        // 运维取证：一眼看出这一集到底走了 HTTP 206 还是 SMB 兜底
+        Log.i(TAG, "播放源 ${if (useHttp) "HTTP" else "SMB"} uri=$uri")
+        return uri
     }
 
     fun createDataSourceFactory(): DataSource.Factory {
