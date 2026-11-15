@@ -1205,3 +1205,40 @@ prefs 出现 `watch_2026-11-12 = 18522`；再冷启动一次无任何日志（�
 - PC 脚本：`python3 tools/test_launcher.py` 28 个测试 100% 绿灯。
 - 构建产物：`KidTvCurated-v2.0-release.apk` 与 `KidTvCurated-v2.0-debug.apk` 成功打包并同步。
 
+### 2026-11-15 下午 · 第九轮实机测试与 v2.0 部署收口（`versionCode 17`）
+
+- 依 `docs/待实机验证.md` 第七轮清单逐项实机测试（逐项取证见该文档第 13 节）：
+  **通过 4 项**（OPT-23 剧集秒开、OPT-27 海报 150dp / 一屏 5 张、OPT-29 配网页提交 + nudge、快捷管理 PIN 菜单），
+  **部分通过 3 项**（OPT-20 点读无音源但标记与计时正确、降频 15% 比例统计未覆盖、OPT-30 非标 DPI 场景未验），
+  **红线跳过 2 项**（OPT-21、OPT-22/25/26 播放解码压测，避免 MTK9652 共享解码链路卡死）。
+- 实测口径：非焦点海报 `[464,392][764,822]` 宽 300px ÷ 密度 2.0 = 150dp；连翻 25 张序号 10→30/256；
+  `watch_2026-11-15` 前后均为 1959972（点读/翻页不计时长）；`ep_cache_…` 落在 `curated_prefs.xml`；
+  配网页提交相同值返回 `Saved` 耗时 0.019s；快捷管理两项菜单 bounds 完整可见。
+- 家长 PIN（数字键 `8 9 10 11`）临时放行 15 分钟用于进首页；测试后 NAS `tv.json` **原字节写回**
+  （sha256 `c18813ed…` 复核一致）、前台回 `MainActivity`、无 FATAL、0 条活跃音轨，未复现解码黑屏。
+- 工具教训：`input keyevent --longpress 23` 在本机**不触发** `onLongClick`，会退化成单击误开
+  `PlayerActivity`；改用 `input swipe x y x y 900` 静止停留才可靠。首页 `uiautomator dump` 可用，
+  锁屏倒计时页会报 `could not get idle state`，需改用 `screencap`。
+- NAS 侧 8765 控制台容器已于 16:49 删除项目重建为**免 build 挂载模式**，三处网关缺陷修复生效
+  （详见 `待实机验证.md` 第 12 节）：206 中文/英文 share 均实收 1024 字节、`/api/nudge` 默认 IP 也 `nudged:true`。
+
+### 2026-11-15 晚 · 第十一轮：HTTP 网关主线程探测修复与实机复验（`versionCode 17` hotfix）
+
+- 第十轮起播实测发现 `MediaGateway` 恒判 `available=false`（8765 在线却永远 SMB）：
+  探测在 `PlayerActivity.onCreate` 主线程发 `HttpURLConnection`，`NetworkOnMainThreadException`
+  被静默吞掉。逐项排除明文 HTTP 限制 / 代理 / 网络连通后定位，详见 `待实机验证.md` 第 14 节。
+- 修复：探测移到单条 daemon 后台线程；主线程读 60s TTL 缓存或 `Future.get(1500ms)` 限时等结果，
+  超时走 SMB 兜底。缓存状态机抽成纯逻辑 `GatewayMath` + 11 条单测（R-38 要求纯 JVM、不碰
+  `android.*` / `org.json`）；`resolveMediaUri()` 增最终播放源日志。
+- 同步远端 `abf310f`（新增 `docs/2.0安装部署与运维手册.md` + 使用说明书指针），
+  并整体修订手册：修正 IP / 配网页路径 / 发版产物 / 单测数 / Release 构建 / 探测时机 /
+  学习角图片与音频现状，新增发版回退与 hotfix 章节。`CONFIG.md`、使用说明书同步补网关说明。
+- 质量门禁：Android 单测 **158**（+11）、PC 28、文案守卫 268 水位未升；
+  `assembleRelease` 离线因 `lint-gradle` 未缓存失败，手册已改为 CI 实际的 `testDebugUnitTest assembleDebug`。
+- 实机复验：`available=true`（pid≠tid，后台线程）+ `播放源 HTTP uri=http://192.168.31.72:8765/stream/…`，
+  真实 URI 206 实收 1024/1024 字节，播放中 1 音轨、退出后归零、无 FATAL。取证见第 15 节。
+- 顺带：`tools/console.py` 的 `log_message` 原只记 `/api/`，导致 `/stream/` 请求在运维日志里不可见；
+  已补留痕并同步 NAS 挂载目录，待容器重启生效。电视 `/proc/net/tcp` 在本机不可作证。
+- 仍为已知缺口：学习角音频资源为 0（OK 键退化翻页）、控制台学习页未接 `/api/learning`、
+  电视端不读 `learning.json`、8899 配网页无鉴权且明文回填 NAS 密码、访问码偏短。
+

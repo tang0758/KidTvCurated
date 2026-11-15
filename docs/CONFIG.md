@@ -338,3 +338,18 @@ adb shell appops set com.family.curated GET_USAGE_STATS allow
 | 名画显示「加载中」 | `artFolder` 路径是否相对 `artShare` 根目录、共享名是否写对、图片是不是 jpg/png；不配就用内置图 |
 | 学习卡片不自动换 | 按了播放 / 暂停键会暂停轮播，再按一次继续；或看 `intervalSeconds` 是否填得很大 |
 | 密码泄露过 | 先改 NAS 密码，再更新 `tv.json` / `nas.local.json` / `local.properties`（`nas.pass`），重新编译安装 |
+| 播放没走 HTTP 网关 | 电视 `adb logcat -d \| grep MediaGateway`：应为 `available=true` + `播放源 HTTP uri=…`；并检查 NAS 8765 `/api/desktop/ping` 是否 200、`nas.gatewayPort`（默认 8765）。2026-11-15 前的主线程探测缺陷已修复 |
+| 卡片没图但名画卡正常 | 只有 50 张 `ART` 卡有大图，诗 57 / 单词 78 / 识字 70 共 205 张本就是纯文字版式，不是故障 |
+| 点读按 OK 没声音 | 255 张内置卡 `audio` 全为空、APK 内无 mp3，按 OK 退化为翻页；需自行生成音频并补 `audio` 字段 |
+
+## 双模媒体网关（2.0，2026-11-15 修订）
+
+- `nas.gatewayPort` 可选，默认 **8765**。电视**只在** `MediaGateway.resolveMediaUri()`（起播 / 自动重试）
+  时探测 `http://<nas-host>:<gatewayPort>/api/desktop/ping`，结果缓存 **60 秒**（仅内存，不落盘）；
+  播放出错会主动降级，TTL 内不再重试 HTTP。
+- 网关在线 → `http://<host>:<port>/stream/<share>/<path>`（HTTP 206 Range，中文共享名需 URL 编码）；
+  离线或失败 → `smb://nas/<path>` 透明兜底，不会看不了。
+- 运维取证：`adb logcat -d | grep MediaGateway`，两条关键日志
+  `HTTP 媒体网关探测 … available=` 与 `播放源 HTTP/SMB uri=`。
+- 服务端容器部署、UGOS Pro 导入/镜像加速踩坑、206 验证命令、发版校验与回退，
+  详见 [2.0安装部署与运维手册.md](2.0安装部署与运维手册.md)。
