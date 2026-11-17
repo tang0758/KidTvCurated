@@ -667,6 +667,61 @@ def desktop_check() -> dict:
 
 # --------------------------------------------------------------------------- HTTP
 
+def parse_range(header, total: int):
+    """解析 HTTP Range 头（RFC 7233），只认单段 bytes 范围。
+
+    返回三种结果之一：
+      ("full", 0, total-1)  —— 没带 / 看不懂 / 多段 Range：按标准忽略，回 200 整个文件
+      ("range", start, end) —— 合法范围（end 已被截到文件末尾，含端点）：回 206
+      ("416", 0, 0)         —— 起点落在文件之外（或空文件）：回 416，不能假装成功
+    """
+    full = ("full", 0, max(total - 1, 0))
+    if not header or not header.startswith("bytes="):
+        return full
+    spec = header[6:].strip()
+    if "," in spec or "-" not in spec:
+        return full
+    first, _, last = spec.partition("-")
+    first, last = first.strip(), last.strip()
+    try:
+        if first == "":
+            # 后缀范围 bytes=-N：取最后 N 字节（旧实现把它当成 0-N，会多回开头的内容）
+            if last == "":
+                return full
+            n = int(last)
+            if n <= 0 or total <= 0:
+                return ("416", 0, 0)
+            return ("range", max(total - n, 0), total - 1)
+        start = int(first)
+        end = int(last) if last != "" else total - 1
+    except ValueError:
+        return full
+    if start < 0 or (last != "" and end < start):
+        return full                      # 语法非法：忽略 Range
+    if total <= 0 or start >= total:
+        return ("416", 0, 0)
+    return ("range", start, min(end, total - 1))
+
+
+def stream_error_status(exc: Exception) -> int:
+    """把流媒体读取时的异常映射成合适的 HTTP 状态码。
+
+    - 文件 / 共享不存在或无权访问（pysmb OperationFailure）→ 404。
+      无权访问也回 404，是为了不向局域网里的陌生人暴露「这个路径存在」。
+    - 连不上 NAS / 认证失败（SmbError）→ 502：问题在上游，不是电视的请求错了
+    - 其他未预期的错误 → 500
+    """
+    try:
+        from smb.smb_structs import OperationFailure
+    except Exception:                    # pragma: no cover
+        OperationFailure = ()
+    if OperationFailure and isinstance(exc, OperationFailure):
+        return 404
+    if isinstance(exc, SmbError):
+        return 502
+    return 500
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "KidTvConsole/1.0"
 
@@ -700,59 +755,83 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass
 
-    def handle_stream(self, share: str, target: str):
-        cfg = current_cfg()
-        c = smb(cfg)
+    def _stream_fail(self, code: int, extra: dict | None = None):
+        """流媒体错误：只回状态行 + Content-Length: 0，HEAD 和 GET 通用。"""
+        self.send_response(code)
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def handle_stream(self, share: str, target: str, head: bool = False):
+        headers_sent = False
+        c = None
         try:
-            target = norm(target)
+            cfg = current_cfg()
+            c = smb(cfg)
+            target = norm(target)          # 同时丢掉 .. 段，路径穿越不出共享根
             attrs = c.getAttributes(share, target)
             total = int(getattr(attrs, "file_size", 0) or 0)
             name = target.rsplit("/", 1)[-1]
             ctype = mimetypes.guess_type(name)[0] or "video/mp4"
 
-            range_header = self.headers.get("Range")
-            start = 0
-            end = total - 1 if total > 0 else 0
+            kind, start, end = parse_range(self.headers.get("Range"), total)
+            if kind == "416":
+                # 起点超出文件末尾：必须 416 + Content-Range: bytes */total，让播放器知道真实大小
+                return self._stream_fail(416, {"Content-Range": f"bytes */{total}"})
 
-            if range_header and range_header.startswith("bytes="):
-                ranges = range_header[6:].split("-")
-                if ranges[0]:
-                    start = int(ranges[0])
-                if len(ranges) > 1 and ranges[1]:
-                    end = int(ranges[1])
-                if total > 0:
-                    end = min(end, total - 1)
-                length = (end - start + 1) if total > 0 else 0
-
+            if kind == "range":
+                length = end - start + 1
                 self.send_response(206)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Range", f"bytes {start}-{end}/{total}")
                 self.send_header("Content-Length", str(length))
-                self.send_header("Accept-Ranges", "bytes")
-                self.end_headers()
-
-                c.retrieveFileFromOffset(share, target, self.wfile, offset=start, max_length=length, timeout=60)
             else:
+                length = total
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(total))
-                self.send_header("Accept-Ranges", "bytes")
-                self.end_headers()
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            headers_sent = True
+
+            if head or length <= 0:
+                return                      # HEAD 只要头，不拉文件内容
+            if kind == "range":
+                c.retrieveFileFromOffset(share, target, self.wfile, offset=start,
+                                         max_length=length, timeout=60)
+            else:
                 c.retrieveFile(share, target, self.wfile, timeout=60)
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
         except Exception as e:
-            say(f"流媒体读取失败：{e}")
-            try:
-                self.send_response(500)
-                self.end_headers()
-            except Exception:
-                pass
+            code = stream_error_status(e)
+            say(f"流媒体读取失败（{code}）：{e}")
+            # 响应头已经发出去了就不能再换状态码，直接断开连接让客户端重试
+            if headers_sent:
+                self.close_connection = True
+            else:
+                try:
+                    self._stream_fail(code)
+                except Exception:
+                    pass
         finally:
-            try:
-                c.close()
-            except Exception:
-                pass
+            if c is not None:
+                try:
+                    c.close()
+                except Exception:
+                    pass
+
+    def do_HEAD(self):
+        """部分播放器 / 代理会先发 HEAD 探测大小与是否支持 Range；只服务 /stream/。"""
+        path = urllib.parse.urlparse(self.path).path
+        if path.startswith("/stream/"):
+            parts = path[len("/stream/"):].split("/", 1)
+            if len(parts) == 2:
+                return self.handle_stream(urllib.parse.unquote(parts[0]),
+                                          urllib.parse.unquote(parts[1]), head=True)
+            return self._stream_fail(400)
+        return self._stream_fail(404)
 
     def query(self) -> dict:
         return urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
