@@ -465,6 +465,148 @@ def list_episodes(cfg: dict, share: str, folder: str) -> list[dict]:
 
 
 LEARNING_PATH = "curated/learning.json"
+LEARNING_AUDIO_DIR = "curated/learning/audio"
+LEARNING_IMAGE_DIR = "curated/learning/images"
+
+
+def ensure_smb_dirs(c: SMBConnection, share: str, folder: str):
+    """逐级确保 SMB 目录存在，已存在时静默跳过。"""
+    cur = ""
+    for part in norm(folder).strip("/").split("/"):
+        if not part:
+            continue
+        cur = f"{cur}/{part}" if cur else part
+        try:
+            c.createDirectory(share, cur)
+        except Exception:
+            pass
+
+
+def safe_card_id(card: dict) -> str:
+    cid = str(card.get("id") or "").strip()
+    if not cid:
+        t = str(card.get("type") or "word").strip().lower()
+        title = re.sub(r"\s+", "_", str(card.get("title") or "").strip().lower())
+        cid = f"{t}_{title}"
+    return re.sub(r"[^a-zA-Z0-9_\-]", "_", cid) or "card"
+
+
+def generate_word_mp3(text: str, lang: str = "en") -> bytes | None:
+    """拉取单段英文或中文语音 mp3（失败静默返回 None，TV 端还有本地 TTS 兜底）。"""
+    word = (text or "").strip()
+    if not word:
+        return None
+    import urllib.request
+    q = urllib.parse.quote(word)
+    if lang == "zh":
+        urls = [
+            f"https://dict.youdao.com/dictvoice?audio={q}&le=zh",
+            f"https://dict.youdao.com/dictvoice?audio={q}&type=2",
+            f"https://translate.google.com/translate_tts?ie=UTF-8&q={q}&tl=zh-CN&client=tw-ob",
+        ]
+    else:
+        urls = [
+            f"https://dict.youdao.com/dictvoice?audio={q}&type=2",
+            f"https://translate.google.com/translate_tts?ie=UTF-8&q={q}&tl=en&client=tw-ob",
+        ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = resp.read()
+            if len(data) > 256 and (data[:3] == b"ID3" or (data[0] == 0xFF and (data[1] & 0xE0) == 0xE0)):
+                return data
+        except Exception:
+            pass
+    return None
+
+
+def _strip_id3(b: bytes) -> bytes:
+    if len(b) > 10 and b[:3] == b"ID3":
+        sz = ((b[6] & 0x7F) << 21) | ((b[7] & 0x7F) << 14) | ((b[8] & 0x7F) << 7) | (b[9] & 0x7F)
+        b = b[10 + sz:]
+    if len(b) > 128 and b[-128:-125] == b"TAG":
+        b = b[:-128]
+    return b
+
+
+def _silence_1s_like(frame_hdr: bytes) -> bytes:
+    """按给定 4 字节 MPEG-2 L3 帧头（如 fff3e4c4）构造约 1 秒合法静音帧。"""
+    if len(frame_hdr) < 4 or frame_hdr[0] != 0xFF or (frame_hdr[1] & 0xFE) != 0xF2:
+        return b""
+    sr_idx = (frame_hdr[2] >> 2) & 0x03
+    br_idx = (frame_hdr[2] >> 4) & 0x0F
+    sr_tbl = [22050, 24000, 16000]
+    br_tbl = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+    if sr_idx >= 3 or br_idx == 0 or br_idx >= len(br_tbl):
+        return b""
+    sr = sr_tbl[sr_idx]
+    br = br_tbl[br_idx] * 1000
+    clean_hdr = bytes([frame_hdr[0], frame_hdr[1], frame_hdr[2] & 0xFD, frame_hdr[3]])  # pad=0
+    frame_len = (72 * br) // sr
+    if frame_len <= 4:
+        return b""
+    frame_ms = 576 * 1000.0 / sr
+    n_frames = max(1, round(1000.0 / frame_ms))
+    one_frame = clean_hdr + (b"\x00" * (frame_len - 4))
+    return one_frame * n_frames
+
+
+def _split_zh_note(note: str) -> tuple[str, str]:
+    """把 '苹果 · 我吃一个苹果。' 拆成 (单词中文, 例句中文)。"""
+    raw = (note or "").strip()
+    if not raw:
+        return "", ""
+    for sep in ("·", "|", "\n"):
+        if sep in raw:
+            a, b = raw.split(sep, 1)
+            return a.strip(), b.strip()
+    return raw, ""
+
+
+def generate_word_and_sentence_mp3(word: str, sentence: str = "", note: str = "") -> bytes | None:
+    """生成「英文词 + 1s + 中文词 + 1s + 英文例句 + 1s + 中文例句」mp3（纯 Python 静音帧拼接）。"""
+    w = (word or "").strip()
+    s = (sentence or "").strip()
+    if not w:
+        return None
+    zh_w, zh_s = _split_zh_note(note)
+
+    segs: list[tuple[str, str]] = [(f"{w}.", "en")]
+    if zh_w:
+        segs.append((f"{zh_w}。", "zh"))
+    if s:
+        segs.append((s, "en"))
+    if zh_s:
+        segs.append((zh_s, "zh"))
+
+    if len(segs) == 1:
+        return generate_word_mp3(w, "en")
+
+    frames_list: list[bytes] = []
+    for txt, lang in segs:
+        raw = generate_word_mp3(txt, lang)
+        if not raw:
+            continue
+        f = _strip_id3(raw)
+        if len(f) >= 4:
+            frames_list.append(f)
+
+    if not frames_list:
+        return None
+    if len(frames_list) == 1:
+        return frames_list[0]
+
+    # 统一取同一采样率（24kHz MPEG-2 L3）片段用 1s 静音串联
+    base_sr_bits = frames_list[0][2] & 0x0C
+    out = bytearray(frames_list[0])
+    for nxt in frames_list[1:]:
+        if (nxt[2] & 0x0C) == base_sr_bits and nxt[1] == frames_list[0][1]:
+            gap = _silence_1s_like(out[:4])
+            if gap:
+                out.extend(gap)
+        out.extend(nxt)
+    return bytes(out)
 
 
 def read_learning_data(cfg: dict) -> dict:
@@ -475,7 +617,10 @@ def read_learning_data(cfg: dict) -> dict:
         try:
             c.retrieveFile(share, LEARNING_PATH, buf, timeout=10)
             text = buf.getvalue().decode("utf-8")
-            return {"ok": True, "data": json.loads(text), "source": "nas"}
+            data = json.loads(text)
+            if "dailyWordCount" not in data:
+                data["dailyWordCount"] = 10
+            return {"ok": True, "data": data, "source": "nas"}
         finally:
             c.close()
     except Exception:
@@ -483,22 +628,98 @@ def read_learning_data(cfg: dict) -> dict:
         if local.exists():
             try:
                 data = json.loads(local.read_text(encoding="utf-8"))
+                if "dailyWordCount" not in data:
+                    data["dailyWordCount"] = 10
                 return {"ok": True, "data": data, "source": "local"}
             except Exception:
                 pass
-        return {"ok": True, "data": {"version": 2, "cards": []}, "source": "empty"}
+        return {"ok": True, "data": {"version": 2, "dailyWordCount": 10, "cards": []}, "source": "empty"}
 
 
-def save_learning_data(cfg: dict, payload: dict) -> str:
+def save_learning_data(cfg: dict, payload: dict) -> dict:
     share = cfg.get("playlistShare") or "data"
-    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    cards = payload.get("cards") if isinstance(payload, dict) else []
+    if not isinstance(cards, list):
+        cards = []
+    daily_count = max(1, min(50, int(payload.get("dailyWordCount") or 10))) if isinstance(payload, dict) else 10
+
     c = smb(cfg)
+    generated_mp3 = 0
     try:
-        buf = io.BytesIO(text.encode("utf-8"))
-        c.storeFile(share, LEARNING_PATH, buf, timeout=20)
+        ensure_smb_dirs(c, share, LEARNING_AUDIO_DIR)
+        try:
+            existing_audio = {
+                f.filename for f in c.listPath(share, LEARNING_AUDIO_DIR)
+                if not f.isDirectory
+            }
+        except Exception:
+            existing_audio = set()
+
+        for card in cards:
+            if not isinstance(card, dict):
+                continue
+            cid = safe_card_id(card)
+            card["id"] = cid
+            if card.get("type") == "word":
+                word = str(card.get("title") or "").strip()
+                lines = card.get("lines") or []
+                sent = str(lines[0] if isinstance(lines, list) and lines else lines).strip()
+                note = str(card.get("note") or "").strip()
+                tts_full = f"{word}. {sent}".strip() if sent else word
+                if tts_full and not card.get("ttsText"):
+                    card["ttsText"] = tts_full
+                cur_audio = str(card.get("audio") or "").strip()
+                expected_name = f"{cid}.mp3"
+                # 仅当指向本目录且文件真实存在且非显式重生成时跳过
+                has_real_file = (
+                    cur_audio == f"{LEARNING_AUDIO_DIR}/{expected_name}"
+                    and expected_name in existing_audio
+                    and not card.pop("regenAudio", False)
+                )
+                if not has_real_file and word:
+                    mp3 = generate_word_and_sentence_mp3(word, sent, note)
+                    if mp3:
+                        audio_rel = f"{LEARNING_AUDIO_DIR}/{expected_name}"
+                        c.storeFile(share, audio_rel, io.BytesIO(mp3), timeout=15)
+                        card["audio"] = audio_rel
+                        existing_audio.add(expected_name)
+                        generated_mp3 += 1
+
+        out = {
+            "version": int(payload.get("version") or 2) if isinstance(payload, dict) else 2,
+            "dailyWordCount": daily_count,
+            "cards": cards,
+        }
+        text = json.dumps(out, ensure_ascii=False, indent=2) + "\n"
+        c.storeFile(share, LEARNING_PATH, io.BytesIO(text.encode("utf-8")), timeout=20)
     finally:
         c.close()
-    return f"已写入 \\\\{cfg['host']}\\{share}\\{LEARNING_PATH}"
+    return {
+        "message": f"已写入 \\\\{cfg['host']}\\{share}\\{LEARNING_PATH}（共 {len(cards)} 张，新生成语音 {generated_mp3} 条）",
+        "generatedMp3": generated_mp3,
+        "count": len(cards),
+    }
+
+
+def save_learning_image(cfg: dict, card_id: str, filename: str, b64_data: str) -> str:
+    import base64
+    raw = b64_data.split(",", 1)[-1].strip()
+    img_bytes = base64.b64decode(raw)
+    if len(img_bytes) > 2 * 1024 * 1024:
+        raise SmbError("图片不能超过 2 MB")
+    ext = pathlib.Path(filename or "pic.jpg").suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    cid = re.sub(r"[^a-zA-Z0-9_\-]", "_", card_id or "word") or "word"
+    rel_path = f"{LEARNING_IMAGE_DIR}/{cid}{ext}"
+    share = cfg.get("playlistShare") or "data"
+    c = smb(cfg)
+    try:
+        ensure_smb_dirs(c, share, LEARNING_IMAGE_DIR)
+        c.storeFile(share, rel_path, io.BytesIO(img_bytes), timeout=20)
+    finally:
+        c.close()
+    return rel_path
 
 
 def nudge_tv(ip: str | None = None) -> bool:
@@ -1114,9 +1335,18 @@ class Handler(BaseHTTPRequestHandler):
                                       "bytes": len(text.encode("utf-8"))})
 
             if path == "/api/learning":
-                save_learning_data(current_cfg(), data.get("data", data))
+                info = save_learning_data(current_cfg(), data.get("data", data))
                 threading.Thread(target=nudge_tv, daemon=True).start()
-                return self.json_out({"ok": True, "message": "学习数据已保存并已通知电视"})
+                return self.json_out({"ok": True, **info})
+
+            if path == "/api/learning/image":
+                rel_img = save_learning_image(
+                    current_cfg(),
+                    data.get("id", "word"),
+                    data.get("filename", "pic.jpg"),
+                    data.get("dataBase64", ""),
+                )
+                return self.json_out({"ok": True, "path": rel_img})
 
             if path == "/api/nudge":
                 tv_ip = data.get("ip") or self.one(self.query(), "ip")

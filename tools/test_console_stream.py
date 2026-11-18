@@ -223,5 +223,50 @@ class ParseRangeTest(unittest.TestCase):
                 self.assertEqual(pr(header, total), want)
 
 
+class LearningApiTest(unittest.TestCase):
+    """词库保存 / 图片上传 / 自动生成发音 mp3（纯 FakeSmb）。"""
+
+    def test_save_learning_data_writes_json_and_mp3(self):
+        written = {}
+
+        class FakeSmbWrite(FakeSmb):
+            def createDirectory(self, share, path):
+                pass
+
+            def storeFile(self, share, path, fh, timeout=20):
+                written[(share, path)] = fh.read()
+
+        orig_smb = console.smb
+        orig_gen = console.generate_word_and_sentence_mp3
+        console.smb = lambda cfg: FakeSmbWrite()
+        console.generate_word_and_sentence_mp3 = lambda w, s="", n="": b"ID3fake-mp3-bytes-" + w.encode("utf-8")
+        try:
+            res = console.save_learning_data(
+                {"host": "127.0.0.1", "playlistShare": "data"},
+                {"version": 2, "dailyWordCount": 12, "cards": [
+                    {"id": "word_cat", "type": "word", "title": "cat", "lines": ["The cat is cute."], "note": "猫"}
+                ]}
+            )
+            self.assertEqual(res["count"], 1)
+            self.assertEqual(res["generatedMp3"], 1)
+            self.assertIn(("data", "curated/learning/audio/word_cat.mp3"), written)
+            self.assertIn(("data", "curated/learning.json"), written)
+        finally:
+            console.smb = orig_smb
+            console.generate_word_and_sentence_mp3 = orig_gen
+
+    def test_silence_1s_like_produces_valid_mpeg2_frames(self):
+        gap = console._silence_1s_like(bytes.fromhex("fff3e4c4"))
+        # 24kHz / 160kbps -> 480B/帧, 24ms/帧 -> 42帧 = 20160B
+        self.assertEqual(len(gap), 42 * 480)
+        self.assertEqual(gap[:4], bytes.fromhex("fff3e4c4"))
+
+    def test_save_learning_image_rejects_oversize(self):
+        import base64
+        big = base64.b64encode(b"x" * (2 * 1024 * 1024 + 10)).decode("ascii")
+        with self.assertRaises(console.SmbError):
+            console.save_learning_image({}, "word_cat", "cat.png", big)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

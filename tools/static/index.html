@@ -97,6 +97,32 @@ a{color:var(--brand)}
 .lcard .lh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .lcard .lh .n{font-size:12px;color:var(--muted);margin-right:auto}
 .lcard textarea{min-height:64px;font-size:13px;line-height:1.5;white-space:pre-wrap;resize:vertical}
+.wcard{border:1px solid #d9e2f2;border-left:4px solid var(--brand);border-radius:10px;padding:8px 12px;margin:7px 0;background:#f3f6fc;transition:background .15s;min-width:0}
+.wcard:hover{background:#ebf0fa}
+.wcard .wh{display:flex;align-items:center;gap:8px;min-height:30px}
+.wcard .wh .wtitle{font-size:15px;font-weight:700;color:var(--ink)}
+.wcard .wh .wsub{font-size:12px;color:var(--muted)}
+.wcard .wh .wsum{font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.wcard .wbody{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed #d3ddf0}
+.wcard.open .wbody{display:block}
+.wcard .wedit-main{display:flex;gap:12px;align-items:stretch}
+.wcard .wedit-fields{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+.wcard .wpreview{width:118px;flex:0 0 118px;border:1px solid #d9e2f2;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--muted);font-size:12px}
+.wcard .wpreview img{width:100%;height:100%;object-fit:contain;display:block}
+.wcard .wgrid{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:8px}
+.wcard .wgrid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wcard .wgrid label,.wcard .wgrid2 label{display:block;font-size:11px;color:var(--muted)}
+.wcard .wgrid input,.wcard .wgrid2 input{margin-top:2px;padding:6px 8px;font-size:13px;background:#fff}
+.wcard .wimg-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.wcard .wimg-row .lbl{font-size:11px;color:var(--muted);white-space:nowrap}
+.wcard .wimg-row input{flex:1;min-width:0;padding:5px 8px;font-size:12px;background:#fff}
+.wcard .wimg-row button{flex:0 0 118px}
+.wcard .wthumb{width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid #d9e2f2;background:#fff;flex:0 0 auto}
+.wcard button:disabled{opacity:.42;cursor:not-allowed;filter:grayscale(1)}
+.azbar{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 10px}
+.azbar button{padding:3px 8px;min-height:26px;font-size:12px;border-radius:6px;border:1px solid #d9e2f2;background:#fff;color:var(--muted);cursor:pointer}
+.azbar button.on{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
+@media(max-width:720px){.wcard .wedit-main{flex-direction:column}.wcard .wpreview{width:100%;height:140px;flex:none}.wcard .wgrid,.wcard .wgrid2{grid-template-columns:1fr}.wcard .wimg-row button{flex:0 0 auto}}
 
 /* 手机窄屏：所有控件改成整行 / 两行排布，绝不横向溢出 */
 @media(max-width:640px){
@@ -155,6 +181,7 @@ a{color:var(--brand)}
     <button data-tab="sections">片单编排</button>
     <button data-tab="rules">时段与密码</button>
     <button data-tab="control">远程控制</button>
+    <button data-tab="words">英语单词词库</button>
     <button data-tab="learning">互动学习角 2.0</button>
     <button data-tab="json">JSON / 导入导出</button>
   </div>
@@ -193,6 +220,10 @@ a{color:var(--brand)}
 
   <section id="pane-control" class="pane hidden">
     <div id="controlBody"></div>
+  </section>
+
+  <section id="pane-words" class="pane hidden">
+    <div id="wordsBody"></div>
   </section>
 
   <section id="pane-learning" class="pane hidden">
@@ -237,12 +268,13 @@ const urlParams = new URLSearchParams(location.search);
 let TOKEN = urlParams.get("k") || localStorage.getItem("kidtv_token") || "";
 if (TOKEN) localStorage.setItem("kidtv_token", TOKEN);
 
-const START_TAB = ["browse","sections","rules","control","learning","json"].includes(urlParams.get("tab"))
+const START_TAB = ["browse","sections","rules","control","words","learning","json"].includes(urlParams.get("tab"))
   ? urlParams.get("tab") : "browse";   // 支持 ?tab=rules 直接进某一页，手机可存书签
 const S = {
   data:null, cfg:null, shares:[], share:"", path:"", items:null,
   target:0, showCount:false, counts:{}, tab:START_TAB, source:"",
-  control:null, ack:null, controlPath:"", controlError:""
+  control:null, ack:null, controlPath:"", controlError:"",
+  learningData:null, learningSource:"", wordFilter:"", wordLetter:"", wordOpen:{}
 };
 
 // PC 桌面助手把控制台嵌进 iframe 时，外壳已有标题和连接设置，这里隐藏重复头部
@@ -452,6 +484,16 @@ function setPath(o, p, v){
 }
 
 // ---------- 载入 ----------
+async function loadLearningData(){
+  try {
+    const r = await api("/api/learning");
+    S.learningData = r.data || {version:2, dailyWordCount:10, cards:[]};
+    S.learningSource = r.source || "";
+  } catch(e){
+    S.learningData = {version:2, dailyWordCount:10, cards:[]};
+    S.learningSource = "error";
+  }
+}
 async function loadConfig(){
   const r = await api("/api/config");
   S.data = normalize(r.data);
@@ -485,6 +527,7 @@ async function init(){
     S.share = S.cfg.share || S.shares[0] || "";
     setStatus((st.warning ? "连接异常 · " : "已连接 ") + (S.cfg.host || "未配置 NAS"), !!st.warning);
     await loadConfig();
+    await loadLearningData();
     renderAll();
     switchTab(S.tab);
     if (S.share) await doBrowse("");
@@ -497,7 +540,7 @@ async function init(){
 }
 
 // ---------- 渲染 ----------
-function renderAll(){ renderBrowse(); renderSections(); renderRules(); renderLearning(); renderJson(); }
+function renderAll(){ renderBrowse(); renderSections(); renderRules(); renderWords(); renderLearning(); renderJson(); }
 
 function renderBrowse(){
   const shares = S.shares.length ? S.shares : (S.share ? [S.share] : [""]);
@@ -697,6 +740,101 @@ function renderRules(){
     '「自动连播」默认关：打开后孩子看完整季只需按一次遥控器，但时长消耗会明显变快；' +
     '到每日上限 / 时段结束时仍会停下并锁屏。</p></div>';
   body.innerHTML = h;
+}
+
+function splitZhNote(note){
+  const raw = String(note || "").trim();
+  if (!raw) return ["", ""];
+  for (const sep of ["·", "|", "\n"]){
+    const k = raw.indexOf(sep);
+    if (k >= 0) return [raw.slice(0, k).trim(), raw.slice(k + 1).trim()];
+  }
+  return [raw, ""];
+}
+
+function renderWords(){
+  const ld = S.learningData || {version:2, dailyWordCount:10, cards:[]};
+  const allCards = Array.isArray(ld.cards) ? ld.cards : [];
+  const q = (S.wordFilter || "").trim().toLowerCase();
+  const lt = (S.wordLetter || "").toUpperCase();
+  const wordRows = allCards.map((c, idx) => ({c, idx})).filter(x => {
+    if (!x.c || x.c.type !== "word") return false;
+    const t = String(x.c.title || "");
+    if (lt && !t.toUpperCase().startsWith(lt)) return false;
+    if (q && !t.toLowerCase().includes(q) && !String(x.c.note || "").toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  let az = '<div class="azbar"><button class="' + (!lt ? 'on' : '') + '" data-act="ldLetter" data-lt="">全部</button>';
+  letters.forEach(ch => {
+    az += '<button class="' + (lt === ch ? 'on' : '') + '" data-act="ldLetter" data-lt="' + ch + '">' + ch + '</button>';
+  });
+  az += '</div>';
+
+  let h = '<div class="card"><h3>每日英语打卡词库 <span class="sub">独立存储在 NAS learning.json · 数据源: ' + esc(S.learningSource || "未加载") + ' · 共 ' +
+    allCards.filter(x => x && x.type === "word").length + ' 词（当前显示 ' + wordRows.length + '）</span></h3>' +
+    '<div class="fields">' +
+      '<label>每天打卡词数<input id="ldDailyCount" type="number" min="1" max="50" value="' + esc(ld.dailyWordCount || 10) + '"></label>' +
+      '<label>搜索单词/释义<input id="ldFilter" value="' + esc(S.wordFilter) + '" placeholder="apple / 苹果"></label>' +
+    '</div>' +
+    az +
+    '<div class="rowbtn" style="margin-bottom:10px">' +
+      '<button class="tiny" data-act="ldAddWord">＋ 新增单词</button>' +
+      '<button class="tiny primary" data-act="ldSave">保存词库并自动生成发音 mp3</button>' +
+      '<button class="tiny" data-act="ldReload">重新读取词库</button>' +
+    '</div>';
+  if (!wordRows.length){
+    h += '<p class="empty">没有匹配的单词卡片。点「＋ 新增单词」添加，或点「全部」查看全部词条。</p>';
+  } else {
+    const plShare = (S.cfg && S.cfg.playlistShare) || "data";
+    wordRows.slice(0, 100).forEach(({c, idx}) => {
+      const lines = Array.isArray(c.lines) ? c.lines.join(" ") : (c.lines || "");
+      const hasAud = !!(c.audio && String(c.audio).trim());
+      const imgPath = String(c.image || "").trim();
+      const imgSrc = imgPath
+        ? "/stream/" + encodeURIComponent(plShare) + "/" + imgPath.split("/").map(encodeURIComponent).join("/")
+        : "";
+      const [wordZh, sentZh] = splitZhNote(c.note);
+      const isOpen = !!S.wordOpen[idx];
+      h += '<div class="wcard' + (isOpen ? ' open' : '') + '">' +
+        '<div class="wh">' +
+          (imgSrc ? '<img class="wthumb" src="' + esc(imgSrc) + '" onerror="this.style.display=\'none\'">' : '') +
+          '<span class="wtitle">' + esc(c.title || "新单词") + '</span>' +
+          '<button class="tiny" data-act="ldPlay" data-audio="' + esc(c.audio || "") + '"' + (hasAud ? '' : ' disabled title="暂无音频，保存后自动生成"') + '>试听</button>' +
+          (c.sub ? '<span class="wsub">' + esc(c.sub) + '</span>' : '') +
+          '<span class="wsum">' + esc(wordZh || c.note || "") + '</span>' +
+          '<button class="tiny" data-act="ldToggle" data-idx="' + idx + '">' + (isOpen ? '收起' : '编辑') + '</button>' +
+          '<button class="ghost tiny danger" data-act="ldDel" data-idx="' + idx + '" title="删除">×</button>' +
+        '</div>' +
+        '<div class="wbody">' +
+          '<div class="wedit-main">' +
+            '<div class="wedit-fields">' +
+              '<div class="wgrid">' +
+                '<label>单词<input data-ld="' + idx + '.title" value="' + esc(c.title) + '"></label>' +
+                '<label>音标 / 词性<input data-ld="' + idx + '.sub" value="' + esc(c.sub) + '" placeholder="[ˈæpl]"></label>' +
+                '<label>中文词义<input data-ld="' + idx + '.wordZh" value="' + esc(wordZh) + '" placeholder="苹果"></label>' +
+              '</div>' +
+              '<div class="wgrid2">' +
+                '<label>英文例句<input data-ld="' + idx + '.lines" value="' + esc(lines) + '" placeholder="I eat an apple."></label>' +
+                '<label>例句中文翻译<input data-ld="' + idx + '.sentZh" value="' + esc(sentZh) + '" placeholder="我吃一个苹果。"></label>' +
+              '</div>' +
+            '</div>' +
+            '<div class="wpreview">' +
+              (imgSrc ? '<img src="' + esc(imgSrc) + '" onerror="this.parentNode.textContent=\'暂无配图\'">' : '暂无配图') +
+            '</div>' +
+          '</div>' +
+          '<div class="wimg-row">' +
+            '<span class="lbl">配图路径</span>' +
+            '<input data-ld="' + idx + '.image" value="' + esc(imgPath) + '" placeholder="curated/learning/images/word_apple.jpg">' +
+            '<button class="tiny" data-act="ldUploadImg" data-idx="' + idx + '">上传配图</button>' +
+          '</div>' +
+        '</div></div>';
+    });
+    if (wordRows.length > 100) h += '<p class="empty">当前显示前 100 个匹配词条，可用上方搜索框或字母条精准定位。</p>';
+  }
+  h += '<input id="ldImgFile" type="file" accept="image/*" class="hidden"></div>';
+  Q("#wordsBody").innerHTML = h;
 }
 
 function renderLearning(){
@@ -937,6 +1075,31 @@ Q("#importFile").addEventListener("change", e => {
 
 function bindInput(e){
   const t = e.target;
+  if (t.id === "ldFilter"){
+    const pos = t.selectionStart;
+    S.wordFilter = t.value;
+    renderWords();
+    const el = Q("#ldFilter");
+    if (el){ el.focus(); try{ el.setSelectionRange(pos, pos); }catch(_){} }
+    return;
+  }
+  if (t.id === "ldDailyCount" && S.learningData){ S.learningData.dailyWordCount = Number(t.value) || 10; return; }
+  if (t.dataset && t.dataset.ld && S.learningData){
+    const [idxStr, field] = t.dataset.ld.split(".");
+    const card = S.learningData.cards[Number(idxStr)];
+    if (card){
+      if (field === "lines") card.lines = t.value.trim() ? [t.value.trim()] : [];
+      else if (field === "wordZh" || field === "sentZh"){
+        const [oldW, oldS] = splitZhNote(card.note);
+        const w = field === "wordZh" ? t.value.trim() : oldW;
+        const s = field === "sentZh" ? t.value.trim() : oldS;
+        card.note = s ? (w ? w + " · " + s : s) : w;
+      } else {
+        card[field] = t.value;
+      }
+    }
+    return;
+  }
   if (!t.dataset || !t.dataset.bind) return;
   let v = t.type === "checkbox" ? t.checked : t.value;
   if (t.dataset.type === "number") v = Number(v);
@@ -1066,7 +1229,77 @@ document.addEventListener("click", async e => {
         S.data.learning.artFolder = ""; S.data.learning.artShare = "";
         renderLearning(); renderJson(); toast("已改回 APK 内置名画"); break;
       case "reload":
-        await loadConfig(); renderAll(); toast("已从 NAS 重新读取"); break;
+        await loadConfig(); await loadLearningData(); renderAll(); toast("已从 NAS 重新读取"); break;
+      case "ldReload":
+        S.wordOpen = {};
+        await loadLearningData(); renderWords(); toast("已重新读取词库"); break;
+      case "ldLetter":
+        S.wordLetter = b.dataset.lt || "";
+        renderWords(); break;
+      case "ldToggle": {
+        const idx = Number(b.dataset.idx);
+        S.wordOpen[idx] = !S.wordOpen[idx];
+        renderWords(); break;
+      }
+      case "ldAddWord": {
+        if (!S.learningData) S.learningData = {version:2, dailyWordCount:10, cards:[]};
+        S.learningData.cards.unshift({
+          id:"word_" + Date.now().toString().slice(-6),
+          type:"word", title:"", sub:"", lines:[], note:"", image:"", audio:"", ttsText:""
+        });
+        S.wordFilter = ""; S.wordLetter = ""; S.wordOpen = {0: true};
+        renderWords(); break;
+      }
+      case "ldDel": {
+        const idx = Number(b.dataset.idx);
+        if (S.learningData && Array.isArray(S.learningData.cards)){
+          S.learningData.cards.splice(idx, 1);
+          renderWords();
+        }
+        break;
+      }
+      case "ldPlay": {
+        const plShare = (S.cfg && S.cfg.playlistShare) || "data";
+        const au = new Audio("/stream/" + encodeURIComponent(plShare) + "/" + b.dataset.audio.split("/").map(encodeURIComponent).join("/"));
+        au.play().catch(err => toast("试听失败：" + err.message, true));
+        break;
+      }
+      case "ldUploadImg": {
+        const idx = Number(b.dataset.idx);
+        const inp = Q("#ldImgFile");
+        inp.onchange = async () => {
+          const f = inp.files && inp.files[0];
+          if (!f) return;
+          const rd = new FileReader();
+          rd.onload = async () => {
+            try {
+              const card = S.learningData.cards[idx];
+              const cid = card.id || ("word_" + (card.title || Date.now()));
+              const r = await api("/api/learning/image", {
+                method:"POST",
+                body:JSON.stringify({id:cid, filename:f.name, dataBase64:rd.result})
+              });
+              card.image = r.path;
+              renderWords();
+              toast("图片已上传到 NAS，记得点「保存词库」");
+            } catch(err){ toast(err.message, true, 5000); }
+          };
+          rd.readAsDataURL(f);
+          inp.value = "";
+        };
+        inp.click();
+        break;
+      }
+      case "ldSave": {
+        if (!S.learningData) break;
+        const cntEl = Q("#ldDailyCount");
+        if (cntEl) S.learningData.dailyWordCount = Math.max(1, Math.min(50, Number(cntEl.value) || 10));
+        const r = await api("/api/learning", {method:"POST", body:JSON.stringify({data:S.learningData})});
+        await loadLearningData();
+        renderWords();
+        toast(r.message || "词库已保存", false, 5000);
+        break;
+      }
       case "save": await saveTo("nas"); break;
       case "saveLocal": await saveTo("local"); break;
       case "jsonApply": {

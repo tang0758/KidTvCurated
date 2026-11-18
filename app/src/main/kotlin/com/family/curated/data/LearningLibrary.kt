@@ -1,5 +1,7 @@
 package com.family.curated.data
 
+import org.json.JSONObject
+
 /**
  * 内置离线题库总入口：不联网、不依赖 NAS，装上 APK 锁屏就能看。
  *
@@ -20,4 +22,31 @@ object LearningLibrary {
 
     fun countByType(): Map<CardType, Int> =
         CardType.values().associateWith { t -> all.count { it.type == t } }
+
+    /**
+     * 解析 NAS `learning.json` 中的词库与每日词数；
+     * 断网 / 解析失败 / 无单词时自动兜底内置 78 词（FR-35）。
+     */
+    fun loadOnlineWords(jsonText: String?): Pair<List<LearningCard>, Int> {
+        if (!jsonText.isNullOrBlank()) {
+            try {
+                val root = JSONObject(jsonText)
+                val dailyCount = root.optInt("dailyWordCount", WordCheckInMath.DEFAULT_DAILY_COUNT)
+                    .coerceIn(1, 50)
+                val arr = root.optJSONArray("cards")
+                if (arr != null) {
+                    val out = ArrayList<LearningCard>()
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        val c = LearningCard.parse(obj) ?: continue
+                        if (c.type == CardType.WORD) out.add(c)
+                    }
+                    if (out.isNotEmpty()) return out to dailyCount
+                }
+            } catch (_: Exception) {
+                // 解析失败静默兜底内置词库
+            }
+        }
+        return words to WordCheckInMath.DEFAULT_DAILY_COUNT
+    }
 }

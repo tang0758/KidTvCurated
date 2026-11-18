@@ -43,7 +43,7 @@ class PosterAdapter(
 ) : RecyclerView.Adapter<PosterAdapter.VH>() {
 
     private val density = ctx.resources.displayMetrics.density
-    private val coverW = (150 * density).roundToInt()
+    private val coverW = (132 * density).roundToInt()
     private val coverH = (215 * density).roundToInt()
     private val accent = ctx.getColor(R.color.accent)
 

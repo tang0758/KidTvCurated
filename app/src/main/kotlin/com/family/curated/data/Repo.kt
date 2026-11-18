@@ -43,6 +43,7 @@ object Repo {
             Store.lastSync = System.currentTimeMillis()
             Store.saveNas(cfg)
             if (pl.nas != null && pl.nas.host.isNotBlank()) Store.saveNas(pl.nas)
+            syncLearningQuietly(cfg, usedShare)
             return LoadResult(expandAuto(pl), false, null)
         } catch (e: Exception) {
             val where = "${cfg.host}:${cfg.port}/$usedShare/${Store.playlistPath}"
@@ -107,6 +108,17 @@ object Repo {
             }
         }
         throw last ?: Exception("找不到 $path")
+    }
+
+    /** 静默同步 NAS 在线词库 curated/learning.json，失败不阻塞片单主流程 */
+    private fun syncLearningQuietly(cfg: NasConfig, share: String) {
+        try {
+            val bytes = Smb.readAllIsolated(cfg, share, "curated/learning.json")
+            val text = String(bytes, Charsets.UTF_8)
+            if (text.isNotBlank()) Store.cachedLearningJson = text
+        } catch (_: Exception) {
+            // 词库不存在或读取失败时保持已有缓存 / 兜底内置 78 词
+        }
     }
 
     /** 扫本网段 445 端口，再用账号试认证，找到真正能用的 NAS */

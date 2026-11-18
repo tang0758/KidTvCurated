@@ -10,10 +10,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.family.curated.R
 import com.family.curated.data.Item
+import com.family.curated.data.ClockGuard
+import com.family.curated.data.Extras
+import com.family.curated.data.LearningLibrary
 import com.family.curated.data.NasConfig
 import com.family.curated.data.Playlist
 import com.family.curated.data.Section
 import com.family.curated.data.Store
+import com.family.curated.data.WordCheckInMath
 
 class SectionsAdapter(
     private val ctx: Context,
@@ -50,12 +54,24 @@ class SectionsAdapter(
 
     fun sectionAt(i: Int): Section = playlist.sections[i]
 
-    /** 某个分区是否已解锁 */
+    /** 今日单词打卡是否已完成（FR-35 并列门禁） */
+    private fun wordDoneToday(): Boolean {
+        val (allWords, dailyCount) = LearningLibrary.loadOnlineWords(Store.cachedLearningJson)
+        return Extras.isWordDoneToday(allWords, dailyCount, ClockGuard.day())
+    }
+
+    /** 某个分区是否已解锁（视频必看 + 每日英语打卡并列门禁） */
     fun isUnlocked(section: Section): Boolean {
         if (skipGate) return true
         val req = section.requires ?: return true
         val gate = playlist.sections.firstOrNull { it.key == req } ?: return true
-        return gate.items.isNotEmpty() && gate.items.all { Store.isDoneToday(it.key()) }
+        val videoDone = gate.items.isNotEmpty() && gate.items.all { Store.isDoneToday(it.key()) }
+        return WordCheckInMath.canUnlockDailyGate(
+            hasVideoGate = true,
+            videoGateDone = videoDone,
+            wordCheckInEnabled = true,
+            wordDoneToday = wordDoneToday()
+        )
     }
 
     fun gateRemaining(): Int {
@@ -101,7 +117,7 @@ class SectionsAdapter(
             !unlocked -> {
                 val req = section.requires?.let { key -> playlist.sections.firstOrNull { it.key == key } }
                 val left = req?.items?.count { !Store.isDoneToday(it.key()) } ?: 0
-                "还差 $left 个才解锁"
+                if (left > 0) "还差 $left 个才解锁" else ctx.getString(R.string.word_need_checkin)
             }
             section.gate && total > 0 -> "必修 $doneCount/$total"
             total > 0 -> "$total 个"

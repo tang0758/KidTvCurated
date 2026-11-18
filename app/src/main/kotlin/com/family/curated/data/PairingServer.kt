@@ -136,10 +136,12 @@ object PairingServer {
                             <input name="port" type="number" value="${cfg?.port ?: 445}" />
                             <label>用户名</label>
                             <input name="user" value="${cfg?.user ?: ""}" />
-                            <label>密码</label>
-                            <input name="password" type="password" value="${cfg?.password ?: ""}" />
+                            <label>密码（留空则保持原密码不变）</label>
+                            <input name="password" type="password" value="" placeholder='留空保持不变' />
                             <label>媒体共享名</label>
                             <input name="share" value="${cfg?.share ?: ""}" required />
+                            <label>家长 PIN（必填校验）</label>
+                            <input name="pin" type="password" required placeholder='输入家长PIN' />
                             <button type="submit">保存到电视</button>
                           </form>
                         </body>
@@ -152,23 +154,33 @@ object PairingServer {
                         val host: String
                         val port: Int
                         val user: String
-                        val pass: String
+                        val rawPass: String
                         val share: String
+                        val pin: String
                         if (body.startsWith("{")) {
                             val json = JSONObject(body)
                             host = json.getString("host")
                             port = json.optInt("port", 445)
                             user = json.optString("user", "")
-                            pass = json.optString("password", "")
+                            rawPass = json.optString("password", "")
                             share = json.getString("share")
+                            pin = json.optString("pin", "")
                         } else {
                             val params = parseForm(body)
                             host = params["host"] ?: ""
                             port = params["port"]?.toIntOrNull() ?: 445
                             user = params["user"] ?: ""
-                            pass = params["password"] ?: ""
+                            rawPass = params["password"] ?: ""
                             share = params["share"] ?: ""
+                            pin = params["pin"] ?: ""
                         }
+                        val expectedPin = Extras.pin().ifBlank { "1234" }
+                        if (pin != expectedPin) {
+                            responseJson(sock, 403, """{"ok":false,"error":"invalid pin"}""")
+                            return
+                        }
+                        val oldPass = Store.nas()?.password ?: ""
+                        val pass = if (rawPass.isBlank() || rawPass.all { it == '*' }) oldPass else rawPass
                         if (host.isNotBlank() && share.isNotBlank()) {
                             val cfg = NasConfig(host = host, port = port, user = user, password = pass, share = share)
                             Store.saveNas(cfg)

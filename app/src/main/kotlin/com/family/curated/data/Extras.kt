@@ -479,4 +479,72 @@ object Extras {
         }
         return result
     }
+
+    // ---------- 每日单词打卡（FR-35 / OPT-34，与看片 stamps 严格隔离） ----------
+
+    fun wordStamps(): MutableSet<String> =
+        HashSet(p().getStringSet("word_stamps", emptySet()) ?: emptySet())
+
+    fun markWordCheckIn(now: Long = ClockGuard.now()) {
+        val d = day(now)
+        val set = wordStamps()
+        if (set.add(d)) {
+            p().edit().putStringSet("word_stamps", set).apply()
+        }
+    }
+
+    fun wordStreak(now: Long = ClockGuard.now()): Int =
+        WordCheckInMath.streak(wordStamps(), day(now))
+
+    fun wordQueue(dayKey: String = day()): List<String> {
+        val raw = p().getString("word_queue_$dayKey", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun wordAnswered(dayKey: String = day()): MutableSet<String> =
+        HashSet(p().getStringSet("word_done_$dayKey", emptySet()) ?: emptySet())
+
+    fun markWordAnswered(cardId: String, dayKey: String = day()) {
+        val set = wordAnswered(dayKey)
+        if (set.add(cardId)) {
+            p().edit().putStringSet("word_done_$dayKey", set).apply()
+        }
+    }
+
+    /** 确保今日队列已锁定（同一天不重抽，防止反复进出变题） */
+    fun ensureTodayWordQueue(
+        allWords: List<LearningCard>,
+        dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
+        dayKey: String = day()
+    ): List<String> {
+        val existing = wordQueue(dayKey)
+        if (existing.isNotEmpty()) return existing
+        val seed = dayKey.hashCode().toLong()
+        val picked = WordCheckInMath.pickDailyWords(allWords, allCardMasteries(), dailyCount, seed)
+        val ids = picked.map { LearningMath.cardId(it) }
+        if (ids.isNotEmpty()) {
+            p().edit().putString("word_queue_$dayKey", ids.joinToString(",")).apply()
+        }
+        return ids
+    }
+
+    fun isWordDoneToday(
+        allWords: List<LearningCard>,
+        dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
+        dayKey: String = day()
+    ): Boolean {
+        val q = ensureTodayWordQueue(allWords, dailyCount, dayKey)
+        return WordCheckInMath.isDone(q, wordAnswered(dayKey))
+    }
+
+    fun clearTodayWordCheckIn(dayKey: String = day()) {
+        val stamps = wordStamps()
+        stamps.remove(dayKey)
+        p().edit()
+            .putStringSet("word_stamps", stamps)
+            .remove("word_queue_$dayKey")
+            .remove("word_done_$dayKey")
+            .apply()
+    }
 }

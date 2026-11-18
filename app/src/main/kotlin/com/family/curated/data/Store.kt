@@ -75,6 +75,11 @@ object Store {
         get() = sp.getString("playlist_cache", null)
         set(v) = sp.edit().putString("playlist_cache", v).apply()
 
+    /** 在线词库（data:curated/learning.json）本地缓存，断网时兜底 */
+    var cachedLearningJson: String?
+        get() = sp.getString("learning_json_cache", null)
+        set(v) = sp.edit().putString("learning_json_cache", v).apply()
+
     /** 记住上次成功读取清单的时间，用于判断缓存是否过期 */
     var lastSync: Long
         get() = sp.getLong("last_sync", 0L)

@@ -16,11 +16,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.family.curated.data.AppCatalog
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.Badges
+import com.family.curated.data.ClockGuard
 import com.family.curated.data.Extras
 import com.family.curated.data.ExtWatchTracker
 import com.family.curated.data.GateKeeper
 import com.family.curated.data.Item
 import com.family.curated.data.KioskKeys
+import com.family.curated.data.LearningLibrary
 import com.family.curated.data.Playlist
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Repo
@@ -86,6 +88,14 @@ class MainActivity : AppCompatActivity() {
         b.btnRewards.setOnClickListener { openRewards() }
         b.btnRewards.setOnFocusChangeListener { v, has ->
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f)
+                .setDuration(120).start()
+        }
+
+        b.cardWordCheckIn.setOnClickListener {
+            startActivity(Intent(this, WordCheckInActivity::class.java))
+        }
+        b.cardWordCheckIn.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.02f else 1f).scaleY(if (has) 1.02f else 1f)
                 .setDuration(120).start()
         }
 
@@ -279,7 +289,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateWordCheckInEntry() {
+        val (allWords, dailyCount) = LearningLibrary.loadOnlineWords(Store.cachedLearningJson)
+        val dayKey = ClockGuard.day()
+        val queue = Extras.ensureTodayWordQueue(allWords, dailyCount, dayKey)
+        val answered = Extras.wordAnswered(dayKey)
+        val doneCount = queue.count { it in answered }
+        val total = queue.size
+        val finished = total == 0 || doneCount >= total
+        if (finished) {
+            b.tvWordEntryStatus.text = getString(R.string.word_entry_done, Extras.wordStreak())
+            b.tvWordEntryStatus.setTextColor(getColor(R.color.done_green))
+        } else {
+            b.tvWordEntryStatus.text = getString(R.string.word_entry_progress, doneCount, total)
+            b.tvWordEntryStatus.setTextColor(getColor(R.color.accent))
+        }
+    }
+
     private fun updateHeader() {
+        updateWordCheckInEntry()
         val a = adapter ?: return
         val total = a.gateTotal()
         val left = a.gateRemaining()

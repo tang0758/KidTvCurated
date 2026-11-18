@@ -33,6 +33,7 @@ val nasPass: String = secret("nas.pass", "NAS_PASS")
 android {
     namespace = "com.family.curated"
     compileSdk = 34
+    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         applicationId = "com.family.curated"

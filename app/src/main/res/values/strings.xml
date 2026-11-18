@@ -262,4 +262,21 @@
     <string name="ctx_unmark_done">取消今日已学完</string>
     <string name="ctx_reset_progress">重置观看进度</string>
     <string name="episodes_count">共 %1$d 个</string>
+
+    <!-- ==================== 每日单词打卡 (FR-35) ==================== -->
+    <string name="word_entry_title">每日英语打卡</string>
+    <string name="word_entry_progress">今日 %1$d/%2$d 词 · 点击开始</string>
+    <string name="word_entry_done">✓ 今日已完成 · 连续 %1$d 天</string>
+    <string name="word_entry_action">去打卡 ›</string>
+    <string name="word_checkin_progress">第 %1$d / %2$d 个</string>
+    <string name="word_btn_audio">🔊 读音</string>
+    <string name="word_btn_image">🖼 看图</string>
+    <string name="word_btn_image_hide">🖼 收起图</string>
+    <string name="word_btn_know">✅ 认识</string>
+    <string name="word_btn_unknown">⭐ 不认识</string>
+    <string name="word_hint_keys">点击「看图」可看图片提示 · 选「认识」或「不认识」进入下一个</string>
+    <string name="word_no_image">这个单词暂无配图</string>
+    <string name="word_done_toast">太棒了！今日 %1$d 个单词打卡完成！</string>
+    <string name="word_empty_toast">暂无单词可打卡，已自动解锁</string>
+    <string name="word_need_checkin">还要完成今日英语打卡</string>
 </resources>
