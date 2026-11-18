@@ -1,218 +1,320 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_deep"
-    android:orientation="vertical"
     android:paddingStart="64dp"
     android:paddingEnd="64dp"
-    android:paddingTop="40dp"
-    android:paddingBottom="40dp">
+    android:paddingTop="36dp"
+    android:paddingBottom="36dp">
 
-    <!-- 顶部栏 -->
+    <!-- 答题主面板 -->
     <LinearLayout
+        android:id="@+id/studyContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/word_entry_title"
-            android:textColor="@color/text_primary"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/tvWordStage"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="14dp"
-            android:background="@drawable/pill_bg"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:textColor="@color/text_secondary"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/tvWordProgress"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="@drawable/pill_bg"
-            android:paddingStart="18dp"
-            android:paddingEnd="18dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:textColor="@color/accent"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!-- 中央卡片区域：默认只展示单词，点击「看图」才展开配图 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="24dp"
-        android:background="@drawable/card_bg"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="36dp">
-
-        <FrameLayout
-            android:id="@+id/imageBox"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="0.42"
-            android:layout_marginEnd="32dp"
-            android:background="@drawable/placeholder_bg"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/ivWordImage"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:contentDescription="@null"
-                android:padding="12dp"
-                android:scaleType="fitCenter" />
-
-            <TextView
-                android:id="@+id/tvNoImage"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="@string/word_no_image"
-                android:textColor="@color/text_secondary"
-                android:textSize="18sp"
-                android:visibility="gone" />
-        </FrameLayout>
-
+        <!-- 顶部栏 -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0.58"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/tvWordTitle"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:textColor="#FFFFFF"
-                android:textSize="68sp"
+                android:layout_weight="1"
+                android:text="@string/word_entry_title"
+                android:textColor="@color/text_primary"
+                android:textSize="28sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tvWordSub"
+                android:id="@+id/btnWordPrev"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center"
-                android:textColor="@color/accent"
-                android:textSize="26sp" />
-
-            <TextView
-                android:id="@+id/tvWordNote"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:text="@string/word_btn_prev"
                 android:textColor="@color/text_primary"
-                android:textSize="28sp" />
+                android:textSize="16sp"
+                android:visibility="gone" />
 
             <TextView
-                android:id="@+id/tvWordLines"
+                android:id="@+id/tvWordStage"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:gravity="center"
-                android:lineSpacingExtra="6dp"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/pill_bg"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
                 android:textColor="@color/text_secondary"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/tvWordProgress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_bg"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:textColor="@color/accent"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 中央卡片区域：默认只展示文字，点击「看图」才展开配图 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="22dp"
+            android:layout_marginBottom="22dp"
+            android:background="@drawable/card_bg"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="36dp">
+
+            <FrameLayout
+                android:id="@+id/imageBox"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="0.42"
+                android:layout_marginEnd="32dp"
+                android:background="@drawable/placeholder_bg"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/ivWordImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@null"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter" />
+
+                <TextView
+                    android:id="@+id/tvNoImage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="@string/word_no_image"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="18sp"
+                    android:visibility="gone" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.58"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvWordTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF"
+                    android:textSize="68sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvWordSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center"
+                    android:textColor="@color/accent"
+                    android:textSize="24sp" />
+
+                <TextView
+                    android:id="@+id/tvWordNote"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:gravity="center"
+                    android:textColor="#FFFFFF"
+                    android:textSize="32sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvWordLines"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:gravity="center"
+                    android:textColor="@color/text_primary"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:id="@+id/tvWordLineZh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="18sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 底部交互胶囊按钮：读音 / 看图 / 认识 / 不认识 / 不再显示 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/btnWordAudio"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_weight="0.95"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:text="@string/word_btn_audio"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnWordImage"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_weight="0.95"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:text="@string/word_btn_image"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp" />
+
+            <TextView
+                android:id="@+id/btnWordKnow"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_weight="1.1"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:text="@string/word_btn_know"
+                android:textColor="@color/done_green"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnWordUnknown"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_weight="1.1"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:text="@string/word_btn_unknown"
+                android:textColor="@color/accent"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnWordGraduate"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_weight="1.1"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:text="@string/word_btn_graduate"
+                android:textColor="#CBD5E1"
                 android:textSize="20sp" />
         </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="@string/word_hint_keys"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
     </LinearLayout>
 
-    <!-- 底部交互按钮：读音 / 看图 / 认识 / 不认识 / 不再显示 -->
+    <!-- 今日打卡完成鼓励结算页 -->
     <LinearLayout
+        android:id="@+id/summaryCard"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
+        android:background="@drawable/card_bg"
         android:gravity="center"
-        android:orientation="horizontal">
+        android:orientation="vertical"
+        android:padding="48dp"
+        android:visibility="gone">
 
-        <Button
-            android:id="@+id/btnWordAudio"
-            android:layout_width="0dp"
-            android:layout_height="68dp"
-            android:layout_weight="0.9"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/pill_bg"
-            android:focusable="true"
-            android:text="@string/word_btn_audio"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
-
-        <Button
-            android:id="@+id/btnWordImage"
-            android:layout_width="0dp"
-            android:layout_height="68dp"
-            android:layout_weight="0.9"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/pill_bg"
-            android:focusable="true"
-            android:text="@string/word_btn_image"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
-
-        <Button
-            android:id="@+id/btnWordKnow"
-            android:layout_width="0dp"
-            android:layout_height="68dp"
-            android:layout_weight="1.1"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/pill_bg"
-            android:focusable="true"
-            android:text="@string/word_btn_know"
-            android:textColor="@color/done_green"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/btnWordUnknown"
-            android:layout_width="0dp"
-            android:layout_height="68dp"
-            android:layout_weight="1.1"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/pill_bg"
-            android:focusable="true"
-            android:text="@string/word_btn_unknown"
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/word_summary_title"
             android:textColor="@color/accent"
-            android:textSize="22sp"
+            android:textSize="40sp"
             android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnWordGraduate"
-            android:layout_width="0dp"
-            android:layout_height="68dp"
-            android:layout_weight="1.1"
-            android:background="@drawable/pill_bg"
-            android:focusable="true"
-            android:text="@string/word_btn_graduate"
-            android:textColor="#94A3B8"
-            android:textSize="20sp" />
-    </LinearLayout>
+        <TextView
+            android:id="@+id/tvSummaryStats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:gravity="center"
-        android:text="@string/word_hint_keys"
-        android:textColor="@color/text_secondary"
-        android:textSize="14sp" />
-</LinearLayout>
+        <TextView
+            android:id="@+id/tvSummaryStreak"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="@color/done_green"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnSummaryDone"
+            android:layout_width="320dp"
+            android:layout_height="72dp"
+            android:layout_marginTop="40dp"
+            android:background="@drawable/pill_bg"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:gravity="center"
+            android:text="@string/word_summary_go_home"
+            android:textColor="@color/accent"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>

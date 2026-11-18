@@ -522,6 +522,17 @@ object Extras {
         return next
     }
 
+    /** 回退改判时恢复该词作答前的记忆快照 */
+    fun restoreWordMemory(cardId: String, prev: WordCheckInMath.MemoryState) {
+        val now = ClockGuard.now()
+        p().edit()
+            .putLong("lstage_$cardId", prev.stage.toLong())
+            .putLong("ldue_$cardId", prev.dueDayNum)
+            .putLong("ltag_$cardId", prev.mastery.value.toLong())
+            .putLong("ltag_ts_$cardId", now)
+            .apply()
+    }
+
     fun wordStamps(): MutableSet<String> =
         HashSet(p().getStringSet("word_stamps", emptySet()) ?: emptySet())
 

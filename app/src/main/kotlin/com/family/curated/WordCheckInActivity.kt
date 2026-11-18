@@ -1,5 +1,6 @@
 package com.family.curated
 
+import android.app.AlertDialog
 import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.MediaPlayer
@@ -39,6 +40,10 @@ class WordCheckInActivity : AppCompatActivity() {
     private var idx = 0
     private var imageRevealed = false
 
+    /** 本次会话中每题作答前的记忆快照 & 本题选择结果，用于「上一词」回退改判和结算统计 */
+    private val preAnswerSnapshots = HashMap<String, WordCheckInMath.MemoryState>()
+    private val sessionChoices = HashMap<String, WordCheckInMath.Action>()
+
     private var mediaPlayer: MediaPlayer? = null
     private var tts: TextToSpeech? = null
     private var ttsReady = false
@@ -53,13 +58,18 @@ class WordCheckInActivity : AppCompatActivity() {
         initTts()
         loadTodayQueue()
 
+        b.btnWordPrev.setOnClickListener { goPrev() }
         b.btnWordAudio.setOnClickListener { currentCard()?.let { playWordAudio(it) } }
         b.btnWordImage.setOnClickListener { toggleImage() }
         b.btnWordKnow.setOnClickListener { answerCurrent(WordCheckInMath.Action.KNOW) }
         b.btnWordUnknown.setOnClickListener { answerCurrent(WordCheckInMath.Action.UNKNOWN) }
-        b.btnWordGraduate.setOnClickListener { answerCurrent(WordCheckInMath.Action.GRADUATE) }
+        b.btnWordGraduate.setOnClickListener { confirmGraduate() }
+        b.btnSummaryDone.setOnClickListener { finish() }
 
-        listOf(b.btnWordAudio, b.btnWordImage, b.btnWordKnow, b.btnWordUnknown, b.btnWordGraduate).forEach { btn ->
+        listOf(
+            b.btnWordPrev, b.btnWordAudio, b.btnWordImage,
+            b.btnWordKnow, b.btnWordUnknown, b.btnWordGraduate, b.btnSummaryDone
+        ).forEach { btn ->
             btn.setOnFocusChangeListener { v, has ->
                 v.animate().scaleX(if (has) 1.07f else 1f).scaleY(if (has) 1.07f else 1f)
                     .setDuration(100).start()
@@ -73,7 +83,6 @@ class WordCheckInActivity : AppCompatActivity() {
             return
         }
         showCard()
-        b.btnWordKnow.requestFocus()
     }
 
     private fun initTts() {
@@ -106,9 +115,12 @@ class WordCheckInActivity : AppCompatActivity() {
         b.ivWordImage.setImageDrawable(null)
         b.tvNoImage.visibility = View.GONE
         b.btnWordImage.text = getString(R.string.word_btn_image)
+        b.btnWordPrev.visibility = if (idx > 0) View.VISIBLE else View.GONE
 
         b.tvWordProgress.text = getString(R.string.word_checkin_progress, idx + 1, queue.size)
-        val mem = Extras.wordMemory(LearningMath.cardId(card))
+        val cid = LearningMath.cardId(card)
+        // 如果之前答过这一题又回退重看，展示作答前的原始阶段更直观
+        val mem = preAnswerSnapshots[cid] ?: Extras.wordMemory(cid)
         b.tvWordStage.text = when {
             mem.isGraduated -> getString(R.string.word_stage_graduated)
             mem.mastery == CardMastery.LEARNING -> getString(R.string.word_stage_learning)
@@ -118,12 +130,39 @@ class WordCheckInActivity : AppCompatActivity() {
         b.tvWordTitle.text = card.title
         b.tvWordSub.text = card.sub
         b.tvWordSub.visibility = if (card.sub.isBlank()) View.GONE else View.VISIBLE
-        b.tvWordNote.text = card.note
-        b.tvWordNote.visibility = if (card.note.isBlank()) View.GONE else View.VISIBLE
+
+        val (wordZh, sentZh) = WordCheckInMath.splitZhNote(card.note)
+        b.tvWordNote.text = wordZh
+        b.tvWordNote.visibility = if (wordZh.isBlank()) View.GONE else View.VISIBLE
         b.tvWordLines.text = card.lines.joinToString("\n")
         b.tvWordLines.visibility = if (card.lines.isEmpty()) View.GONE else View.VISIBLE
+        b.tvWordLineZh.text = sentZh
+        b.tvWordLineZh.visibility = if (sentZh.isBlank()) View.GONE else View.VISIBLE
 
+        // 默认焦点落在「🔊 读音」，防止孩子连按 OK 键误跳过单词
+        b.btnWordAudio.post { b.btnWordAudio.requestFocus() }
         playWordAudio(card)
+    }
+
+    private fun goPrev() {
+        if (idx <= 0) return
+        idx--
+        showCard()
+    }
+
+    private fun confirmGraduate() {
+        val card = currentCard() ?: return
+        val dlg = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
+            .setTitle(getString(R.string.word_graduate_confirm_title, card.title))
+            .setMessage(getString(R.string.word_graduate_confirm_msg))
+            .setPositiveButton(getString(R.string.word_graduate_confirm_ok)) { _, _ ->
+                answerCurrent(WordCheckInMath.Action.GRADUATE)
+            }
+            .setNegativeButton(getString(R.string.word_graduate_confirm_cancel), null)
+            .create()
+        dlg.show()
+        // 默认焦点放到「再留着」，防止孩子连按误封存单词
+        dlg.getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
     }
 
     private fun toggleImage() {
@@ -233,7 +272,12 @@ class WordCheckInActivity : AppCompatActivity() {
         val card = currentCard() ?: return
         val cid = LearningMath.cardId(card)
         val dayKey = ClockGuard.day()
+
+        // 首次在本轮作答时记录原始快照；若回退改判，先恢复快照再按新选项重算
+        val prevSnapshot = preAnswerSnapshots.getOrPut(cid) { Extras.wordMemory(cid) }
+        Extras.restoreWordMemory(cid, prevSnapshot)
         Extras.recordWordMemory(cid, action, dayKey)
+        sessionChoices[cid] = action
         Extras.markWordAnswered(cid, dayKey)
         StateBackup.exportAsync("word_checkin") {}
 
@@ -241,10 +285,23 @@ class WordCheckInActivity : AppCompatActivity() {
             idx++
             showCard()
         } else {
-            Extras.markWordCheckIn(ClockGuard.now())
-            Toast.makeText(this, getString(R.string.word_done_toast, queue.size), Toast.LENGTH_SHORT).show()
-            finish()
+            showSummary()
         }
+    }
+
+    private fun showSummary() {
+        releasePlayer()
+        val now = ClockGuard.now()
+        Extras.markWordCheckIn(now)
+        val knowCnt = sessionChoices.values.count {
+            it == WordCheckInMath.Action.KNOW || it == WordCheckInMath.Action.GRADUATE
+        }
+        val unknownCnt = sessionChoices.values.count { it == WordCheckInMath.Action.UNKNOWN }
+        b.tvSummaryStats.text = getString(R.string.word_summary_stats, queue.size, knowCnt, unknownCnt)
+        b.tvSummaryStreak.text = getString(R.string.word_summary_streak, Extras.wordStreak(now))
+        b.studyContainer.visibility = View.GONE
+        b.summaryCard.visibility = View.VISIBLE
+        b.btnSummaryDone.post { b.btnSummaryDone.requestFocus() }
     }
 
     private fun releasePlayer() {

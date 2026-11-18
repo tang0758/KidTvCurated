@@ -219,6 +219,19 @@ object WordCheckInMath {
         return day.replace("-", "").toLongOrNull() ?: 0L
     }
 
+    /** 把 "苹果 · 我吃一个苹果。" 拆成 (单词中文, 例句中文翻译) */
+    fun splitZhNote(note: String?): Pair<String, String> {
+        val raw = (note ?: "").trim()
+        if (raw.isEmpty()) return "" to ""
+        for (sep in listOf("·", "|", "\n")) {
+            val k = raw.indexOf(sep)
+            if (k >= 0) {
+                return raw.substring(0, k).trim() to raw.substring(k + 1).trim()
+            }
+        }
+        return raw to ""
+    }
+
     fun addDays(day: String, delta: Int): String {
         if (!StateMerge.isDayKey(day) || delta <= 0) return day
         var y = day.substring(0, 4).toInt()

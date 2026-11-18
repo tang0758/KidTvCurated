@@ -129,4 +129,11 @@ class WordCheckInMathTest {
         assertEquals(4, WordCheckInMath.streak(stamps, "2026-03-03"))
         assertEquals(0, WordCheckInMath.streak(stamps, "2026-03-04"))
     }
+
+    @Test
+    fun `splitZhNote splits word meaning and sentence translation`() {
+        assertEquals("苹果" to "我吃一个苹果。", WordCheckInMath.splitZhNote("苹果 · 我吃一个苹果。"))
+        assertEquals("香蕉" to "", WordCheckInMath.splitZhNote("香蕉"))
+        assertEquals("" to "", WordCheckInMath.splitZhNote(null))
+    }
 }
