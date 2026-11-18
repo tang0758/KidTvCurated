@@ -71,7 +71,7 @@ class WordCheckInActivity : AppCompatActivity() {
             b.btnWordKnow, b.btnWordUnknown, b.btnWordGraduate, b.btnSummaryDone
         ).forEach { btn ->
             btn.setOnFocusChangeListener { v, has ->
-                v.animate().scaleX(if (has) 1.07f else 1f).scaleY(if (has) 1.07f else 1f)
+                v.animate().scaleX(if (has) 1.035f else 1f).scaleY(if (has) 1.035f else 1f)
                     .setDuration(100).start()
             }
         }

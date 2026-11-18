@@ -203,7 +203,8 @@ class SectionsAdapter(
         }
         holder.itemView.setOnClickListener { onWordCheckInClick() }
         holder.itemView.setOnFocusChangeListener { v, has ->
-            v.animate().scaleX(if (has) 1.015f else 1f).scaleY(if (has) 1.015f else 1f)
+            // 横条宽度接近屏幕全宽，不横向放大以免左右贴边被裁切，靠 word_entry_bg 金框高亮提示焦点
+            v.animate().scaleX(1f).scaleY(if (has) 1.03f else 1f)
                 .setDuration(120).start()
         }
     }
