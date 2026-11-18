@@ -1,10 +1,10 @@
 package com.family.curated.settings
 
-import android.text.InputType
 import com.family.curated.ParentTools
 import com.family.curated.R
 import com.family.curated.data.AppsConfig
 import com.family.curated.data.Extras
+import com.family.curated.ui.PinPadDialog
 import org.json.JSONObject
 
 /**
@@ -41,29 +41,23 @@ class RulesGroup(private val h: SettingsHost) : SettingsGroup {
     }
 
     private fun askPin() {
-        val input = h.act.inputField(
-            hint = h.str(R.string.set_pin_input_hint),
-            type = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        )
-        val dialog = h.act.darkDialog()
-            .setTitle(h.str(R.string.set_pin_title))
-            .setView(input)
-            .setPositiveButton(h.str(R.string.common_save)) { _, _ ->
-                val v = input.text.toString().trim()
-                if (v.isEmpty()) return@setPositiveButton
-                if (v.length < 4 || v.length > 8 || !v.all { it.isDigit() }) {
-                    h.toast(h.str(R.string.set_pin_invalid), long = true)
-                    return@setPositiveButton
-                }
-                h.save({ root: JSONObject ->
-                    root.put("pin", v)
-                    root.optJSONObject("schedule")?.put("pin", v)
-                }, { Extras.savePin(v) }, h.str(R.string.set_pin))
+        PinPadDialog.showInput(
+            context = h.act,
+            title = h.str(R.string.set_pin_title),
+            hintWhenEmpty = h.str(R.string.set_pin_input_hint),
+            confirmLabel = h.str(R.string.common_save)
+        ) { v, _ ->
+            if (v.isEmpty()) return@showInput true
+            if (v.length < 4 || v.length > 8 || !v.all { it.isDigit() }) {
+                h.toast(h.str(R.string.set_pin_invalid), long = true)
+                return@showInput false
             }
-            .setNegativeButton(h.str(R.string.common_cancel), null)
-            .create()
-        dialog.show()
-        ParentTools.submitOnEnter(input, dialog)
+            h.save({ root: JSONObject ->
+                root.put("pin", v)
+                root.optJSONObject("schedule")?.put("pin", v)
+            }, { Extras.savePin(v) }, h.str(R.string.set_pin))
+            true
+        }
     }
 
     private fun choosePassRatio() {

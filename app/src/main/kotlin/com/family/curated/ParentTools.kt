@@ -3,7 +3,6 @@ package com.family.curated
 import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Intent
-import android.text.InputType
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -13,6 +12,7 @@ import com.family.curated.data.AppCatalog
 import com.family.curated.data.Extras
 import com.family.curated.data.PlaylistWriter
 import com.family.curated.data.Store
+import com.family.curated.ui.PinPadDialog
 
 /**
  * 家长那一侧的几个共用动作：输密码、勾允许的应用、退出到桌面。
@@ -111,31 +111,17 @@ object ParentTools {
         }
     }
 
-    /** 弹 PIN 输入框；密码对才执行 [onOk] */
+    /** 弹虚拟数字键盘 PIN 框；密码对才执行 [onOk] */
     fun askPin(
         activity: AppCompatActivity,
         title: String? = null,
         onOk: () -> Unit
     ) {
-        val input = EditText(activity).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = activity.getString(R.string.pt_pin_hint)
-            setTextColor(0xFFF2F4F8.toInt())
-            setHintTextColor(0xFF7C8797.toInt())
-            textSize = 20f
-            setPadding(40, 24, 40, 24)
-        }
-        val dialog = AlertDialog.Builder(activity, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(title ?: activity.getString(R.string.pt_pin_title_default))
-            .setView(input)
-            .setPositiveButton(activity.getString(R.string.common_confirm)) { _, _ ->
-                if (input.text.toString() == Extras.pin()) onOk()
-                else Toast.makeText(activity, activity.getString(R.string.word_wrong_pin), Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton(activity.getString(R.string.common_cancel), null)
-            .create()
-        dialog.show()
-        submitOnEnter(input, dialog)
+        PinPadDialog.showVerify(
+            context = activity,
+            title = title ?: activity.getString(R.string.pt_pin_title_default),
+            onVerified = onOk
+        )
     }
 
     /** 从电视上已安装的应用里勾选孩子能看到的入口（桌面 / 设置 / 安装器等已过滤） */

@@ -393,6 +393,17 @@ def prepare_payload(cfg: dict, text: str) -> tuple[bytes, list[str]]:
         n = ar.get("intervalSeconds", 15)
         if isinstance(n, bool) or not isinstance(n, int) or not (5 <= n <= 3600):
             warnings.append("autoRefresh.intervalSeconds 应为 5~3600 的整数，电视端会自动夹紧")
+    if "pin" in obj:
+        raw_pin = obj.get("pin")
+        if not isinstance(raw_pin, str) or not re.fullmatch(r"\d{4,8}", raw_pin.strip()):
+            raise SmbError("家长 PIN 必须是 4~8 位数字")
+        obj["pin"] = raw_pin.strip()
+    sched = obj.get("schedule")
+    if isinstance(sched, dict) and "pin" in sched and sched.get("pin") not in (None, ""):
+        raw_sp = sched.get("pin")
+        if not isinstance(raw_sp, str) or not re.fullmatch(r"\d{4,8}", raw_sp.strip()):
+            raise SmbError("时段 PIN (schedule.pin) 必须是 4~8 位数字")
+        sched["pin"] = raw_sp.strip()
     payload = (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     return payload, warnings
 
@@ -1082,11 +1093,12 @@ function f(label, path, opts){
       '</select></label>';
   }
   const t=opts.type==="number"?"number":"text";
-  return '<label class="f">'+esc(label)+'<input type="'+t+'" data-path="'+path+'" value="'+esc(v===undefined?"":v)+'"></label>';
+  const extra=opts.pin?' inputmode="numeric" pattern="[0-9]*" data-pin="1" maxlength="8" placeholder="4~8位数字"':"";
+  return '<label class="f">'+esc(label)+'<input type="'+t+'" data-path="'+path+'"'+extra+' value="'+esc(v===undefined?"":v)+'"></label>';
 }
 function renderGlobal(){
   $("#global").innerHTML =
-    f("家长 PIN","pin") + f("看完比例 passRatio","passRatio",{type:"number"}) +
+    f("家长 PIN（4~8位数字）","pin",{pin:true}) + f("看完比例 passRatio","passRatio",{type:"number"}) +
     f("清单共享 playlistShare","playlistShare") +
     f("时段开关 schedule.enabled","schedule.enabled",{type:"bool"}) +
     f("工作日时段 weekday（JSON 数组）","schedule.weekday",{json:true}) +
@@ -1094,7 +1106,7 @@ function renderGlobal(){
     f("每日时长 dailyLimitMinutes","schedule.dailyLimitMinutes",{type:"number"}) +
     f("做完任务奖励 rewardMinutes","schedule.rewardMinutes",{type:"number"}) +
     f("锁屏提示 lockMessage","schedule.lockMessage") +
-    f("时段 PIN schedule.pin","schedule.pin");
+    f("时段 PIN schedule.pin（4~8位数字）","schedule.pin",{pin:true});
 }
 function renderSections(){
   const secs=Array.isArray(obj.sections)?obj.sections:[];
@@ -1260,6 +1272,10 @@ document.addEventListener("input", e=>{
     ac.entries[i]=en; markDirty(); return;
   }
   if(t.dataset.path && !t.dataset.bool && !t.dataset.json){
+    if(t.dataset.pin){
+      const clean=t.value.replace(/\D/g,"").slice(0,8);
+      if(clean!==t.value) t.value=clean;
+    }
     let v=t.value;
     if(t.type==="number") v = v===""?null:Number(v);
     setPath(obj,t.dataset.path,v); markDirty();

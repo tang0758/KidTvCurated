@@ -1,17 +1,14 @@
 package com.family.curated
 
-import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import android.media.MediaPlayer
@@ -28,6 +25,7 @@ import com.family.curated.data.LearningCard
 import com.family.curated.data.LearningMath
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityLockBinding
+import com.family.curated.ui.PinPadDialog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -421,30 +419,15 @@ class LockActivity : AppCompatActivity() {
     }
 
     private fun showParentOverride() {
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = getString(R.string.lock_pin_hint)
-            setTextColor(0xFFF2F4F8.toInt())
-            setHintTextColor(0xFF7C8797.toInt())
-            textSize = 20f
-            setPadding(40, 24, 40, 24)
+        PinPadDialog.showVerify(
+            context = this,
+            title = getString(R.string.lock_pin_title),
+            message = getString(R.string.lock_pin_msg),
+            confirmLabel = getString(R.string.temp_15)
+        ) {
+            Extras.grantTemp(15)
+            Toast.makeText(this, getString(R.string.lock_granted_15), Toast.LENGTH_SHORT).show()
+            finish()
         }
-        val dialog = AlertDialog.Builder(this, AlertDialog.THEME_DEVICE_DEFAULT_DARK)
-            .setTitle(getString(R.string.lock_pin_title))
-            .setMessage(getString(R.string.lock_pin_msg))
-            .setView(input)
-            .setPositiveButton(getString(R.string.temp_15)) { _, _ ->
-                if (input.text.toString() == Extras.pin()) {
-                    Extras.grantTemp(15)
-                    Toast.makeText(this, getString(R.string.lock_granted_15), Toast.LENGTH_SHORT).show()
-                    finish()
-                } else {
-                    Toast.makeText(this, getString(R.string.word_wrong_pin), Toast.LENGTH_SHORT).show()
-                }
-            }
-            .setNegativeButton(getString(R.string.common_cancel), null)
-            .create()
-        dialog.show()
-        ParentTools.submitOnEnter(input, dialog)
     }
 }

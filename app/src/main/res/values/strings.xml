@@ -85,6 +85,8 @@
     <string name="set_temp_release">临时放行</string>
     <string name="set_temp_hint_active">放行中，到点自动恢复</string>
     <string name="set_temp_hint_idle">不锁屏，到点结束</string>
+    <string name="set_lock_now">立刻回到锁屏</string>
+    <string name="set_lock_now_hint">结束当前放行，立即显示锁屏页</string>
     <string name="set_reset_today">今天全部重来</string>
     <string name="set_reset_today_hint">清掉今天的完成记录</string>
     <string name="set_reset_today_confirm">今天全部重来？</string>
@@ -293,4 +295,10 @@
     <string name="word_done_toast">太棒了！今日 %1$d 个单词打卡完成！</string>
     <string name="word_empty_toast">暂无单词可打卡，已自动解锁</string>
     <string name="word_need_checkin">还要完成今日英语打卡</string>
+
+    <!-- ==================== 虚拟数字键盘 (PIN) ==================== -->
+    <string name="pin_pad_backspace">⌫ 退格</string>
+    <string name="pin_pad_clear">清空</string>
+    <string name="pin_pad_empty_hint">方向键选数字，或直接按遥控数字键</string>
+    <string name="pin_pad_count">已输入 %1$d 位</string>
 </resources>

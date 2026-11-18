@@ -1,10 +1,13 @@
 package com.family.curated.settings
 
+import android.content.Intent
+import com.family.curated.LockActivity
 import com.family.curated.ParentTools
 import com.family.curated.R
 import com.family.curated.data.Covers
 import com.family.curated.data.Diag
 import com.family.curated.data.Extras
+import com.family.curated.data.GateKeeper
 import com.family.curated.data.PlaylistSync
 import com.family.curated.data.Repo
 import com.family.curated.data.Smb
@@ -28,6 +31,13 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
                     h.str(R.string.set_temp_hint_active) else h.str(R.string.set_temp_hint_idle),
                 tempText()
             ) { chooseTemp() }
+        )
+        add(
+            Entry.Row(
+                h.str(R.string.set_lock_now),
+                h.str(R.string.set_lock_now_hint),
+                ""
+            ) { lockNow() }
         )
         add(
             Entry.Row(h.str(R.string.set_reset_today), h.str(R.string.set_reset_today_hint), "") {
@@ -90,6 +100,21 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
                 }
             }
         )
+    }
+
+    // ---------------- 立刻回到锁屏 ----------------
+
+    private fun lockNow() {
+        Extras.clearTemp()
+        // 当前若仍在允许时段内且未超额，仅清 tempUntil 会被门禁立刻放行收掉，需同步激活暂停锁
+        if (GateKeeper.status().open) {
+            Extras.setRemoteLock(true)
+        }
+        h.act.startActivity(
+            Intent(h.act, LockActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        )
+        h.act.finish()
     }
 
     // ---------------- 临时放行 ----------------

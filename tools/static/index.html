@@ -664,9 +664,9 @@ function renderRules(){
   if (!S.data) return;
   const d = S.data, sch = d.schedule;
   let h = '<div class="card"><h3>家长设置</h3><div class="fields">' +
-    "<label>家长 PIN（4 位）<input data-bind=\"pin\" maxlength=\"4\" value=\"" + esc(d.pin) + "\"></label>" +
+    "<label>家长 PIN（4~8 位数字）<input type=\"text\" inputmode=\"numeric\" pattern=\"[0-9]*\" data-bind=\"pin\" data-pin=\"1\" maxlength=\"8\" placeholder=\"1234\" value=\"" + esc(d.pin) + "\"></label>" +
     "<label>看完比例<input type=\"number\" step=\"0.01\" data-type=\"number\" data-bind=\"passRatio\" value=\"" + esc(d.passRatio) + "\"></label>" +
-    "</div><p class=\"empty\">PIN 用于家长菜单、临时放行；装好请改掉默认 1234。</p></div>";
+    "</div><p class=\"empty\">PIN 仅限 4~8 位数字，用于家长菜单、临时放行；装好请改掉默认 1234。</p></div>";
   if (!sch){
     h += '<div class="card"><h3>时段限制</h3><p class="empty">当前不限制时段和时长。</p>' +
       '<button class="primary" data-act="enableSchedule">启用时段与时长限制</button></div>';
@@ -1016,6 +1016,20 @@ async function loadCounts(){
 async function saveTo(target){
   try {
     const d = payload();
+    const pinStr = String(d.pin == null ? "" : d.pin).trim();
+    if (!/^\d{4,8}$/.test(pinStr)) {
+      toast("家长 PIN 必须是 4~8 位数字", true, 5000);
+      return;
+    }
+    d.pin = pinStr;
+    if (d.schedule && typeof d.schedule === "object" && d.schedule.pin !== undefined && d.schedule.pin !== "") {
+      const sp = String(d.schedule.pin).trim();
+      if (!/^\d{4,8}$/.test(sp)) {
+        toast("时段 PIN 必须是 4~8 位数字", true, 5000);
+        return;
+      }
+      d.schedule.pin = sp;
+    }
     if (!d.sections.length) { toast("片单里一个分区都没有，确定要保存？再点一次可强制保存", true); }
     const r = await api("/api/config", {method:"POST", body:JSON.stringify({data:d, target:target})});
     toast(r.message, false, 5000);
@@ -1101,6 +1115,10 @@ function bindInput(e){
     return;
   }
   if (!t.dataset || !t.dataset.bind) return;
+  if (t.dataset.pin) {
+    const clean = t.value.replace(/\D/g, "").slice(0, 8);
+    if (clean !== t.value) t.value = clean;
+  }
   let v = t.type === "checkbox" ? t.checked : t.value;
   if (t.dataset.type === "number") v = Number(v);
   setPath(S.data, t.dataset.bind, v);

@@ -293,6 +293,21 @@ def read_remote(cfg: dict) -> str:
         c.close()
 
 
+def validate_pin_fields(payload: dict) -> None:
+    """校验并规范化家长 PIN 字段，强制仅允许 4~8 位数字。"""
+    if "pin" in payload:
+        raw = payload.get("pin")
+        if not isinstance(raw, str) or not re.fullmatch(r"\d{4,8}", raw.strip()):
+            raise SmbError("家长 PIN 必须是 4~8 位数字")
+        payload["pin"] = raw.strip()
+    sched = payload.get("schedule")
+    if isinstance(sched, dict) and "pin" in sched and sched.get("pin") not in (None, ""):
+        raw_sp = sched.get("pin")
+        if not isinstance(raw_sp, str) or not re.fullmatch(r"\d{4,8}", raw_sp.strip()):
+            raise SmbError("时段 PIN 必须是 4~8 位数字")
+        sched["pin"] = raw_sp.strip()
+
+
 def write_remote(cfg: dict, text: str) -> str:
     share = cfg["playlistShare"]
     path = norm(cfg["playlistPath"])
@@ -1311,6 +1326,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload = data.get("data")
                 if not isinstance(payload, dict) or "sections" not in payload:
                     raise SmbError("清单格式不对：必须是含 sections 的 JSON 对象")
+                validate_pin_fields(payload)
                 # 电视靠 tv.json 里的 nas 段连 SMB。控制台知道真实密码（前端不回显），
                 # 保存时自动同步成当前连接设置，避免用户载入模板后忘改占位符账号。
                 cfg = current_cfg()

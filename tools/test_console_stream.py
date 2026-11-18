@@ -267,6 +267,25 @@ class LearningApiTest(unittest.TestCase):
         with self.assertRaises(console.SmbError):
             console.save_learning_image({}, "word_cat", "cat.png", big)
 
+    def test_validate_pin_fields_digits_only(self):
+        good = {"pin": " 123456 ", "schedule": {"pin": "8888"}}
+        console.validate_pin_fields(good)
+        self.assertEqual(good["pin"], "123456")
+        self.assertEqual(good["schedule"]["pin"], "8888")
+        console.validate_pin_fields({"pin": "1234", "schedule": {"pin": ""}})
+        for bad in [
+            {"pin": "abcd"},
+            {"pin": "123a"},
+            {"pin": "123"},
+            {"pin": "123456789"},
+            {"pin": 1234},
+            {"pin": ""},
+            {"pin": "1234", "schedule": {"pin": "ab12"}},
+        ]:
+            with self.subTest(bad=bad):
+                with self.assertRaises(console.SmbError):
+                    console.validate_pin_fields(dict(bad))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
