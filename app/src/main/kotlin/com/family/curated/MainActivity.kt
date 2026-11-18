@@ -91,14 +91,6 @@ class MainActivity : AppCompatActivity() {
                 .setDuration(120).start()
         }
 
-        b.cardWordCheckIn.setOnClickListener {
-            startActivity(Intent(this, WordCheckInActivity::class.java))
-        }
-        b.cardWordCheckIn.setOnFocusChangeListener { v, has ->
-            v.animate().scaleX(if (has) 1.02f else 1f).scaleY(if (has) 1.02f else 1f)
-                .setDuration(120).start()
-        }
-
         // 家长控制：先要 PIN，再进设置页（设置页里能改时段、上限、密码等）
         b.btnParent.setOnClickListener {
             ParentTools.askPin(this, "家长控制") { openSettings() }
@@ -225,6 +217,9 @@ class MainActivity : AppCompatActivity() {
 
         val a = SectionsAdapter(
             this, shown, cfg, skipGateOnce,
+            onWordCheckInClick = {
+                startActivity(Intent(this, WordCheckInActivity::class.java))
+            },
             onItemClick = { section, item -> onItemClick(section, item) },
             onItemFocus = { section, item ->
                 lastFocusSection = section.key
@@ -244,6 +239,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun focusFirstCard() {
         val a = adapter ?: return
+        // 如果今日单词还没打完，焦点先落在列表第 0 行的「每日英语打卡」入口；否则落到第一张视频海报
+        if (!a.wordDoneToday()) {
+            val wordVh = b.rvSections.findViewHolderForAdapterPosition(0) as? SectionsAdapter.WordVH
+            if (wordVh != null && wordVh.itemView.requestFocus()) return
+        }
         for (i in 0 until a.itemCount) {
             val vh = b.rvSections.findViewHolderForAdapterPosition(i) as? SectionsAdapter.SectionVH ?: continue
             val child = vh.row.getChildAt(0)
@@ -252,6 +252,8 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
+        val fallback = b.rvSections.findViewHolderForAdapterPosition(0) as? SectionsAdapter.WordVH
+        fallback?.itemView?.requestFocus()
     }
 
     /**
@@ -289,25 +291,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateWordCheckInEntry() {
-        val (allWords, dailyCount) = LearningLibrary.loadOnlineWords(Store.cachedLearningJson)
-        val dayKey = ClockGuard.day()
-        val queue = Extras.ensureTodayWordQueue(allWords, dailyCount, dayKey)
-        val answered = Extras.wordAnswered(dayKey)
-        val doneCount = queue.count { it in answered }
-        val total = queue.size
-        val finished = total == 0 || doneCount >= total
-        if (finished) {
-            b.tvWordEntryStatus.text = getString(R.string.word_entry_done, Extras.wordStreak())
-            b.tvWordEntryStatus.setTextColor(getColor(R.color.done_green))
-        } else {
-            b.tvWordEntryStatus.text = getString(R.string.word_entry_progress, doneCount, total)
-            b.tvWordEntryStatus.setTextColor(getColor(R.color.accent))
-        }
-    }
-
     private fun updateHeader() {
-        updateWordCheckInEntry()
         val a = adapter ?: return
         val total = a.gateTotal()
         val left = a.gateRemaining()
