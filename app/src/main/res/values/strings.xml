@@ -272,9 +272,14 @@
     <string name="word_btn_audio">🔊 读音</string>
     <string name="word_btn_image">🖼 看图</string>
     <string name="word_btn_image_hide">🖼 收起图</string>
-    <string name="word_btn_know">✅ 认识</string>
-    <string name="word_btn_unknown">⭐ 不认识</string>
-    <string name="word_hint_keys">点击「看图」可看图片提示 · 选「认识」或「不认识」进入下一个</string>
+    <string name="word_btn_know">💗 认识</string>
+    <string name="word_btn_unknown">💔 不认识</string>
+    <string name="word_btn_graduate">🉐 不再显示</string>
+    <string name="word_stage_new">新词</string>
+    <string name="word_stage_learning">💔 重点复习</string>
+    <string name="word_stage_review">💗 认识 %1$d/5</string>
+    <string name="word_stage_graduated">🉐 已熟记</string>
+    <string name="word_hint_keys">点击「看图」可看图片提示 · 选「认识」满5次后自动不再显示，或直接点「不再显示」</string>
     <string name="word_no_image">这个单词暂无配图</string>
     <string name="word_done_toast">太棒了！今日 %1$d 个单词打卡完成！</string>
     <string name="word_empty_toast">暂无单词可打卡，已自动解锁</string>

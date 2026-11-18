@@ -17,8 +17,11 @@ object StateMerge {
     /** 备份格式版本。读到更大的版本号就整份忽略，免得旧 App 乱解释新字段 */
     const val VERSION = 1
 
-    /** 备份这些前缀下的长整数键（时长、进度、防跳看、最近点开、学习掌握度标签） */
-    val LONG_PREFIXES = listOf("watch_", "ext_", "vids_", "pos_", "dur_", "front_", "played_", "ltag_", "ltag_ts_")
+    /** 备份这些前缀下的长整数键（时长、进度、防跳看、最近点开、学习掌握度与艾宾浩斯记忆阶段） */
+    val LONG_PREFIXES = listOf(
+        "watch_", "ext_", "vids_", "pos_", "dur_", "front_", "played_",
+        "ltag_", "ltag_ts_", "lstage_", "ldue_"
+    )
 
     /**
      * 其中这一组是「用量」，重装后必须**自动**补回来：
@@ -28,7 +31,10 @@ object StateMerge {
     val USAGE_PREFIXES = listOf("watch_", "ext_", "vids_")
 
     /** 进度/打卡/学习标签这类「记录」，导入前要问家长：他可能刚故意清空过 */
-    private val RECORD_PREFIXES = listOf("pos_", "dur_", "front_", "played_", "ltag_", "ltag_ts_")
+    private val RECORD_PREFIXES = listOf(
+        "pos_", "dur_", "front_", "played_",
+        "ltag_", "ltag_ts_", "lstage_", "ldue_"
+    )
 
     /** 单条键名上限，防止备份文件被写坏后塞进超长垃圾 */
     private const val MAX_KEY_LEN = 200
@@ -109,8 +115,14 @@ object StateMerge {
         stamps.addAll(remote.stamps)
         val longs = LinkedHashMap(local.longs)
         remote.longs.forEach { (k, v) ->
-            if (k.startsWith("ltag_") && !k.startsWith("ltag_ts_")) {
-                val cardId = k.removePrefix("ltag_")
+            val lwwPrefix = when {
+                k.startsWith("ltag_") && !k.startsWith("ltag_ts_") -> "ltag_"
+                k.startsWith("lstage_") -> "lstage_"
+                k.startsWith("ldue_") -> "ldue_"
+                else -> null
+            }
+            if (lwwPrefix != null) {
+                val cardId = k.removePrefix(lwwPrefix)
                 val localTs = local.longs["ltag_ts_$cardId"] ?: 0L
                 val remoteTs = remote.longs["ltag_ts_$cardId"] ?: 0L
                 if (remoteTs >= localTs) {

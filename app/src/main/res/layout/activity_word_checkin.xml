@@ -26,6 +26,19 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tvWordStage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/pill_bg"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp" />
+
+        <TextView
             android:id="@+id/tvWordProgress"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -125,7 +138,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- 底部交互按钮：读音 / 看图 / 认识 / 不认识 -->
+    <!-- 底部交互按钮：读音 / 看图 / 认识 / 不认识 / 不再显示 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -136,50 +149,62 @@
             android:id="@+id/btnWordAudio"
             android:layout_width="0dp"
             android:layout_height="68dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="16dp"
+            android:layout_weight="0.9"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/pill_bg"
             android:focusable="true"
             android:text="@string/word_btn_audio"
             android:textColor="#FFFFFF"
-            android:textSize="22sp" />
+            android:textSize="20sp" />
 
         <Button
             android:id="@+id/btnWordImage"
             android:layout_width="0dp"
             android:layout_height="68dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="16dp"
+            android:layout_weight="0.9"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/pill_bg"
             android:focusable="true"
             android:text="@string/word_btn_image"
             android:textColor="#FFFFFF"
-            android:textSize="22sp" />
+            android:textSize="20sp" />
 
         <Button
             android:id="@+id/btnWordKnow"
             android:layout_width="0dp"
             android:layout_height="68dp"
-            android:layout_weight="1.2"
-            android:layout_marginEnd="16dp"
+            android:layout_weight="1.1"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/pill_bg"
             android:focusable="true"
             android:text="@string/word_btn_know"
             android:textColor="@color/done_green"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnWordUnknown"
             android:layout_width="0dp"
             android:layout_height="68dp"
-            android:layout_weight="1.2"
+            android:layout_weight="1.1"
+            android:layout_marginEnd="12dp"
             android:background="@drawable/pill_bg"
             android:focusable="true"
             android:text="@string/word_btn_unknown"
             android:textColor="@color/accent"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnWordGraduate"
+            android:layout_width="0dp"
+            android:layout_height="68dp"
+            android:layout_weight="1.1"
+            android:background="@drawable/pill_bg"
+            android:focusable="true"
+            android:text="@string/word_btn_graduate"
+            android:textColor="#94A3B8"
+            android:textSize="20sp" />
     </LinearLayout>
 
     <TextView

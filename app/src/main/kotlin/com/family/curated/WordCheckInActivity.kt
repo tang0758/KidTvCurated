@@ -21,6 +21,7 @@ import com.family.curated.data.MediaGateway
 import com.family.curated.data.Smb
 import com.family.curated.data.StateBackup
 import com.family.curated.data.Store
+import com.family.curated.data.WordCheckInMath
 import com.family.curated.databinding.ActivityWordCheckinBinding
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -54,10 +55,11 @@ class WordCheckInActivity : AppCompatActivity() {
 
         b.btnWordAudio.setOnClickListener { currentCard()?.let { playWordAudio(it) } }
         b.btnWordImage.setOnClickListener { toggleImage() }
-        b.btnWordKnow.setOnClickListener { answerCurrent(CardMastery.MASTERED) }
-        b.btnWordUnknown.setOnClickListener { answerCurrent(CardMastery.LEARNING) }
+        b.btnWordKnow.setOnClickListener { answerCurrent(WordCheckInMath.Action.KNOW) }
+        b.btnWordUnknown.setOnClickListener { answerCurrent(WordCheckInMath.Action.UNKNOWN) }
+        b.btnWordGraduate.setOnClickListener { answerCurrent(WordCheckInMath.Action.GRADUATE) }
 
-        listOf(b.btnWordAudio, b.btnWordImage, b.btnWordKnow, b.btnWordUnknown).forEach { btn ->
+        listOf(b.btnWordAudio, b.btnWordImage, b.btnWordKnow, b.btnWordUnknown, b.btnWordGraduate).forEach { btn ->
             btn.setOnFocusChangeListener { v, has ->
                 v.animate().scaleX(if (has) 1.07f else 1f).scaleY(if (has) 1.07f else 1f)
                     .setDuration(100).start()
@@ -106,6 +108,13 @@ class WordCheckInActivity : AppCompatActivity() {
         b.btnWordImage.text = getString(R.string.word_btn_image)
 
         b.tvWordProgress.text = getString(R.string.word_checkin_progress, idx + 1, queue.size)
+        val mem = Extras.wordMemory(LearningMath.cardId(card))
+        b.tvWordStage.text = when {
+            mem.isGraduated -> getString(R.string.word_stage_graduated)
+            mem.mastery == CardMastery.LEARNING -> getString(R.string.word_stage_learning)
+            mem.stage > 0 -> getString(R.string.word_stage_review, mem.stage)
+            else -> getString(R.string.word_stage_new)
+        }
         b.tvWordTitle.text = card.title
         b.tvWordSub.text = card.sub
         b.tvWordSub.visibility = if (card.sub.isBlank()) View.GONE else View.VISIBLE
@@ -220,11 +229,11 @@ class WordCheckInActivity : AppCompatActivity() {
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "word_speak")
     }
 
-    private fun answerCurrent(mastery: CardMastery) {
+    private fun answerCurrent(action: WordCheckInMath.Action) {
         val card = currentCard() ?: return
         val cid = LearningMath.cardId(card)
         val dayKey = ClockGuard.day()
-        Extras.setCardMastery(cid, mastery)
+        Extras.recordWordMemory(cid, action, dayKey)
         Extras.markWordAnswered(cid, dayKey)
         StateBackup.exportAsync("word_checkin") {}
 

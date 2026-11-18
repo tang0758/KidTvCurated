@@ -480,7 +480,47 @@ object Extras {
         return result
     }
 
-    // ---------- 每日单词打卡（FR-35 / OPT-34，与看片 stamps 严格隔离） ----------
+    // ---------- 每日单词打卡（FR-35 / OPT-34 · 艾宾浩斯记忆阶段，与 stamps 严格隔离） ----------
+
+    fun wordMemory(cardId: String): WordCheckInMath.MemoryState {
+        val sp = p()
+        val stage = sp.getLong("lstage_$cardId", 0L).toInt().coerceIn(0, WordCheckInMath.GRADUATE_STAGE)
+        val due = sp.getLong("ldue_$cardId", 0L)
+        val mastery = cardMastery(cardId)
+        return WordCheckInMath.MemoryState(stage = stage, dueDayNum = due, mastery = mastery)
+    }
+
+    fun allWordMemories(): Map<String, WordCheckInMath.MemoryState> {
+        val all = p().all
+        val ids = HashSet<String>()
+        all.keys.forEach { k ->
+            when {
+                k.startsWith("ltag_") && !k.startsWith("ltag_ts_") -> ids.add(k.removePrefix("ltag_"))
+                k.startsWith("lstage_") -> ids.add(k.removePrefix("lstage_"))
+                k.startsWith("ldue_") -> ids.add(k.removePrefix("ldue_"))
+            }
+        }
+        val res = HashMap<String, WordCheckInMath.MemoryState>(ids.size)
+        for (id in ids) res[id] = wordMemory(id)
+        return res
+    }
+
+    fun recordWordMemory(
+        cardId: String,
+        action: WordCheckInMath.Action,
+        dayKey: String = day()
+    ): WordCheckInMath.TransitionResult {
+        val cur = wordMemory(cardId)
+        val next = WordCheckInMath.nextMemory(cur.stage, action, dayKey)
+        val now = ClockGuard.now()
+        p().edit()
+            .putLong("lstage_$cardId", next.nextStage.toLong())
+            .putLong("ldue_$cardId", next.nextDueDayNum)
+            .putLong("ltag_$cardId", next.nextMastery.value.toLong())
+            .putLong("ltag_ts_$cardId", now)
+            .apply()
+        return next
+    }
 
     fun wordStamps(): MutableSet<String> =
         HashSet(p().getStringSet("word_stamps", emptySet()) ?: emptySet())
@@ -521,7 +561,7 @@ object Extras {
         val existing = wordQueue(dayKey)
         if (existing.isNotEmpty()) return existing
         val seed = dayKey.hashCode().toLong()
-        val picked = WordCheckInMath.pickDailyWords(allWords, allCardMasteries(), dailyCount, seed)
+        val picked = WordCheckInMath.pickDailyWords(allWords, allWordMemories(), dayKey, dailyCount, seed)
         val ids = picked.map { LearningMath.cardId(it) }
         if (ids.isNotEmpty()) {
             p().edit().putString("word_queue_$dayKey", ids.joinToString(",")).apply()

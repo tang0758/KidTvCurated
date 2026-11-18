@@ -11,23 +11,77 @@ class WordCheckInMathTest {
         LearningCard(type = CardType.WORD, title = name, id = id)
 
     @Test
-    fun `pickDailyWords prioritizes LEARNING then UNMARKED then MASTERED`() {
-        val cards = listOf(w("a"), w("b"), w("c"), w("d"), w("e"))
-        val mastery = mapOf(
-            "word_a" to CardMastery.MASTERED,
-            "word_b" to CardMastery.LEARNING,
-            "word_c" to CardMastery.UNMARKED,
-            "word_d" to CardMastery.MASTERED,
-            "word_e" to CardMastery.LEARNING
-        )
-        val picked = WordCheckInMath.pickDailyWords(cards, mastery, count = 4, seed = 42L)
-        assertEquals(4, picked.size)
-        // 前两个必为 LEARNING（b, e）
-        assertEquals(setOf("b", "e"), picked.subList(0, 2).map { it.title }.toSet())
-        // 第 3 个必为 UNMARKED（c）
-        assertEquals("c", picked[2].title)
-        // 第 4 个从 MASTERED 兜底补充（a 或 d）
-        assertTrue(picked[3].title in setOf("a", "d"))
+    fun `nextMemory follows Ebbinghaus 1-2-4-7 and graduates at stage 5`() {
+        val today = "2026-11-18"
+        val r1 = WordCheckInMath.nextMemory(0, WordCheckInMath.Action.KNOW, today)
+        assertEquals(1, r1.nextStage)
+        assertEquals(20261119L, r1.nextDueDayNum)
+        assertEquals(CardMastery.UNMARKED, r1.nextMastery)
+
+        val r2 = WordCheckInMath.nextMemory(1, WordCheckInMath.Action.KNOW, today)
+        assertEquals(2, r2.nextStage)
+        assertEquals(20261120L, r2.nextDueDayNum)
+
+        val r3 = WordCheckInMath.nextMemory(2, WordCheckInMath.Action.KNOW, today)
+        assertEquals(3, r3.nextStage)
+        assertEquals(20261122L, r3.nextDueDayNum)
+
+        val r4 = WordCheckInMath.nextMemory(3, WordCheckInMath.Action.KNOW, today)
+        assertEquals(4, r4.nextStage)
+        assertEquals(20261125L, r4.nextDueDayNum)
+
+        val r5 = WordCheckInMath.nextMemory(4, WordCheckInMath.Action.KNOW, today)
+        assertEquals(5, r5.nextStage)
+        assertEquals(CardMastery.MASTERED, r5.nextMastery)
+    }
+
+    @Test
+    fun `nextMemory steps back 2 stages on UNKNOWN and marks LEARNING`() {
+        val today = "2026-11-18"
+        val rFrom4 = WordCheckInMath.nextMemory(4, WordCheckInMath.Action.UNKNOWN, today)
+        assertEquals(2, rFrom4.nextStage)
+        assertEquals(20261119L, rFrom4.nextDueDayNum)
+        assertEquals(CardMastery.LEARNING, rFrom4.nextMastery)
+
+        val rFrom1 = WordCheckInMath.nextMemory(1, WordCheckInMath.Action.UNKNOWN, today)
+        assertEquals(0, rFrom1.nextStage)
+        assertEquals(20261119L, rFrom1.nextDueDayNum)
+        assertEquals(CardMastery.LEARNING, rFrom1.nextMastery)
+    }
+
+    @Test
+    fun `nextMemory graduates immediately on GRADUATE action`() {
+        val r = WordCheckInMath.nextMemory(1, WordCheckInMath.Action.GRADUATE, "2026-11-18")
+        assertEquals(WordCheckInMath.GRADUATE_STAGE, r.nextStage)
+        assertEquals(CardMastery.MASTERED, r.nextMastery)
+    }
+
+    @Test
+    fun `pickDailyWords excludes graduated and reserves quota for new words`() {
+        val today = "2026-11-18"
+        val cards = (1..14).map { w("w$it") }
+        val mem = mutableMapOf<String, WordCheckInMath.MemoryState>()
+        // w1..w2: 毕业（不再显示）
+        mem["word_w1"] = WordCheckInMath.MemoryState(stage = 5, dueDayNum = 20300101L, mastery = CardMastery.MASTERED)
+        mem["word_w2"] = WordCheckInMath.MemoryState(stage = 5, dueDayNum = 20300101L, mastery = CardMastery.MASTERED)
+        // w3..w10: 8 个全部是今天到期的复习词（其中 w3 是 💔 不认识）
+        mem["word_w3"] = WordCheckInMath.MemoryState(stage = 0, dueDayNum = 20261118L, mastery = CardMastery.LEARNING)
+        for (i in 4..10) {
+            mem["word_w$i"] = WordCheckInMath.MemoryState(stage = 2, dueDayNum = 20261118L, mastery = CardMastery.UNMARKED)
+        }
+        // w11..w14: 4 个新词（不在 mem 中）
+
+        val picked = WordCheckInMath.pickDailyWords(cards, mem, today, count = 10, seed = 42L)
+        assertEquals(10, picked.size)
+        val pickedIds = picked.map { it.id }.toSet()
+        // 毕业词绝不出现在还有未学/复习词的队列中
+        assertFalse("word_w1" in pickedIds)
+        assertFalse("word_w2" in pickedIds)
+        // 💔 不认识词必中
+        assertTrue("word_w3" in pickedIds)
+        // 至少保留 3 个名额给新词
+        val newPickedCount = pickedIds.count { it in setOf("word_w11", "word_w12", "word_w13", "word_w14") }
+        assertTrue(newPickedCount >= 3)
     }
 
     @Test
@@ -43,7 +97,7 @@ class WordCheckInMathTest {
     }
 
     @Test
-    fun `pickDailyWords cycles MASTERED when all words mastered`() {
+    fun `pickDailyWords cycles graduated words only when all words graduated`() {
         val cards = (1..15).map { w("w$it") }
         val mastery = cards.associate { it.id to CardMastery.MASTERED }
         val picked = WordCheckInMath.pickDailyWords(cards, mastery, count = 10, seed = 7L)
@@ -72,9 +126,7 @@ class WordCheckInMathTest {
     fun `streak counts consecutive days including month and year boundaries`() {
         val stamps = setOf("2026-02-27", "2026-02-28", "2026-03-01", "2026-03-02")
         assertEquals(4, WordCheckInMath.streak(stamps, "2026-03-02"))
-        // 今天未打、昨天打了，连续天数仍从昨天算
         assertEquals(4, WordCheckInMath.streak(stamps, "2026-03-03"))
-        // 断了一天归零
         assertEquals(0, WordCheckInMath.streak(stamps, "2026-03-04"))
     }
 }
