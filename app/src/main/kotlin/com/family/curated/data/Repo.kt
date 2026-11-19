@@ -18,7 +18,12 @@ object Repo {
     @Volatile private var lastDiscoverAt = 0L
     private const val DISCOVER_COOLDOWN_MS = 10 * 60 * 1000L
 
-    data class LoadResult(val playlist: Playlist, val fromCache: Boolean, val error: String?)
+    data class LoadResult(
+        val playlist: Playlist,
+        val fromCache: Boolean,
+        val error: String?,
+        val tvRawText: String? = null
+    )
 
     /** 首次启动用的默认 NAS；清单里的 nas 段会覆盖它 */
     private val DEFAULT_NAS = Store.DEFAULT_NAS
@@ -44,7 +49,7 @@ object Repo {
             Store.saveNas(cfg)
             if (pl.nas != null && pl.nas.host.isNotBlank()) Store.saveNas(pl.nas)
             syncLearningQuietly(cfg, usedShare)
-            return LoadResult(expandAuto(pl), false, null)
+            return LoadResult(expandAuto(pl), false, null, text)
         } catch (e: Exception) {
             val where = "${cfg.host}:${cfg.port}/$usedShare/${Store.playlistPath}"
             Log.w(TAG, "从 NAS 读取清单失败 ($where): ${e.message}")
@@ -110,14 +115,20 @@ object Repo {
         throw last ?: Exception("找不到 $path")
     }
 
-    /** 静默同步 NAS 在线词库 curated/learning.json，失败不阻塞片单主流程 */
-    private fun syncLearningQuietly(cfg: NasConfig, share: String) {
-        try {
+    /** 静默同步 NAS 在线词库 curated/learning.json，失败不阻塞片单主流程；返回内容是否有变化 */
+    fun syncLearningQuietly(cfg: NasConfig, share: String): Boolean {
+        return try {
             val bytes = Smb.readAllIsolated(cfg, share, "curated/learning.json")
-            val text = String(bytes, Charsets.UTF_8)
-            if (text.isNotBlank()) Store.cachedLearningJson = text
+            val text = String(bytes, Charsets.UTF_8).trimStart('\uFEFF')
+            if (text.isNotBlank() && text != Store.cachedLearningJson) {
+                Store.cachedLearningJson = text
+                true
+            } else {
+                false
+            }
         } catch (_: Exception) {
             // 词库不存在或读取失败时保持已有缓存 / 兜底内置 78 词
+            false
         }
     }
 
@@ -173,7 +184,7 @@ object Repo {
      * 把带 auto 的分区展开成今天的实际条目：
      * 从文件夹里按天轮换，每天取 count 个，不会重复（一轮放完再从头开始）。
      */
-    private fun expandAuto(pl: Playlist): Playlist {
+    fun expandAuto(pl: Playlist): Playlist {
         if (pl.sections.none { it.autoFolder != null }) return pl
         val cfg = Store.nas() ?: pl.nas ?: return pl
         val start = Store.rotationStart()

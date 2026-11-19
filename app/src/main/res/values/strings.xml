@@ -257,6 +257,7 @@
     <string name="lock_marked_mastered">已标记：认识了</string>
     <string name="lock_marked_learning">已标记：重点再学</string>
     <string name="lock_hint_v2">◀ ▶ 换一张 · OK 朗读 · ▲ 认识了 · ▼ 再学学</string>
+    <string name="lock_no_audio">当前卡片没有音频</string>
 
     <!-- ==================== 卡片管理与剧集 ==================== -->
     <string name="ctx_card_manage">卡片管理</string>
@@ -301,4 +302,11 @@
     <string name="pin_pad_clear">清空</string>
     <string name="pin_pad_empty_hint">方向键选数字，或直接按遥控数字键</string>
     <string name="pin_pad_count">已输入 %1$d 位</string>
+
+    <!-- ==================== 配置版本号 ==================== -->
+    <string name="config_version_badge">配置 %1$s</string>
+    <string name="config_version_unset">未标记</string>
+    <string name="main_config_updated_toast">片单已更新（配置 %1$s）</string>
+    <string name="set_footer_with_cfg">方向键选择 · OK 修改 · 返回键回到片单 · v%1$s(%2$d) · 配置 %3$s</string>
+    <string name="set_about_config_ver">当前配置版本：%1$s\n</string>
 </resources>

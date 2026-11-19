@@ -4,9 +4,11 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
@@ -47,12 +49,23 @@ class LockActivity : AppCompatActivity() {
     private var leftSeconds = 20
     private var paused = false
 
+    private var dimmed = false
+    private var lastInteractionAt = 0L
+    private var swallowKeyUpCode: Int? = null
+    private var swallowTouchUntilUp = false
+    private var originalBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+
     private val tick = object : Runnable {
         override fun run() {
             render()
             if (!isFinishing && learning.enabled && deck.isNotEmpty() && !paused) {
                 leftSeconds--
                 if (leftSeconds <= 0) nextCard() else updateCardTimer()
+            }
+            if (!isFinishing && !dimmed && hasWindowFocus() &&
+                SystemClock.elapsedRealtime() - lastInteractionAt >= DIM_IDLE_TIMEOUT_MS
+            ) {
+                enterDimMode()
             }
             ui.postDelayed(this, 1000)
         }
@@ -65,6 +78,7 @@ class LockActivity : AppCompatActivity() {
         b = ActivityLockBinding.inflate(layoutInflater)
         setContentView(b.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        originalBrightness = window.attributes.screenBrightness
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -80,6 +94,7 @@ class LockActivity : AppCompatActivity() {
         ui.removeCallbacks(tick)
         paused = false
         leftSeconds = learning.intervalSeconds
+        wakeFromDim(animate = false)
         prepareCards()
         ui.post(tick)
     }
@@ -87,6 +102,62 @@ class LockActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         ui.removeCallbacks(tick)
+        swallowKeyUpCode = null
+        swallowTouchUntilUp = false
+        wakeFromDim(animate = false)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && !dimmed) {
+            lastInteractionAt = SystemClock.elapsedRealtime()
+        }
+    }
+
+    private fun enterDimMode() {
+        if (dimmed) return
+        dimmed = true
+        applyBrightness(true)
+        b.dimOverlay.animate().cancel()
+        b.dimOverlay.visibility = View.VISIBLE
+        b.dimOverlay.animate().alpha(DIM_OVERLAY_ALPHA).setDuration(600).start()
+    }
+
+    private fun wakeFromDim(animate: Boolean = true) {
+        lastInteractionAt = SystemClock.elapsedRealtime()
+        if (!dimmed && b.dimOverlay.visibility != View.VISIBLE) return
+        dimmed = false
+        applyBrightness(false)
+        b.dimOverlay.animate().cancel()
+        if (!animate) {
+            b.dimOverlay.alpha = 0f
+            b.dimOverlay.visibility = View.GONE
+            return
+        }
+        b.dimOverlay.animate()
+            .alpha(0f)
+            .setDuration(180)
+            .withEndAction {
+                if (!isFinishing && !dimmed) {
+                    b.dimOverlay.visibility = View.GONE
+                }
+            }
+            .start()
+    }
+
+    private fun applyBrightness(dim: Boolean) {
+        val lp = window.attributes
+        val target = if (dim) DIM_SCREEN_BRIGHTNESS else originalBrightness
+        if (lp.screenBrightness != target) {
+            lp.screenBrightness = target
+            window.attributes = lp
+        }
+    }
+
+    companion object {
+        private const val DIM_IDLE_TIMEOUT_MS = 3L * 60_000L
+        private const val DIM_OVERLAY_ALPHA = 0.45f
+        private const val DIM_SCREEN_BRIGHTNESS = 0.14f
     }
 
     // ---------------- 左：倒计时 ----------------
@@ -104,6 +175,13 @@ class LockActivity : AppCompatActivity() {
             getString(R.string.lock_time_of_limit, st.usedMinutes, st.limitMinutes)
         else getString(R.string.lock_time, st.usedMinutes)
         b.tvNow.text = getString(R.string.lock_now, timeFmt.format(Date()))
+        val cfgVer = Extras.configVersion()
+        if (cfgVer.isNotBlank()) {
+            b.tvLockConfigVersion.text = getString(R.string.config_version_badge, cfgVer)
+            b.tvLockConfigVersion.visibility = View.VISIBLE
+        } else {
+            b.tvLockConfigVersion.visibility = View.GONE
+        }
     }
 
     // ---------------- 右：学习角 ----------------
@@ -291,6 +369,55 @@ class LockActivity : AppCompatActivity() {
 
     // ---------------- 遥控器 ----------------
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (KioskKeys.systemBlocked(code)) return true
+        val isVolumeKey = code == KeyEvent.KEYCODE_VOLUME_UP ||
+            code == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            code == KeyEvent.KEYCODE_VOLUME_MUTE
+        if (!isVolumeKey) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (dimmed) {
+                        swallowKeyUpCode = code
+                        wakeFromDim()
+                        return true
+                    }
+                    if (swallowKeyUpCode == code) return true
+                    lastInteractionAt = SystemClock.elapsedRealtime()
+                }
+                KeyEvent.ACTION_UP -> {
+                    if (swallowKeyUpCode == code) {
+                        swallowKeyUpCode = null
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (dimmed) {
+                    swallowTouchUntilUp = true
+                    wakeFromDim()
+                    return true
+                }
+                lastInteractionAt = SystemClock.elapsedRealtime()
+            }
+            MotionEvent.ACTION_MOVE -> if (swallowTouchUntilUp) return true
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (swallowTouchUntilUp) {
+                    swallowTouchUntilUp = false
+                    return true
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (KioskKeys.systemBlocked(keyCode)) return true
         when (keyCode) {
@@ -339,10 +466,12 @@ class LockActivity : AppCompatActivity() {
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 val c = deck.getOrNull(idx)
-                if (c != null && !c.audio.isNullOrBlank()) {
-                    playCardAudio(c)
-                } else {
-                    nextCard()
+                if (c != null) {
+                    if (!c.audio.isNullOrBlank()) {
+                        playCardAudio(c)
+                    } else {
+                        Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+                    }
                 }
                 return true
             }
@@ -364,20 +493,24 @@ class LockActivity : AppCompatActivity() {
     private var cardAudioPlayer: MediaPlayer? = null
 
     private fun playCardAudio(c: LearningCard) {
-        val audioPath = c.audio ?: return
+        val audioPath = c.audio?.takeIf { it.isNotBlank() } ?: run {
+            Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val source = if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
+            audioPath
+        } else {
+            val localF = java.io.File(filesDir, "audio/" + audioPath.substringAfterLast("/"))
+            if (!localF.exists()) {
+                Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+                return
+            }
+            localF.absolutePath
+        }
         try {
             cardAudioPlayer?.release()
             cardAudioPlayer = MediaPlayer().apply {
-                if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
-                    setDataSource(audioPath)
-                } else {
-                    val localF = java.io.File(filesDir, "audio/" + audioPath.substringAfterLast("/"))
-                    if (localF.exists()) {
-                        setDataSource(localF.absolutePath)
-                    } else {
-                        return
-                    }
-                }
+                setDataSource(source)
                 setOnCompletionListener {
                     paused = false
                     updateCardTimer()
@@ -388,7 +521,11 @@ class LockActivity : AppCompatActivity() {
                 updateCardTimer()
             }
         } catch (_: Exception) {
-            // 静默失败
+            cardAudioPlayer?.release()
+            cardAudioPlayer = null
+            paused = false
+            updateCardTimer()
+            Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
         }
     }
 

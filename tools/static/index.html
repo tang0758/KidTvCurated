@@ -67,14 +67,28 @@ a{color:var(--brand)}
 .item-cover input{flex:1;min-width:0;font-size:11px}
 .thumb{width:34px;height:46px;object-fit:cover;border-radius:4px;flex:0 0 auto;background:#1b2333}
 .thumb.none{font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.2}
-.sec-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sec-head{display:flex;align-items:center;gap:8px;min-height:32px;flex-wrap:wrap}
 .sec-head .idx{font-size:12px;color:var(--muted)}
+.sec-head .idx:first-child{font-weight:700;color:var(--ink);background:rgba(79,107,237,.14);padding:2px 8px;border-radius:6px}
+.sec-head .sec-title{font-size:15px;font-weight:700;color:var(--ink)}
+.sec-head .sec-right{margin-left:auto;display:flex;align-items:center;gap:6px}
+.sec-card{border:1px solid #d1d9e6;border-left:5px solid #4f6bed;border-radius:10px;padding:9px 12px;margin:9px 0;transition:background .15s;min-width:0}
+.sec-card.odd{background:#ffffff;border-color:#d1d9e6;border-left-color:#4f6bed}
+.sec-card.even{background:#e3edff;border-color:#a8c1f4;border-left-color:#16a34a}
+.sec-card.is-gate.odd{border-left-color:var(--warn);background:#fff9f0;border-color:#f2cb8a}
+.sec-card.is-gate.even{border-left-color:var(--warn);background:#e3edff;border-color:#a8c1f4}
+.sec-card .sec-body{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #c4d0e4}
+.sec-card.open .sec-body{display:block}
 .badge{font-size:11px;padding:3px 8px;border-radius:20px;background:var(--brand-soft);color:var(--brand)}
 .badge.gate{background:#fff3e0;color:var(--warn)}
 .rowbtn{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
 .win{display:flex;gap:6px;align-items:center;margin-bottom:6px}
 .win input{flex:1}
 .notice{background:#fff8e8;border:1px solid #f6dfae;color:#8a5a00;border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+.syncbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:10px;padding:8px 12px;font-size:13px;margin-bottom:10px;border:1px solid var(--line);background:#fff}
+.syncbar.ok{background:#eefaf1;border-color:#bce3c7;color:#1b6e35}
+.syncbar.wait{background:#fff8e8;border-color:#f6dfae;color:#8a5a00}
+.syncbar .txt{flex:1;min-width:180px}
 .err{color:var(--err);font-size:13px}
 .empty{color:var(--muted);font-size:13px;padding:14px 0}
 .bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid var(--line);padding:10px max(14px,calc((100vw - 1080px)/2)) calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;z-index:20;backdrop-filter:blur(8px)}
@@ -130,8 +144,9 @@ a{color:var(--brand)}
   .wrap{padding:0 10px 120px}
   header{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
   .brand{font-size:17px}
-  .status{grid-column:2;margin-left:0;font-size:11px;max-width:180px;padding:5px 9px}
+  .status{grid-column:2;margin-left:0;font-size:11px;max-width:none;white-space:normal;padding:5px 9px}
   #btnSettings{grid-column:1/-1;justify-self:start;min-height:34px;padding:6px 12px}
+  .tabs{position:sticky;top:0;z-index:15;background:rgba(245,246,250,.96);backdrop-filter:blur(6px)}
   .tabs button{font-size:13px;padding:7px 10px}
   .card{padding:12px;min-width:0}
   .toolbar{display:grid;grid-template-columns:1fr;gap:8px}
@@ -186,6 +201,7 @@ a{color:var(--brand)}
     <button data-tab="json">JSON / 导入导出</button>
   </div>
 
+  <div id="tvSyncBar" class="syncbar hidden"></div>
   <div id="notice" class="notice hidden"></div>
 
   <section id="pane-browse" class="pane">
@@ -208,7 +224,10 @@ a{color:var(--brand)}
 
   <section id="pane-sections" class="pane hidden">
     <div class="card">
-      <h3>分区顺序 <span class="sub">电视上从上到下就是这个顺序；必看分区建议放第一个</span></h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <h3 style="margin:0;flex:1">分区顺序 <span class="sub">电视上从上到下就是这个顺序；必看分区建议放第一个</span></h3>
+        <button class="tiny" data-act="secToggleAll">全部展开/收起</button>
+      </div>
       <div id="sectionsBody"></div>
       <div class="rowbtn"><button class="primary" data-act="newSection">＋ 新建分区</button></div>
     </div>
@@ -272,9 +291,10 @@ const START_TAB = ["browse","sections","rules","control","words","learning","jso
   ? urlParams.get("tab") : "browse";   // 支持 ?tab=rules 直接进某一页，手机可存书签
 const S = {
   data:null, cfg:null, shares:[], share:"", path:"", items:null,
-  target:0, showCount:false, counts:{}, tab:START_TAB, source:"",
+  target:0, showCount:false, counts:{}, tab:START_TAB, source:"", baseHash:"",
+  syncStatus:null, syncWatchTimer:null, syncWatchDeadline:0, hostOnline:false,
   control:null, ack:null, controlPath:"", controlError:"",
-  learningData:null, learningSource:"", wordFilter:"", wordLetter:"", wordOpen:{}
+  learningData:null, learningSource:"", wordFilter:"", wordLetter:"", wordOpen:{}, secOpen:{}
 };
 
 // PC 桌面助手把控制台嵌进 iframe 时，外壳已有标题和连接设置，这里隐藏重复头部
@@ -291,7 +311,12 @@ async function api(path, opts){
   let j;
   try { j = await r.json(); } catch(e){ throw new Error("服务没响应 (HTTP " + r.status + ")"); }
   if (r.status === 401){ showGate(); throw new Error(j.error || "访问码不对"); }
-  if (!r.ok || j.ok === false) throw new Error(j.error || ("HTTP " + r.status));
+  if (!r.ok || j.ok === false) {
+    const err = new Error(j.error || ("HTTP " + r.status));
+    err.status = r.status;
+    err.payload = j;
+    throw err;
+  }
   return j;
 }
 
@@ -494,15 +519,82 @@ async function loadLearningData(){
     S.learningSource = "error";
   }
 }
+function updateSrcHint(){
+  const srcName = {nas:"NAS 上的 tv.json", local:"本地 tv.json", template:"公开模板"}[S.source] || S.source || "未加载";
+  const ver = S.data && S.data.configVersion ? (" · 配置版本 " + S.data.configVersion) : "";
+  Q("#srcHint").textContent = "来源：" + srcName + ver + " · 保存后电视约 15 秒自动同步";
+}
 async function loadConfig(){
   const r = await api("/api/config");
   S.data = normalize(r.data);
   S.source = r.source;
+  S.baseHash = r.baseHash || "";
   notice(r.warning || "");
-  Q("#srcHint").textContent = "来源：" +
-    ({nas:"NAS 上的 tv.json", local:"本地 tv.json", template:"公开模板"}[r.source] || r.source) +
-    " · 改完到电视按「菜单 → 重新读取清单」";
+  updateSrcHint();
   if (S.target >= S.data.sections.length) S.target = 0;
+}
+function fmtSyncTime(iso){
+  if (!iso) return "";
+  return String(iso).replace("T", " ").slice(0, 16);
+}
+function updateHeaderStatus(){
+  if (!S.cfg) return;
+  const host = S.cfg.host || "未配置 NAS";
+  let txt = S.hostOnline ? ("已连接 " + host) : ("连接异常 · " + host);
+  if (S.hostOnline && S.syncStatus) {
+    txt += S.syncStatus.synced ? " · ✓ 电视已同步" : " · ⏳ 待电视拉取";
+  }
+  setStatus(txt, !S.hostOnline);
+}
+function renderSyncBar(){
+  const el = Q("#tvSyncBar");
+  if (!el) return;
+  const ss = S.syncStatus;
+  if (!ss) { el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  if (ss.synced) {
+    el.className = "syncbar ok";
+    const ver = ss.tvConfigVersion || ss.nasConfigVersion;
+    const meta = [ver ? ("配置 " + ver) : "", ss.versionName ? ("v" + ss.versionName) : "", fmtSyncTime(ss.appliedAt)].filter(Boolean).join(" · ");
+    el.innerHTML = '<span class="txt">✓ 电视已确认同步最新片单与词库' +
+      (meta ? ("（" + esc(meta) + "）") : "") + '</span>' +
+      '<button class="tiny" data-act="syncRefresh">刷新回执</button>';
+  } else {
+    el.className = "syncbar wait";
+    const parts = [];
+    if (!ss.tvSynced) parts.push("片单/规则待拉取");
+    if (!ss.learningSynced) parts.push("单词词库待拉取");
+    const verMeta = ss.nasConfigVersion ? (" · NAS 配置 " + ss.nasConfigVersion) : "";
+    const tvVerMeta = ss.tvConfigVersion ? ("（电视当前 " + ss.tvConfigVersion + "）") : "";
+    const lastAck = ss.appliedAt ? (" · 上次回执 " + fmtSyncTime(ss.appliedAt)) : " · 电视尚未上报回执";
+    el.innerHTML = '<span class="txt">⏳ 待电视同步（' + esc(parts.join("、") || "等待确认") + esc(verMeta + tvVerMeta) + '；开机连网或退播后约 15 秒生效' + esc(lastAck) + '）</span>' +
+      '<button class="tiny" data-act="syncRefresh">刷新回执</button>';
+  }
+}
+async function loadSyncStatus(){
+  try {
+    S.syncStatus = await api("/api/sync-status");
+    renderSyncBar();
+    updateHeaderStatus();
+    if (S.syncStatus.synced && S.syncWatchTimer) {
+      clearInterval(S.syncWatchTimer);
+      S.syncWatchTimer = null;
+      notice("");
+    }
+  } catch(_) { /* 同步状态查询失败不打断编辑 */ }
+}
+function startSyncWatch(){
+  if (S.syncWatchTimer) clearInterval(S.syncWatchTimer);
+  S.syncWatchDeadline = Date.now() + 120000;
+  loadSyncStatus();
+  S.syncWatchTimer = setInterval(() => {
+    if (Date.now() > S.syncWatchDeadline) {
+      clearInterval(S.syncWatchTimer);
+      S.syncWatchTimer = null;
+      return;
+    }
+    loadSyncStatus();
+  }, 5000);
 }
 async function doBrowse(path){
   S.path = path || "";
@@ -525,9 +617,11 @@ async function init(){
     S.shares = st.shares || [];
     if (S.cfg.share && !S.shares.includes(S.cfg.share)) S.shares.unshift(S.cfg.share);
     S.share = S.cfg.share || S.shares[0] || "";
-    setStatus((st.warning ? "连接异常 · " : "已连接 ") + (S.cfg.host || "未配置 NAS"), !!st.warning);
+    S.hostOnline = !st.warning;
+    updateHeaderStatus();
     await loadConfig();
     await loadLearningData();
+    loadSyncStatus();
     renderAll();
     switchTab(S.tab);
     if (S.share) await doBrowse("");
@@ -587,6 +681,12 @@ function renderBrowse(){
 
 // OPT-14：分区图标只给内置名字，电视端直接映射到矢量资源，不让家长填图片路径
 const ICON_OPTS = [["none","不显示图标"],["star","星星"],["play","播放"],["book","书本"],["heart","爱心"],["game","游戏"],["moon","月亮"]];
+function secOpenKey(s, i){ return (s && s.key) ? String(s.key) : ("#" + i); }
+function isSecOpen(s, i){
+  const k = secOpenKey(s, i);
+  if (Object.prototype.hasOwnProperty.call(S.secOpen, k)) return !!S.secOpen[k];
+  return !!(s && s.gate);
+}
 function renderSections(){
   const body = Q("#sectionsBody");
   if (!S.data) { body.innerHTML = ""; return; }
@@ -596,10 +696,19 @@ function renderSections(){
     const reqOpts = ['<option value="">（不锁，随时可看）</option>'].concat(
       secs.filter((o,j)=>j!==i).map(o => '<option value="' + esc(o.key) + '"' +
         (s.requires === o.key ? " selected" : "") + ">被「" + esc(o.title) + "」锁住</option>")).join("");
-    h += '<div class="card" style="box-shadow:none;margin-bottom:10px">' +
-      '<div class="sec-head"><span class="idx">第 ' + (i+1) + ' 行</span>' +
+    const open = isSecOpen(s, i);
+    const cls = "sec-card " + (i % 2 === 0 ? "odd" : "even") + (s.gate ? " is-gate" : "") + (open ? " open" : "");
+    h += '<div class="' + cls + '">' +
+      '<div class="sec-head" data-act="secToggle" data-i="' + i + '">' +
+        '<span class="idx">第 ' + (i+1) + ' 行</span>' +
+        '<span class="sec-title" id="secTitle_' + i + '">' + esc(s.title || "未命名分区") + '</span>' +
         (s.gate ? '<span class="badge gate">每日必看</span>' : '<span class="badge">普通分区</span>') +
-        '<span class="idx">' + (s.items || []).length + " 个条目</span></div>" +
+        '<span class="idx">' + (s.items || []).length + " 个条目</span>" +
+        '<span class="sec-right">' +
+          '<button class="tiny" data-act="secToggle" data-i="' + i + '">' + (open ? "收起" : "展开") + '</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="sec-body">' +
       '<div class="fields">' +
         "<label>标题<input data-bind=\"sections." + i + ".title\" value=\"" + esc(s.title) + "\"></label>" +
         "<label>key<input data-bind=\"sections." + i + ".key\" value=\"" + esc(s.key) + "\"></label>" +
@@ -645,12 +754,15 @@ function renderSections(){
     });
     h += "</div>";
     if (!s.auto) h += '<div class="rowbtn"><button class="tiny" data-act="addAuto" data-i="' + i + '">＋ 每日自动轮换</button></div>';
+    const hasVideoItems = (s.items || []).some(it => it && (it.file || it.folder));
     h += '<div class="rowbtn">' +
       '<button class="tiny" data-act="secUp" data-i="' + i + '">上移</button>' +
       '<button class="tiny" data-act="secDown" data-i="' + i + '">下移</button>' +
       '<button class="tiny" data-act="gotoBrowse" data-i="' + i + '">去资源浏览添加</button>' +
+      (hasVideoItems ? '<button class="tiny" data-act="secGenCovers" data-i="' + i + '">生成封面</button>' : '') +
+      ((s.gate || (s.items || []).length) ? '<button class="tiny danger" data-act="secClear" data-i="' + i + '">清空内容</button>' : '') +
       '<button class="tiny danger" data-act="secDel" data-i="' + i + '">删除分区</button></div>' +
-      "</div>";
+      "</div></div>";
   });
   if (!secs.length) h = '<p class="empty">还没有分区，点下面「新建分区」，或到「资源浏览」勾选目录。</p>';
   if (secs.length) h += '<p class="empty">封面缩略图：留空时电视会在视频同目录找同名 jpg / folder.jpg / poster.jpg / cover.jpg。' +
@@ -980,8 +1092,8 @@ function switchTab(t){
   if (t === "learning") renderLearning();
   if (t === "browse") renderBrowse();
   if (t === "control"){
-    renderControl(); loadControl();
-    controlPoll = setInterval(loadControl, 5000);
+    renderControl(); loadControl(); loadSyncStatus();
+    controlPoll = setInterval(() => { loadControl(); loadSyncStatus(); }, 5000);
   }
 }
 
@@ -996,6 +1108,67 @@ function addItem(item){
   s.items.push(item);
   renderSections(); renderJson();
   toast("已加入「" + s.title + "」");
+  resolveCoversQuietly(S.target, [item]);
+}
+async function resolveCoversQuietly(secIdx, addedItems){
+  const s = S.data && S.data.sections && S.data.sections[secIdx];
+  if (!s || !addedItems || !addedItems.length) return;
+  try {
+    const r = await api("/api/covers/resolve", {
+      method:"POST",
+      body:JSON.stringify({
+        items: addedItems,
+        videoShare: S.share || (S.cfg && S.cfg.share) || ""
+      })
+    });
+    let matched = 0;
+    (r.results || []).forEach(res => {
+      if (!res || !res.cover || (res.status !== "reused" && res.status !== "adjacent")) return;
+      const target = (s.items || []).find(it => (it.file || it.folder) && String(it.file || it.folder).replace(/\\/g,"/").replace(/^\/+|\/+$/g,"") === res.key);
+      if (target && !target.cover){
+        target.cover = res.cover;
+        matched++;
+      }
+    });
+    if (matched > 0){
+      renderSections(); renderJson();
+      toast("已自动复用 " + matched + " 张历史封面，记得点「保存到 NAS」");
+    }
+  } catch(_) { /* 自动探测失败不打断加片单 */ }
+}
+async function genSectionCovers(secIdx, btn){
+  const s = S.data && S.data.sections && S.data.sections[secIdx];
+  if (!s || !(s.items || []).length){ toast("这个分区里没有视频条目"); return; }
+  const oldTxt = btn ? btn.textContent : "";
+  if (btn){ btn.disabled = true; btn.textContent = "生成封面中…"; }
+  try {
+    const r = await api("/api/covers/generate", {
+      method:"POST",
+      body:JSON.stringify({
+        items: s.items,
+        videoShare: S.share || (S.cfg && S.cfg.share) || ""
+      })
+    });
+    let changed = 0;
+    (r.results || []).forEach(res => {
+      if (!res || res.index === undefined) return;
+      const it = s.items[res.index];
+      if (it && res.cover && it.cover !== res.cover){
+        it.cover = res.cover;
+        changed++;
+      }
+    });
+    renderSections(); renderJson();
+    const sum = r.summary || {};
+    const reused = (sum.reused || 0) + (sum.adjacent || 0);
+    const msg = "封面处理完成：复用已有 " + reused + " 张，新生成 " + (sum.generated || 0) + " 张" +
+      ((sum.failed || 0) ? ("，失败 " + sum.failed + " 张") : "") +
+      (changed > 0 ? "（已回填，记得点「保存到 NAS」）" : "");
+    toast(msg, (sum.failed || 0) > 0 && (sum.generated || 0) === 0 && reused === 0, 5000);
+    if (r.warnings && r.warnings.length) notice(r.warnings.join("；"));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = oldTxt || "生成封面"; }
+  }
 }
 function cleanName(n){ return String(n).replace(/【[^】]*】/g,"").split(" 20")[0].trim(); }
 async function loadCounts(){
@@ -1013,7 +1186,7 @@ async function loadCounts(){
   };
   await Promise.all([worker(), worker(), worker()]);
 }
-async function saveTo(target){
+async function saveTo(target, force){
   try {
     const d = payload();
     const pinStr = String(d.pin == null ? "" : d.pin).trim();
@@ -1031,12 +1204,40 @@ async function saveTo(target){
       d.schedule.pin = sp;
     }
     if (!d.sections.length) { toast("片单里一个分区都没有，确定要保存？再点一次可强制保存", true); }
-    const r = await api("/api/config", {method:"POST", body:JSON.stringify({data:d, target:target})});
+    const r = await api("/api/config", {
+      method:"POST",
+      body:JSON.stringify({data:d, target:target, baseHash:S.baseHash || "", force:!!force})
+    });
+    if (r.newHash) S.baseHash = r.newHash;
+    if (r.configVersion && S.data) {
+      S.data.configVersion = r.configVersion;
+      updateSrcHint();
+      renderJson();
+    }
     toast(r.message, false, 5000);
-    notice(target === "nas"
-      ? "已保存到 NAS。到电视按遥控器「菜单 → 重新读取清单」生效；旧文件备份为 tv.backup.json。"
-      : "已写到本地 tv.json。可用 make_playlist.py --upload 上传，或直接改回「保存到 NAS」。");
-  } catch(e){ toast(e.message, true, 5000); }
+    if (target === "nas") {
+      notice("已保存到 NAS（旧版备份为 tv.backup.json），正在等待电视确认同步…");
+      startSyncWatch();
+    } else {
+      notice("已写到本地 tv.json。可用 make_playlist.py --upload 上传，或直接改回「保存到 NAS」。");
+    }
+  } catch(e){
+    if (e && e.payload && e.payload.conflict) {
+      openConflictModal(target, e.message);
+      return;
+    }
+    toast(e.message, true, 5000);
+  }
+}
+function openConflictModal(target, msg){
+  Q("#modal").innerHTML = '<div class="sheet"><h3>发现远端修改冲突</h3>' +
+    '<p style="color:var(--err)">' + esc(msg) + '</p>' +
+    '<p>另一台设备或电视端刚改过 NAS 上的 tv.json。直接覆盖可能会抹掉对方修改；建议先重新载入最新版本。</p>' +
+    '<div class="rowbtn">' +
+    '<button class="primary" data-act="conflictReload">重新载入 NAS 最新</button>' +
+    '<button class="danger" data-act="conflictForce" data-target="' + esc(target || "nas") + '">仍强制覆盖 NAS</button>' +
+    '<button data-act="closeModal">取消</button></div></div>';
+  Q("#modal").classList.remove("hidden");
 }
 function openSettings(){
   const c = S.cfg || {};
@@ -1128,6 +1329,8 @@ function bindInput(e){
   if (m){
     const opt = Q('#targetSel option[value="' + m[1] + '"]');
     if (opt) opt.textContent = v;
+    const st = Q('#secTitle_' + m[1]);
+    if (st) st.textContent = v || "未命名分区";
   }
 }
 document.addEventListener("input", bindInput);
@@ -1165,12 +1368,14 @@ document.addEventListener("click", async e => {
         const s = sec();
         if (!s){ toast("先新建分区", true); break; }
         let n = 0;
+        const added = [];
         r.items.forEach(it => {
           const key = it.file || it.folder;
-          if (!(s.items || []).some(x => (x.file || x.folder) === key)){ s.items.push(it); n++; }
+          if (!(s.items || []).some(x => (x.file || x.folder) === key)){ s.items.push(it); added.push(it); n++; }
         });
         renderSections(); renderJson();
         toast("已把 " + n + " 个" + (r.mode === "folders" ? "文件夹" : "单集") + "加入「" + s.title + "」");
+        if (added.length) resolveCoversQuietly(S.target, added);
         break;
       }
       case "dl":
@@ -1180,17 +1385,46 @@ document.addEventListener("click", async e => {
         break;
       case "newSection": {
         const gateSec = S.data.sections.filter(x => x.gate)[0];
-        S.data.sections.push({key:"sec" + Date.now().toString().slice(-6),
+        const nk = "sec" + Date.now().toString().slice(-6);
+        S.data.sections.push({key:nk,
                               title:"新分区", columns:5, items:[],
                               requires:gateSec ? gateSec.key : ""});
+        S.secOpen[nk] = true;
         S.target = S.data.sections.length - 1;
         renderAll(); break;
+      }
+      case "secToggle": {
+        const ts = S.data.sections[i];
+        if (!ts) break;
+        const k = secOpenKey(ts, i);
+        S.secOpen[k] = !isSecOpen(ts, i);
+        renderSections();
+        break;
+      }
+      case "secToggleAll": {
+        const secs = S.data.sections || [];
+        const anyOpen = secs.some((s, idx) => isSecOpen(s, idx));
+        secs.forEach((s, idx) => { S.secOpen[secOpenKey(s, idx)] = !anyOpen; });
+        renderSections();
+        break;
       }
       case "ctlSend": await sendControl(b.dataset.cmd); break;
       case "ctlRefresh": await loadControl(); break;
       case "gotoBrowse": S.target = i; renderBrowse(); switchTab("browse"); break;
+      case "secGenCovers": await genSectionCovers(i, b); break;
       case "secUp": if (i > 0){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i-1,0,t); S.target=i-1; renderAll(); } break;
       case "secDown": if (i < S.data.sections.length-1){ const t = S.data.sections.splice(i,1)[0]; S.data.sections.splice(i+1,0,t); S.target=i+1; renderAll(); } break;
+      case "secClear": {
+        const targetSec = S.data.sections[i];
+        if (!targetSec) break;
+        if (!(targetSec.items || []).length){ toast("「" + targetSec.title + "」里已经是空的"); break; }
+        if (confirm("清空「" + targetSec.title + "」里的全部 " + targetSec.items.length + " 个条目？\n（只清列表条目，保留分区本身，点下方「保存到 NAS」后生效）")){
+          targetSec.items = [];
+          renderSections(); renderJson();
+          toast("已清空「" + targetSec.title + "」内容，记得点「保存到 NAS」");
+        }
+        break;
+      }
       case "secDel":
         if (confirm("删除分区「" + S.data.sections[i].title + "」？")){
           S.data.sections.splice(i,1); S.target = Math.max(0, Math.min(S.target, S.data.sections.length-1)); renderAll();
@@ -1247,10 +1481,10 @@ document.addEventListener("click", async e => {
         S.data.learning.artFolder = ""; S.data.learning.artShare = "";
         renderLearning(); renderJson(); toast("已改回 APK 内置名画"); break;
       case "reload":
-        await loadConfig(); await loadLearningData(); renderAll(); toast("已从 NAS 重新读取"); break;
+        await loadConfig(); await loadLearningData(); loadSyncStatus(); renderAll(); toast("已从 NAS 重新读取"); break;
       case "ldReload":
         S.wordOpen = {};
-        await loadLearningData(); renderWords(); toast("已重新读取词库"); break;
+        await loadLearningData(); loadSyncStatus(); renderWords(); toast("已重新读取词库"); break;
       case "ldLetter":
         S.wordLetter = b.dataset.lt || "";
         renderWords(); break;
@@ -1315,9 +1549,20 @@ document.addEventListener("click", async e => {
         const r = await api("/api/learning", {method:"POST", body:JSON.stringify({data:S.learningData})});
         await loadLearningData();
         renderWords();
+        startSyncWatch();
         toast(r.message || "词库已保存", false, 5000);
         break;
       }
+      case "syncRefresh": await loadSyncStatus(); toast("已刷新电视同步状态"); break;
+      case "conflictReload":
+        Q("#modal").classList.add("hidden");
+        await loadConfig(); renderAll(); loadSyncStatus();
+        toast("已重新载入 NAS 最新清单");
+        break;
+      case "conflictForce":
+        Q("#modal").classList.add("hidden");
+        await saveTo(b.dataset.target || "nas", true);
+        break;
       case "save": await saveTo("nas"); break;
       case "saveLocal": await saveTo("local"); break;
       case "jsonApply": {
@@ -1354,9 +1599,10 @@ document.addEventListener("click", async e => {
         if (S.cfg.share && !S.shares.includes(S.cfg.share)) S.shares.unshift(S.cfg.share);
         S.share = S.cfg.share;
         Q("#modal").classList.add("hidden");
-        setStatus("已连接 " + S.cfg.host);
+        S.hostOnline = true;
+        updateHeaderStatus();
         toast(r.message);
-        await loadConfig(); renderAll(); await doBrowse("");
+        await loadConfig(); await loadLearningData(); loadSyncStatus(); renderAll(); await doBrowse("");
         break;
       }
     }

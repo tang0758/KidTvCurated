@@ -286,6 +286,149 @@ class LearningApiTest(unittest.TestCase):
                 with self.assertRaises(console.SmbError):
                     console.validate_pin_fields(dict(bad))
 
+    def test_conflict_detection_and_sync_status(self):
+        h1 = console.text_sha256('{"sections":[]}')
+        h2 = console.text_sha256('{"sections":[{"key":"daily"}]}')
+        self.assertEqual(h1, console.text_sha256('\ufeff{"sections":[]}'))
+        console.check_write_conflict('{"sections":[]}', h1, force=False)
+        console.check_write_conflict(None, h1, force=False)
+        with self.assertRaises(console.ConflictError):
+            console.check_write_conflict('{"sections":[{"key":"daily"}]}', h1, force=False)
+        console.check_write_conflict('{"sections":[{"key":"daily"}]}', h1, force=True)
+
+        st_synced = console.compute_sync_status(h2, "learn1", {"tvHash": h2, "learningHash": "learn1", "appliedAt": "2026-11-19T10:50:00+08:00"})
+        self.assertTrue(st_synced["synced"])
+        st_stale_tv = console.compute_sync_status(h2, "learn1", {"tvHash": h1, "learningHash": "learn1"})
+        self.assertFalse(st_stale_tv["synced"])
+        self.assertFalse(st_stale_tv["tvSynced"])
+        st_stale_learn = console.compute_sync_status(h2, "learn2", {"tvHash": h2, "learningHash": "learn1"})
+        self.assertFalse(st_stale_learn["synced"])
+        self.assertTrue(st_stale_learn["tvSynced"])
+        self.assertFalse(st_stale_learn["learningSynced"])
+        st_no_ack = console.compute_sync_status(h2, "", None)
+        self.assertFalse(st_no_ack["synced"])
+
+
+class CoverGenerationTest(unittest.TestCase):
+    """每日必看封面：已有封面零截帧复用 + 目录图复用 + 缺失截帧上传。"""
+
+    def test_reuses_existing_and_generates_only_missing(self):
+        import io
+        import cover_gen
+
+        reused_key = "动画/旧片.mp4"
+        reused_tag = cover_gen.cover_tag(reused_key)
+        adj_folder = "动画/带图剧集"
+        new_folder = "动画/新剧集"
+
+        class _Entry:
+            def __init__(self, filename, is_dir=False):
+                self.filename = filename
+                self.isDirectory = is_dir
+
+        class FakeCoverSmb:
+            def __init__(self):
+                self.files = {
+                    ("data", f"/curated/covers/{reused_tag}.jpg"): b"OLD-JPG",
+                    ("儿童资源", f"/{adj_folder}/folder.jpg"): b"ADJ-JPG",
+                    ("儿童资源", "/动画/手工.jpg"): b"MANUAL-JPG",
+                }
+                self.dirs = {
+                    ("儿童资源", f"/{new_folder}"): [_Entry("Season 1", True)],
+                    ("儿童资源", f"/{new_folder}/Season 1"): [
+                        _Entry("ep10.mp4", False),
+                        _Entry("ep2.mp4", False),
+                    ],
+                }
+
+            def getAttributes(self, share, path):
+                if (share, path) not in self.files:
+                    raise OperationFailure("not found", [])
+                return _Attrs(len(self.files[(share, path)]))
+
+            def listPath(self, share, path):
+                return self.dirs.get((share, path), [])
+
+            def createDirectory(self, share, path):
+                pass
+
+            def storeFile(self, share, path, fh, timeout=40):
+                self.files[(share, path)] = fh.read()
+
+        smb = FakeCoverSmb()
+        cfg = {"share": "儿童资源", "playlistShare": "data", "playlistPath": "curated/tv.json"}
+        items = [
+            {"title": "手工封面", "file": "动画/其他.mp4", "cover": "儿童资源:动画/手工.jpg"},
+            {"title": "旧片重选", "file": reused_key},
+            {"title": "带图剧集", "folder": adj_folder},
+            {"title": "新剧集", "folder": new_folder},
+        ]
+
+        resolved = cover_gen.resolve_existing_covers(smb, cfg, items)
+        self.assertEqual([r["status"] for r in resolved], ["existing", "reused", "adjacent", "missing"])
+        self.assertEqual(resolved[1]["cover"], f"data:curated/covers/{reused_tag}.jpg")
+        self.assertEqual(resolved[2]["cover"], f"{adj_folder}/folder.jpg")
+
+        grabbed_urls = []
+
+        def fake_grabber(url, item, video_rel):
+            grabbed_urls.append((url, video_rel))
+            return b"NEW-JPG-BYTES"
+
+        out = cover_gen.generate_missing_covers(
+            smb, cfg, items, stream_base_url="http://127.0.0.1:8765", grabber=fake_grabber
+        )
+        self.assertEqual(out["summary"], {
+            "total": 4, "reused": 2, "adjacent": 1, "generated": 1, "skipped": 0, "failed": 0
+        })
+        self.assertEqual(len(grabbed_urls), 1)
+        self.assertEqual(grabbed_urls[0][1], f"{new_folder}/Season 1/ep2.mp4")
+        self.assertTrue(grabbed_urls[0][0].startswith("http://127.0.0.1:8765/stream/"))
+        expected_rel = f"curated/covers/{new_folder}/folder.jpg"
+        self.assertEqual(out["results"][3]["cover"], f"data:{expected_rel}")
+        self.assertEqual(smb.files[("data", "/" + expected_rel)], b"NEW-JPG-BYTES")
+
+        # 验证单集与影子目录复用：新单集生成为同名 .jpg，再次解析直接走影子目录命中
+        single_items = [{"title": "单集", "file": "动画/小猪佩奇/S01E01.mp4"}]
+        out_single = cover_gen.generate_missing_covers(
+            smb, cfg, single_items, stream_base_url="http://127.0.0.1:8765", grabber=fake_grabber
+        )
+        self.assertEqual(out_single["results"][0]["cover"], "data:curated/covers/动画/小猪佩奇/S01E01.jpg")
+        resolved_again = cover_gen.resolve_existing_covers(smb, cfg, single_items)
+        self.assertEqual(resolved_again[0]["status"], "reused")
+        self.assertEqual(resolved_again[0]["cover"], "data:curated/covers/动画/小猪佩奇/S01E01.jpg")
+
+
+class ConfigVersionTest(unittest.TestCase):
+    """configVersion 格式与同步回执版本比较。"""
+
+    def test_make_config_version_format(self):
+        import re
+        v = console.make_config_version()
+        self.assertRegex(v, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
+    def test_compute_sync_status_reports_config_versions(self):
+        nas_text = '{"configVersion":"2026-11-19 22:15:08","sections":[]}'
+        nas_hash = console.text_sha256(nas_text)
+        ack = {
+            "tvHash": nas_hash,
+            "learningHash": "",
+            "appliedAt": "2026-11-19T22:15:20+08:00",
+            "configVersion": "2026-11-19 22:15:08",
+            "versionCode": 18,
+            "versionName": "2.1",
+            "sectionsCount": 0,
+        }
+        st = console.compute_sync_status(
+            nas_hash,
+            "",
+            ack,
+            nas_config_version="2026-11-19 22:15:08",
+        )
+        self.assertTrue(st["synced"])
+        self.assertEqual(st["nasConfigVersion"], "2026-11-19 22:15:08")
+        self.assertEqual(st["tvConfigVersion"], "2026-11-19 22:15:08")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

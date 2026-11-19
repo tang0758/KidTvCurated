@@ -433,6 +433,14 @@ object Extras {
         p().edit().putString("features", v.toJsonString()).apply()
     }
 
+    // ---------- 配置版本号（tv.json 的 configVersion） ----------
+
+    fun configVersion(): String = p().getString("config_version", "") ?: ""
+
+    fun saveConfigVersion(v: String) {
+        p().edit().putString("config_version", v.trim()).apply()
+    }
+
     /**
      * 新功能总开关。缺字段、写错类型都读默认值（新功能默认关闭），绝不抛异常 ——
      * 这是「出问题改一行 JSON、15 秒恢复」的前提，开关本身不能成为新的故障点。

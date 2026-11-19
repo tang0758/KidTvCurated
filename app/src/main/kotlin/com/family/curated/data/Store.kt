@@ -126,6 +126,11 @@ object Store {
         get() = sp.getString("last_control_at", "") ?: ""
         set(v) = sp.edit().putString("last_control_at", v).apply()
 
+    /** 最近一次成功写回 NAS tv.ack.json 的清单与词库组合指纹 */
+    var lastTvAckKey: String
+        get() = sp.getString("last_tv_ack_key", "") ?: ""
+        set(v) = sp.edit().putString("last_tv_ack_key", v).apply()
+
     // ---------- 未同步的设置修改（OPT-07） ----------
     //
     // 写 NAS 失败时，家长以为改好了、其实 NAS 上还是旧内容。这个标记让：

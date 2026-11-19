@@ -163,7 +163,8 @@ data class Playlist(
     val kiosk: Kiosk = Kiosk(),      // 儿童锁；不写 = 关闭，行为与旧版一致
     val apps: AppsConfig = AppsConfig(), // 家长允许的应用入口；不写 = 不显示
     val autoRefresh: AutoRefresh = AutoRefresh(), // 清单变更自动同步策略
-    val features: Features = Features()  // 远程功能开关；缺字段 = 默认值
+    val features: Features = Features(),  // 远程功能开关；缺字段 = 默认值
+    val configVersion: String = ""        // 配置版本号（由编辑器/电视端写入时自动打时间戳）
 ) {
     val gateSections: List<Section> get() = sections.filter { it.gate }
 }
@@ -269,7 +270,8 @@ object PlaylistParser {
             kiosk = Kiosk.parse(root.optJSONObject("kiosk")),
             apps = AppsConfig.parse(root.optJSONObject("apps")),
             autoRefresh = AutoRefresh.parse(root.optJSONObject("autoRefresh")),
-            features = Features.parse(root.optJSONObject("features"))
+            features = Features.parse(root.optJSONObject("features")),
+            configVersion = root.optString("configVersion", "").trim()
         )
     }
 }

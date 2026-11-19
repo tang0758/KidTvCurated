@@ -66,10 +66,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** NAS 清单变了就无感重绘：复用 adapter，滚动位置和已解锁状态都留着 */
-    private val syncListener = PlaylistSync.Listener { pl, _ ->
+    private val syncListener = PlaylistSync.Listener { pl, reason ->
         if (isFinishing || isDestroyed) return@Listener
+        val oldVer = playlist?.configVersion ?: Extras.configVersion()
         playlist = pl
         render(null)
+        if (reason != "init" && pl.configVersion.isNotBlank() && pl.configVersion != oldVer) {
+            Toast.makeText(
+                this,
+                getString(R.string.main_config_updated_toast, pl.configVersion),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -139,9 +147,16 @@ class MainActivity : AppCompatActivity() {
                 loading = false
                 b.pbLoading.visibility = View.GONE
                 playlist = res.playlist
+                val conflict = !res.fromCache && Store.hasUnsyncedEdit
                 // 时段、密码、通过比例都从清单同步到本地，播放页/锁屏页才能独立读到
-                PlaylistSync.applyToLocal(res.playlist)
+                PlaylistSync.applyToLocal(res.playlist, skipSettings = conflict)
                 render(res.error)
+                if (!res.fromCache && !conflict && res.tvRawText != null) {
+                    PlaylistSync.writeTvAckAsync(res.playlist, res.tvRawText)
+                }
+                if (conflict && !isFinishing && !isDestroyed) {
+                    ParentTools.showUnsyncedConflict(this) { updateHeader() }
+                }
             }
         }.start()
     }
@@ -329,6 +344,15 @@ class MainActivity : AppCompatActivity() {
         // 勋章小红点
         val n = Badges.newCount()
         b.btnRewards.text = if (n > 0) "我的奖励 · $n 枚新勋章" else "我的奖励"
+
+        // 配置版本号（由编辑器/电视端写入时打上的时间戳）
+        val cfgVer = (playlist?.configVersion ?: "").ifBlank { Extras.configVersion() }
+        if (cfgVer.isNotBlank()) {
+            b.tvConfigVersion.text = getString(R.string.config_version_badge, cfgVer)
+            b.tvConfigVersion.visibility = View.VISIBLE
+        } else {
+            b.tvConfigVersion.visibility = View.GONE
+        }
 
         // 必看全部完成 → 当天盖章（打卡墙上出现一颗星）
         if (total > 0 && left == 0) {

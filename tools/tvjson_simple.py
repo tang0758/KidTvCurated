@@ -325,7 +325,7 @@ def is_placeholder_password(v) -> bool:
     return "KEEP_NAS_PASSWORD" in s.upper()
 
 
-def prepare_payload(cfg: dict, text: str) -> tuple[bytes, list[str]]:
+def prepare_payload(cfg: dict, text: str, stamp_version: bool = False) -> tuple[bytes, list[str]]:
     """校验前端文本、补回 NAS 密码，返回待写入字节和警告列表。"""
     try:
         obj = json.loads(text)
@@ -401,9 +401,12 @@ def prepare_payload(cfg: dict, text: str) -> tuple[bytes, list[str]]:
     sched = obj.get("schedule")
     if isinstance(sched, dict) and "pin" in sched and sched.get("pin") not in (None, ""):
         raw_sp = sched.get("pin")
-        if not isinstance(raw_sp, str) or not re.fullmatch(r"\d{4,8}", raw_sp.strip()):
+        if isinstance(raw_sp, str) and not re.fullmatch(r"\d{4,8}", raw_sp.strip()):
             raise SmbError("时段 PIN (schedule.pin) 必须是 4~8 位数字")
         sched["pin"] = raw_sp.strip()
+    if stamp_version:
+        tz_cn = dt.timezone(dt.timedelta(hours=8))
+        obj["configVersion"] = dt.datetime.now(tz_cn).strftime("%Y-%m-%d %H:%M:%S")
     payload = (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     return payload, warnings
 
@@ -1047,7 +1050,7 @@ textarea.raw{width:100%;min-height:64vh;border:1px solid var(--bd);border-radius
 <script>
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("k") || "";
-const KNOWN = ["nas","playlistShare","passRatio","pin","sections","schedule","apps","autoRefresh","features"];
+const KNOWN = ["nas","playlistShare","passRatio","pin","configVersion","sections","schedule","apps","autoRefresh","features"];
 // OPT-14：分区图标只用内置名字，电视端映射到矢量资源
 const ICON_OPTS = [["none","不显示图标"],["star","星星"],["play","播放"],["book","书本"],["heart","爱心"],["game","游戏"],["moon","月亮"]];
 let obj = {sections:[]}, cfg = {}, activeTab = "form", dirty = false;
@@ -1139,6 +1142,7 @@ function renderSections(){
       '<span class="spacer"></span>'+
       '<button class="mini" data-act="sec-up" data-s="'+si+'">↑</button> '+
       '<button class="mini" data-act="sec-down" data-s="'+si+'">↓</button> '+
+      ((s.gate || (s.items||[]).length) ? '<button class="mini danger" data-act="sec-clear" data-s="'+si+'">清空内容</button> ' : '')+
       '<button class="mini danger" data-act="sec-del" data-s="'+si+'">删除分区</button></div>'+
       '<div class="opts">'+
         f("每日必看 gate","sections."+si+".gate",{type:"bool"})+
@@ -1320,6 +1324,7 @@ document.addEventListener("click", e=>{
   const secs=obj.sections;
   if(a==="sec-add"){ secs.push({key:"new"+(secs.length+1),title:"新分区",items:[]}); renderSections(); markDirty(); }
   else if(a==="sec-del"){ if(confirm("删除分区「"+(secs[s].title||s)+"」？")){ secs.splice(s,1); renderSections(); markDirty(); } }
+  else if(a==="sec-clear"){ const ar=secs[s].items||[]; if(!ar.length){ msg("「"+(secs[s].title||s)+"」里已经是空的","info"); return; } if(confirm("清空「"+(secs[s].title||s)+"」里的全部 "+ar.length+" 个条目？")){ secs[s].items=[]; renderSections(); markDirty(); } }
   else if(a==="sec-up"&&s>0){ [secs[s-1],secs[s]]=[secs[s],secs[s-1]]; renderSections(); markDirty(); }
   else if(a==="sec-down"&&s<secs.length-1){ [secs[s+1],secs[s]]=[secs[s],secs[s+1]]; renderSections(); markDirty(); }
   else if(a==="item-add"){ (secs[s].items=secs[s].items||[]).push({title:"",folder:""}); renderSections(); markDirty(); }
@@ -1719,8 +1724,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/check":
                 return self._json({"ok": True, **check_paths(cfg, text)})
             if u.path == "/api/save":
-                payload, warnings = prepare_payload(cfg, text)
                 dry = bool(body.get("dryRun"))
+                payload, warnings = prepare_payload(cfg, text, stamp_version=not dry)
                 result = {"ok": True, "dryRun": dry, "bytes": len(payload),
                           "warnings": warnings, "backups": []}
                 if not dry:

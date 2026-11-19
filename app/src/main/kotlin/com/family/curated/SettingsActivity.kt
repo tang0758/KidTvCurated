@@ -47,11 +47,19 @@ class SettingsActivity : AppCompatActivity(), SettingsHost {
     private var busy = false
     private var lastFocusPos = -1
 
-    private val footer: String by lazy {
-        getString(
-            R.string.set_footer,
-            BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.BUILD_TIME
-        )
+    private fun footerText(): String {
+        val cfgVer = Extras.configVersion()
+        return if (cfgVer.isNotBlank()) {
+            getString(
+                R.string.set_footer_with_cfg,
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, cfgVer
+            )
+        } else {
+            getString(
+                R.string.set_footer,
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.BUILD_TIME
+            )
+        }
     }
 
     /** 分组顺序 = 屏幕上从上到下的顺序 */
@@ -71,7 +79,9 @@ class SettingsActivity : AppCompatActivity(), SettingsHost {
      * 补一次渲染，免得家长刚点完「覆盖 NAS」还看到上一个开关状态。
      */
     private val syncListener = PlaylistSync.Listener { _, reason ->
-        if (reason.startsWith("settings") && !isFinishing && !isDestroyed) render()
+        if (isFinishing || isDestroyed) return@Listener
+        if (reason.startsWith("settings")) render()
+        else if (!busy) b.tvBusy.text = footerText()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,7 +102,7 @@ class SettingsActivity : AppCompatActivity(), SettingsHost {
         b.rvSettings.itemAnimator = null
         b.rvSettings.adapter = adapter
 
-        b.tvBusy.text = footer
+        b.tvBusy.text = footerText()
         render()
     }
 
@@ -135,6 +145,7 @@ class SettingsActivity : AppCompatActivity(), SettingsHost {
         else getString(R.string.set_time_today, st.usedMinutes)
         val nas = Store.nas()
         b.tvNas.text = nas?.host ?: getString(R.string.set_nas_unset)
+        if (!busy) b.tvBusy.text = footerText()
 
         // OPT-07：写回失败不是「弹个 Toast 就过去」，错误条一直挂到家长处理完
         if (Store.hasUnsyncedEdit) {
@@ -211,7 +222,7 @@ class SettingsActivity : AppCompatActivity(), SettingsHost {
 
     override fun endTask() {
         busy = false
-        b.tvBusy.text = footer
+        b.tvBusy.text = footerText()
     }
 
     override fun toast(text: String, long: Boolean) {

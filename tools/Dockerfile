@@ -13,6 +13,7 @@ COPY tools/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY tools/console.py /app/tools/console.py
+COPY tools/cover_gen.py /app/tools/cover_gen.py
 COPY tools/static /app/tools/static
 COPY examples/tv.json /app/examples/tv.json
 COPY nas.example.json /app/nas.example.json

@@ -139,6 +139,12 @@ class SystemGroup(private val h: SettingsHost) : SettingsGroup {
         val msg = buildString {
             append(h.str(R.string.set_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
             append(h.str(R.string.set_about_built, BuildConfig.BUILD_TIME))
+            append(
+                h.str(
+                    R.string.set_about_config_ver,
+                    Extras.configVersion().ifBlank { h.str(R.string.config_version_unset) }
+                )
+            )
             append(h.str(R.string.set_about_pkg, h.act.packageName))
             append(h.str(R.string.set_about_features))
             append(switches)

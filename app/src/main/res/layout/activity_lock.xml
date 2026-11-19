@@ -5,11 +5,15 @@
   右 58% 等待时间学习角（名画需要画面宽度，唐诗/单词需要多行大字）
   右侧整块可通过 learning.enabled=false 隐藏，隐藏后左侧自动铺满，回到旧版纯倒计时。
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
     android:background="#0A0D14">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal">
 
     <!-- ============ 左：倒计时 ============ -->
     <LinearLayout
@@ -102,6 +106,15 @@
             android:text="按遥控器「菜单」键 · 家长临时放行"
             android:textColor="#5F6875"
             android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvLockConfigVersion"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#505864"
+            android:textSize="12sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <View
@@ -317,3 +330,13 @@
         </LinearLayout>
     </FrameLayout>
 </LinearLayout>
+
+    <!-- 无操作 3 分钟进入暗模式：45% 纯黑半透明遮罩 -->
+    <View
+        android:id="@+id/dimOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#000000"
+        android:visibility="gone" />
+</FrameLayout>

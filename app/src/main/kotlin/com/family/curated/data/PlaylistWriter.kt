@@ -2,6 +2,9 @@ package com.family.curated.data
 
 import android.util.Log
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 从电视上改清单（家长控制里的设置项）。
@@ -77,6 +80,8 @@ object PlaylistWriter {
 
         try {
             apply(root)
+            val cfgVer = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
+            root.put("configVersion", cfgVer)
         } catch (e: Exception) {
             Log.w(TAG, "生成新设置失败: ${e.message}")
             return Result(false, "生成新设置失败：${e.message}", baseHash = baseHash)

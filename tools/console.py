@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime
+import hashlib
 import io
 import json
 import mimetypes
@@ -54,6 +56,9 @@ BUNDLE = pathlib.Path(getattr(sys, "_MEIPASS", "")) if FROZEN else pathlib.Path(
 DATA_DIR = pathlib.Path(sys.executable).resolve().parent if FROZEN else BUNDLE
 TOOLS = BUNDLE / "tools"
 STATIC = TOOLS / "static"
+if str(pathlib.Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import cover_gen  # noqa: E402
 EXAMPLE_FILE = BUNDLE / "nas.example.json"
 TEMPLATE_FILE = pathlib.Path(os.environ.get("KIDTV_TEMPLATE") or (BUNDLE / "examples" / "tv.json"))
 
@@ -138,6 +143,13 @@ def say(*args) -> None:
 
 class SmbError(Exception):
     pass
+
+
+class ConflictError(Exception):
+    def __init__(self, msg: str, current_hash: str = "", expected_hash: str = ""):
+        super().__init__(msg)
+        self.current_hash = current_hash
+        self.expected_hash = expected_hash
 
 
 # --------------------------------------------------------------------------- 配置
@@ -308,7 +320,25 @@ def validate_pin_fields(payload: dict) -> None:
         sched["pin"] = raw_sp.strip()
 
 
-def write_remote(cfg: dict, text: str) -> str:
+def text_sha256(text: str) -> str:
+    return hashlib.sha256(text.lstrip("\ufeff").encode("utf-8")).hexdigest()
+
+
+def check_write_conflict(old_text: str | None, expected_base_hash: str, force: bool = False) -> None:
+    if force or not expected_base_hash or old_text is None:
+        return
+    cur_hash = text_sha256(old_text)
+    if cur_hash != expected_base_hash:
+        raise ConflictError(
+            f"NAS 上的 tv.json 已被另一端修改（远端 {cur_hash[:8]} ≠ 当前编辑基准 {expected_base_hash[:8]}），请先刷新或选择强制覆盖",
+            current_hash=cur_hash,
+            expected_hash=expected_base_hash,
+        )
+
+
+def write_remote(
+    cfg: dict, text: str, expected_base_hash: str = "", force: bool = False
+) -> tuple[str, str]:
     share = cfg["playlistShare"]
     path = norm(cfg["playlistPath"])
     parent = path.rsplit("/", 1)[0] or "/"
@@ -318,27 +348,108 @@ def write_remote(cfg: dict, text: str) -> str:
             c.createDirectory(share, parent)
         except Exception:
             pass  # 已存在
-        # 写前备份，改坏了可以在 NAS 上找 tv.backup.json
+        old_bytes: bytes | None = None
         try:
             old = io.BytesIO()
             c.retrieveFile(share, path, old, timeout=20)
-            c.storeFile(share, parent + "/tv.backup.json",
-                        io.BytesIO(old.getvalue()), timeout=30)
+            old_bytes = old.getvalue()
         except Exception:
             pass
+        if old_bytes is not None:
+            check_write_conflict(old_bytes.decode("utf-8-sig"), expected_base_hash, force=force)
+            try:
+                c.storeFile(share, parent + "/tv.backup.json", io.BytesIO(old_bytes), timeout=30)
+            except Exception:
+                pass
         payload = text.encode("utf-8")
         c.storeFile(share, path, io.BytesIO(payload), timeout=40)
         back = io.BytesIO()
         c.retrieveFile(share, path, back, timeout=30)
         if len(back.getvalue()) != len(payload):
             raise SmbError("回读校验不一致，请检查 NAS 空间 / 权限")
-        return f"已写入 {share}:{path}（{len(payload)} 字节，旧文件已备份为 tv.backup.json）"
-    except SmbError:
+        return (
+            f"已写入 {share}:{path}（{len(payload)} 字节，旧文件已备份为 tv.backup.json）",
+            text_sha256(text),
+        )
+    except (ConflictError, SmbError):
         raise
     except Exception as e:
         raise SmbError(f"写入失败：{e}")
     finally:
         c.close()
+
+
+_TZ_CN = datetime.timezone(datetime.timedelta(hours=8))
+
+
+def make_config_version() -> str:
+    # 显式使用东八区，避免精简 Docker 镜像缺少 tzdata 时退回 UTC
+    return datetime.datetime.now(_TZ_CN).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def compute_sync_status(
+    tv_hash: str,
+    learning_hash: str,
+    ack: dict | None,
+    nas_config_version: str = "",
+) -> dict:
+    ack = ack if isinstance(ack, dict) else None
+    ack_tv = str((ack or {}).get("tvHash") or "")
+    ack_learn = str((ack or {}).get("learningHash") or "")
+    tv_synced = bool(ack and tv_hash and ack_tv == tv_hash)
+    learning_synced = bool(ack and (not learning_hash or ack_learn == learning_hash))
+    return {
+        "tvHash": tv_hash,
+        "learningHash": learning_hash,
+        "ack": ack,
+        "tvSynced": tv_synced,
+        "learningSynced": learning_synced,
+        "synced": bool(tv_synced and learning_synced),
+        "appliedAt": str((ack or {}).get("appliedAt") or ""),
+        "versionName": str((ack or {}).get("versionName") or ""),
+        "versionCode": int((ack or {}).get("versionCode") or 0),
+        "nasConfigVersion": nas_config_version,
+        "tvConfigVersion": str((ack or {}).get("configVersion") or ""),
+    }
+
+
+def read_sync_status(cfg: dict) -> dict:
+    share = cfg.get("playlistShare") or "data"
+    p = norm(cfg.get("playlistPath") or "curated/tv.json")
+    parent = p.rsplit("/", 1)[0] or "/"
+    c = smb(cfg)
+    tv_hash = ""
+    learning_hash = ""
+    nas_cfg_ver = ""
+    ack = None
+    try:
+        def _read(rel_path: str) -> str | None:
+            try:
+                buf = io.BytesIO()
+                c.retrieveFile(share, rel_path, buf, timeout=15)
+                return buf.getvalue().decode("utf-8-sig")
+            except Exception:
+                return None
+
+        tv_txt = _read(p)
+        if tv_txt is not None:
+            tv_hash = text_sha256(tv_txt)
+            try:
+                nas_cfg_ver = str(json.loads(tv_txt).get("configVersion") or "")
+            except Exception:
+                nas_cfg_ver = ""
+        learn_txt = _read(parent + "/learning.json")
+        if learn_txt and learn_txt.strip():
+            learning_hash = text_sha256(learn_txt)
+        ack_txt = _read(parent + "/tv.ack.json")
+        if ack_txt:
+            try:
+                ack = json.loads(ack_txt)
+            except Exception:
+                ack = None
+    finally:
+        c.close()
+    return {"ok": True, **compute_sync_status(tv_hash, learning_hash, ack, nas_cfg_ver)}
 
 
 # --------------------------------------------------------------------------- 远程控制卡（OPT-06）
@@ -1180,6 +1291,7 @@ class Handler(BaseHTTPRequestHandler):
                     text = read_remote(cfg)
                     return self.json_out({
                         "ok": True, "data": json.loads(text), "source": "nas",
+                        "baseHash": text_sha256(text),
                         "where": f"\\\\{cfg['host']}\\{cfg['playlistShare']}\\{cfg['playlistPath']}",
                     })
                 except Exception as e:
@@ -1187,13 +1299,18 @@ class Handler(BaseHTTPRequestHandler):
                         try:
                             data = json.loads(LOCAL_TV_FILE.read_text(encoding="utf-8-sig"))
                             return self.json_out({"ok": True, "data": data, "source": "local",
+                                                  "baseHash": "",
                                                   "warning": f"NAS 读取失败（{e}），已改用本地 tv.json"})
                         except Exception:
                             pass
                     return self.json_out({
                         "ok": True, "data": load_template(), "source": "template",
+                        "baseHash": "",
                         "warning": f"NAS 上还没有清单（{e}），已载入公开模板，改完点「保存到 NAS」即可",
                     })
+
+            if path == "/api/sync-status":
+                return self.json_out(read_sync_status(cfg))
 
             if path == "/api/control":
                 return self.json_out(read_control(cfg))
@@ -1255,6 +1372,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             return self.json_out({"ok": False, "error": "未知 API"}, 404)
+        except ConflictError as e:
+            return self.json_out({
+                "ok": False, "conflict": True,
+                "currentHash": e.current_hash, "expectedHash": e.expected_hash,
+                "error": str(e),
+            }, 409)
         except SmbError as e:
             return self.json_out({"ok": False, "error": str(e)}, 400)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
@@ -1339,15 +1462,25 @@ class Handler(BaseHTTPRequestHandler):
                         "share": cfg["share"],
                     }
                     payload["playlistShare"] = cfg.get("playlistShare") or "data"
+                cfg_ver = make_config_version()
+                payload["configVersion"] = cfg_ver
                 text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
                 target = data.get("target", "nas")
+                new_hash = text_sha256(text)
                 if target == "local":
                     LOCAL_TV_FILE.write_text(text, encoding="utf-8")
                     msg = f"已写入本地 {LOCAL_TV_FILE}（{len(text.encode('utf-8'))} 字节）"
                 else:
-                    msg = write_remote(current_cfg(), text)
+                    msg, new_hash = write_remote(
+                        current_cfg(),
+                        text,
+                        expected_base_hash=str(data.get("baseHash") or ""),
+                        force=bool(data.get("force")),
+                    )
                 threading.Thread(target=nudge_tv, daemon=True).start()
                 return self.json_out({"ok": True, "message": msg,
+                                      "newHash": new_hash,
+                                      "configVersion": cfg_ver,
                                       "bytes": len(text.encode("utf-8"))})
 
             if path == "/api/learning":
@@ -1364,12 +1497,56 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return self.json_out({"ok": True, "path": rel_img})
 
+            if path == "/api/covers/resolve":
+                cfg = current_cfg()
+                items = data.get("items")
+                if not isinstance(items, list):
+                    raise SmbError("缺少 items 数组")
+                v_share = str(data.get("videoShare") or cfg.get("share") or "")
+                c_share = str(data.get("coverShare") or cfg.get("playlistShare") or "data")
+                c = smb(cfg)
+                try:
+                    results = cover_gen.resolve_existing_covers(
+                        c, cfg, items, video_share=v_share, cover_share=c_share
+                    )
+                finally:
+                    c.close()
+                return self.json_out({"ok": True, "results": results})
+
+            if path == "/api/covers/generate":
+                cfg = current_cfg()
+                items = data.get("items")
+                if not isinstance(items, list):
+                    raise SmbError("缺少 items 数组")
+                v_share = str(data.get("videoShare") or cfg.get("share") or "")
+                c_share = str(data.get("coverShare") or cfg.get("playlistShare") or "data")
+                port = self.server.server_port if getattr(self, "server", None) else STATE.get("port", 8765)
+                stream_base = f"http://127.0.0.1:{port}"
+                c = smb(cfg)
+                try:
+                    res = cover_gen.generate_missing_covers(
+                        c, cfg, items,
+                        stream_base_url=stream_base,
+                        video_share=v_share,
+                        cover_share=c_share,
+                        force=bool(data.get("force")),
+                    )
+                finally:
+                    c.close()
+                return self.json_out(res)
+
             if path == "/api/nudge":
                 tv_ip = data.get("ip") or self.one(self.query(), "ip")
                 nudged = nudge_tv(tv_ip)
                 return self.json_out({"ok": True, "nudged": nudged})
 
             return self.json_out({"ok": False, "error": "未知 API"}, 404)
+        except ConflictError as e:
+            return self.json_out({
+                "ok": False, "conflict": True,
+                "currentHash": e.current_hash, "expectedHash": e.expected_hash,
+                "error": str(e),
+            }, 409)
         except SmbError as e:
             return self.json_out({"ok": False, "error": str(e)}, 400)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):

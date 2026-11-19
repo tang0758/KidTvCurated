@@ -1,9 +1,15 @@
 package com.family.curated.data
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.family.curated.BuildConfig
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -30,12 +36,14 @@ object PlaylistSync {
     }
     private val busy = AtomicBoolean(false)
     private val listeners = CopyOnWriteArrayList<Listener>()
+    private val stamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.CHINA)
 
     @Volatile private var initialized = false
     @Volatile private var lastCheckAt = 0L
     @Volatile private var failStreak = 0
     @Volatile private var appCtx: Context? = null
     @Volatile private var lastConflictNoticeAt = 0L
+    @Volatile private var ackWrittenThisSession = false
 
     /**
      * 电视上还有「没写回 NAS 的设置修改」时，下发 NAS 配置前先问家长（OPT-07）。
@@ -70,6 +78,7 @@ object PlaylistSync {
             Extras.saveKiosk(pl.kiosk)
             Extras.saveApps(pl.apps)
             Extras.saveFeatures(pl.features)
+            Extras.saveConfigVersion(pl.configVersion)
         }
         Store.playlistAppsSignature = appsSignature(pl.apps)
         Store.autoRefreshEnabled = pl.autoRefresh.enabled
@@ -120,6 +129,25 @@ object PlaylistSync {
                 }
                 Store.autoRefreshMigrated = true
             }
+            registerNetworkCallback(appCtx ?: ctx.applicationContext)
+        }
+    }
+
+    private fun registerNetworkCallback(ctx: Context) {
+        try {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    if (!initialized) return
+                    failStreak = 0
+                    if (!SmbPlaybackContext.playing) {
+                        lastCheckAt = 0L
+                        checkNow("network")
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "注册网络状态监听失败（降级为定时轮询）: ${e.message}")
         }
     }
 
@@ -193,9 +221,27 @@ object PlaylistSync {
             return
         }
         failStreak = 0
+        val learningChanged = Repo.syncLearningQuietly(cfg, share)
 
-        // 与本地缓存逐字比较：内容一样就绝不重绘，编辑器重写同样内容也不会打扰孩子
-        if (text == Store.cachedPlaylist) return
+        // 与本地缓存逐字比较：tv.json 一样时只处理词库更新与回执，不重绘全部视频列表
+        if (text == Store.cachedPlaylist) {
+            if (learningChanged) {
+                val parsed = runCatching { PlaylistParser.parse(text) }.getOrNull()
+                if (parsed != null) {
+                    val expanded = Repo.expandAuto(parsed)
+                    if (!Store.hasUnsyncedEdit) {
+                        writeTvAckIfNeeded(cfg, share, expanded, text, Store.cachedLearningJson)
+                    }
+                    notifyListeners(expanded, "learning")
+                }
+            } else if (!ackWrittenThisSession && !Store.hasUnsyncedEdit) {
+                val parsed = runCatching { PlaylistParser.parse(text) }.getOrNull()
+                if (parsed != null) {
+                    writeTvAckIfNeeded(cfg, share, parsed, text, Store.cachedLearningJson)
+                }
+            }
+            return
+        }
 
         val fresh = try {
             PlaylistParser.parse(text)
@@ -231,6 +277,9 @@ object PlaylistSync {
         applyToLocal(applied, skipSettings = conflict)
         Store.playlistAppsSignature = appsSignature(applied.apps)
         Store.autoRefreshLastApplied = System.currentTimeMillis()
+        if (!conflict) {
+            writeTvAckIfNeeded(cfg, share, applied, res.tvRawText ?: text, Store.cachedLearningJson)
+        }
         Log.i(TAG, "清单已自动更新（$reason）：${applied.sections.size} 个分区 / " +
             "${applied.sections.sumOf { it.items.size }} 个条目" +
             if (conflict) "（电视有未同步修改，本次跳过设置下发）" else "")
@@ -250,14 +299,58 @@ object PlaylistSync {
             }
         }
 
+        notifyListeners(applied, reason)
+    }
+
+    private fun notifyListeners(pl: Playlist, reason: String) {
         main.post {
             listeners.forEach {
                 try {
-                    it.onPlaylistChanged(applied, reason)
+                    it.onPlaylistChanged(pl, reason)
                 } catch (e: Exception) {
                     Log.w(TAG, "界面刷新回调失败: ${e.message}")
                 }
             }
+        }
+    }
+
+    fun writeTvAckAsync(pl: Playlist, tvText: String) {
+        val cfg = Store.nas() ?: return
+        val share = Store.playlistShare ?: Store.DEFAULT_PLAYLIST_SHARE
+        submit {
+            writeTvAckIfNeeded(cfg, share, pl, tvText, Store.cachedLearningJson)
+        }
+    }
+
+    private fun writeTvAckIfNeeded(
+        cfg: NasConfig,
+        share: String,
+        pl: Playlist,
+        tvText: String,
+        learningText: String?
+    ) {
+        val tvHash = TvAck.textSha256(tvText)
+        val learningHash = learningText?.takeIf { it.isNotBlank() }?.let { TvAck.textSha256(it) } ?: ""
+        val key = "$tvHash|$learningHash"
+        if (Store.lastTvAckKey == key && ackWrittenThisSession) return
+        val json = TvAck.formatAckJson(
+            tvHash = tvHash,
+            learningHash = learningHash,
+            appliedAt = synchronized(stamp) { stamp.format(Date()) },
+            versionCode = BuildConfig.VERSION_CODE,
+            versionName = BuildConfig.VERSION_NAME,
+            sectionsCount = pl.sections.size,
+            configVersion = pl.configVersion
+        )
+        try {
+            Smb.writeIsolated(
+                cfg, share, TvAck.ackPath(Store.playlistPath),
+                json.toByteArray(Charsets.UTF_8), 12_000
+            )
+            Store.lastTvAckKey = key
+            ackWrittenThisSession = true
+        } catch (e: Exception) {
+            Log.w(TAG, "写 tv.ack.json 失败（不影响使用）: ${e.message}")
         }
     }
 }
