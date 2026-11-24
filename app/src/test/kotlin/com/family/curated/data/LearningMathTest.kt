@@ -32,10 +32,11 @@ class LearningMathTest {
 
         // 固定 Random
         val filtered = LearningMath.weightedFilter(listOf(c1, c2), masteries, Random(42))
-        // w1 应该出现 2 次，w2 出现 1 次
+        // w1 应该出现 2 次，w2 出现 1 次，且 w1 不应相邻连续出现
         assertEquals(3, filtered.size)
         assertEquals(2, filtered.count { it.id == "w1" })
         assertEquals(1, filtered.count { it.id == "w2" })
+        assertEquals(listOf("w1", "w2", "w1"), filtered.map { it.id })
     }
 
     @Test
@@ -69,5 +70,66 @@ class LearningMathTest {
         val filtered = LearningMath.weightedFilter(cards, masteries, neverSampleRandom)
         // 触发保底机制，返回原卡片列表
         assertEquals(2, filtered.size)
+    }
+
+    @Test
+    fun `方案B - 自定义古诗按类型替换内置古诗，其它内置类型保持不变`() {
+        val myPoem1 = LearningCard(CardType.POEM, "自配静夜思", sub = "唐·李白", lines = listOf("床前明月光"))
+        val myPoem2 = LearningCard(CardType.POEM, "自配春晓", sub = "唐·孟浩然", lines = listOf("春眠不觉晓"))
+        val learning = Learning(useBuiltin = true, custom = listOf(myPoem1, myPoem2))
+
+        val deck = learning.deck()
+        val poems = deck.filter { it.type == CardType.POEM }
+        val words = deck.filter { it.type == CardType.WORD }
+        val arts = deck.filter { it.type == CardType.ART }
+        val texts = deck.filter { it.type == CardType.TEXT }
+
+        assertEquals(listOf("自配静夜思", "自配春晓"), poems.map { it.title })
+        assertEquals(LearningLibrary.words.size, words.size)
+        assertEquals(LearningLibrary.arts.size, arts.size)
+        assertEquals(LearningLibrary.texts.size, texts.size)
+    }
+
+    @Test
+    fun `未配置自定义卡片时保留全部内置类型`() {
+        val deck = Learning(useBuiltin = true, custom = emptyList()).deck()
+        assertEquals(LearningLibrary.poems.size, deck.count { it.type == CardType.POEM })
+        assertEquals(LearningLibrary.words.size, deck.count { it.type == CardType.WORD })
+        assertEquals(LearningLibrary.arts.size, deck.count { it.type == CardType.ART })
+        assertEquals(LearningLibrary.texts.size, deck.count { it.type == CardType.TEXT })
+    }
+
+    @Test
+    fun `古诗按逗号与句末标点自动分行`() {
+        val split = LearningMath.splitPoemLines(
+            listOf(
+                "两个黄鹂鸣翠柳，一行白鹭上青天。",
+                "窗含西岭千秋雪，门泊东吴万里船。"
+            )
+        )
+        assertEquals(
+            listOf(
+                "两个黄鹂鸣翠柳，",
+                "一行白鹭上青天。",
+                "窗含西岭千秋雪，",
+                "门泊东吴万里船。"
+            ),
+            split
+        )
+    }
+
+    @Test
+    fun `锁屏学习角复用打卡词库替换内置单词，且自定义单词优先级更高`() {
+        val onlineW = listOf(
+            LearningCard(CardType.WORD, "giraffe", note = "长颈鹿"),
+            LearningCard(CardType.WORD, "panda", note = "熊猫")
+        )
+        val deckReuse = Learning(useBuiltin = true).deck(onlineWords = onlineW)
+        assertEquals(listOf("giraffe", "panda"), deckReuse.filter { it.type == CardType.WORD }.map { it.title })
+        assertEquals(LearningLibrary.poems.size, deckReuse.count { it.type == CardType.POEM })
+
+        val customW = listOf(LearningCard(CardType.WORD, "custom_cat", note = "自定义猫"))
+        val deckCustom = Learning(useBuiltin = true, custom = customW).deck(onlineWords = onlineW)
+        assertEquals(listOf("custom_cat"), deckCustom.filter { it.type == CardType.WORD }.map { it.title })
     }
 }

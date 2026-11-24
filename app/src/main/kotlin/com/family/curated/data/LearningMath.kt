@@ -53,14 +53,15 @@ object LearningMath {
         if (cards.isEmpty()) return emptyList()
 
         val result = ArrayList<LearningCard>()
+        val extras = ArrayList<Pair<Int, LearningCard>>()
 
         for (c in cards) {
             val id = cardId(c)
             val m = masteryMap[id] ?: CardMastery.UNMARKED
             when (m) {
                 CardMastery.LEARNING -> {
-                    result.add(c)
-                    result.add(c) // 权重 2.0
+                    extras.add(result.size to c)
+                    result.add(c) // 权重 2.0：第 2 份错开插入，避免连续两张重复
                 }
                 CardMastery.UNMARKED -> {
                     result.add(c) // 权重 1.0
@@ -73,10 +74,63 @@ object LearningMath {
             }
         }
 
+        if (extras.isNotEmpty() && result.size >= 2) {
+            val half = (result.size / 2).coerceAtLeast(1)
+            for ((idxOffset, pair) in extras.withIndex()) {
+                val (firstIdx, card) = pair
+                val cid = cardId(card)
+                var pos = (firstIdx + half + idxOffset) % (result.size + 1)
+                var tries = 0
+                while (tries < result.size + 1) {
+                    val prevSame = pos > 0 && cardId(result[pos - 1]) == cid
+                    val nextSame = pos < result.size && cardId(result[pos]) == cid
+                    if (!prevSame && !nextSame) break
+                    pos = (pos + 1) % (result.size + 1)
+                    tries++
+                }
+                result.add(pos, card)
+            }
+        } else {
+            extras.forEach { result.add(it.second) }
+        }
+
         // 保底：若全部卡片都被过滤掉，返回原始列表避免白屏
         if (result.isEmpty()) {
             return cards
         }
         return result
+    }
+
+    /**
+     * 古诗按句读自动分行：遇到逗号/句号/问号/感叹号/分号即断开，
+     * 标点留在前一句末尾，避免两句并成一行在带配图的窄栏里折行难看。
+     */
+    fun splitPoemLines(lines: List<String>): List<String> {
+        val breaks = setOf('，', '。', '？', '！', '；', ',', ';')
+        val trailing = setOf('”', '’', '」', '』', '"', '\'')
+        val out = ArrayList<String>()
+        for (raw in lines) {
+            val s = raw.trim()
+            if (s.isEmpty()) continue
+            val buf = StringBuilder()
+            var i = 0
+            while (i < s.length) {
+                val ch = s[i]
+                buf.append(ch)
+                if (ch in breaks) {
+                    while (i + 1 < s.length && s[i + 1] in trailing) {
+                        i++
+                        buf.append(s[i])
+                    }
+                    val part = buf.toString().trim()
+                    if (part.isNotEmpty()) out.add(part)
+                    buf.setLength(0)
+                }
+                i++
+            }
+            val rest = buf.toString().trim()
+            if (rest.isNotEmpty()) out.add(rest)
+        }
+        return out
     }
 }

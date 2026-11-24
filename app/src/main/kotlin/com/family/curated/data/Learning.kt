@@ -98,11 +98,24 @@ data class Learning(
     val stageSize: Int = 0
 ) {
     /** 每类先各来一张，再按比例平滑穿插，避免同类连着出现一大串；支持掌握度加权抽样 */
-    fun deck(masteryMap: Map<String, CardMastery> = emptyMap()): List<LearningCard> {
+    fun deck(
+        masteryMap: Map<String, CardMastery> = emptyMap(),
+        onlineWords: List<LearningCard> = emptyList()
+    ): List<LearningCard> {
         val pools = HashMap<CardType, MutableList<LearningCard>>()
         CardType.values().forEach { pools[it] = ArrayList() }
+        // 按类型替换：某类型有自定义卡片时，该类型只用自定义卡片；
+        // 英语单词若未在 custom 中自定义且有打卡词库 onlineWords，则直接复用打卡词库；
+        // 其它未配置的类型继续使用内置题库。
+        val customTypes = custom.map { it.type }.toSet()
+        val useOnlineWords = CardType.WORD !in customTypes && onlineWords.isNotEmpty()
+        if (useOnlineWords) {
+            pools[CardType.WORD]!!.addAll(onlineWords)
+        }
         if (useBuiltin) {
             LearningLibrary.all.groupBy { it.type }.forEach { (type, cards) ->
+                if (type in customTypes) return@forEach
+                if (type == CardType.WORD && useOnlineWords) return@forEach
                 val slice = if (stage > 0 && stageSize > 0) {
                     val from = (stage - 1) * stageSize
                     if (from < cards.size) cards.drop(from).take(stageSize)
