@@ -100,6 +100,7 @@ class MainActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return@Listener
         val oldVer = playlist?.configVersion ?: Extras.configVersion()
         playlist = pl
+        com.family.curated.data.Covers.clearMissing()
         render(null)
         if (reason != "init" && pl.configVersion.isNotBlank() && pl.configVersion != oldVer) {
             Toast.makeText(

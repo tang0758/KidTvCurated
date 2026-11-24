@@ -34,17 +34,20 @@ object Covers {
 
     private val noCover: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
-    fun cached(item: Item): Bitmap? = cache.get(item.key())
+    /** 缓存键必须包含 item.cover：网页端点「生成封面」补上 cover 字段后，电视立刻失效旧占位图并拉取新封面 */
+    private fun cacheKey(item: Item): String = "${item.key()}|${item.cover.orEmpty()}"
+
+    fun cached(item: Item): Bitmap? = cache.get(cacheKey(item))
 
     fun markNoCover(item: Item) {
-        noCover.add(item.key())
+        noCover.add(cacheKey(item))
     }
 
-    fun isKnownMissing(item: Item): Boolean = noCover.contains(item.key())
+    fun isKnownMissing(item: Item): Boolean = noCover.contains(cacheKey(item))
 
     /** 已缓存就用缓存，否则现画一张并收进 LRU。NAS 还没配好时首页也用它，不再是灰块 */
     fun cachedOrPlaceholder(item: Item, w: Int, h: Int): Bitmap =
-        cached(item) ?: placeholder(item, w, h).also { cache.put(item.key(), it) }
+        cached(item) ?: placeholder(item, w, h).also { cache.put(cacheKey(item), it) }
 
     /**
      * 画占位封面。色相由条目 key 派生，同一个视频每次都是同一个颜色；
@@ -98,7 +101,7 @@ object Covers {
      * 异步加载封面。找到图回调真封面；找不到回调**占位图**（不再是 null）。
      */
     fun load(iv: ImageView, cfg: NasConfig, item: Item, targetW: Int, targetH: Int, onLoaded: (Bitmap?) -> Unit) {
-        val tag = item.key()
+        val tag = cacheKey(item)
         iv.tag = tag
 
         cached(item)?.let {
@@ -147,12 +150,12 @@ object Covers {
         targetW: Int, targetH: Int, onLoaded: (Bitmap?) -> Unit, attempt: Int
     ) {
         if (attempt >= 8) {
-            noCover.add(item.key())
+            noCover.add(cacheKey(item))
             onLoaded(cachedOrPlaceholder(item, targetW, targetH))
             return
         }
         main.postDelayed({
-            if (iv.tag != item.key()) return@postDelayed
+            if (iv.tag != cacheKey(item)) return@postDelayed
             if (SmbPlaybackContext.playing) {
                 retryAfterPlayback(iv, cfg, item, targetW, targetH, onLoaded, attempt + 1)
             } else {
@@ -184,6 +187,13 @@ object Covers {
         val th = reqH.coerceAtLeast(1)
         while (w / (s * 2) >= tw && h / (s * 2) >= th) s *= 2
         return s
+    }
+
+    /** 清掉「曾经找不到封面」的占位缓存（保留已加载成功的真封面），供片单同步后重新探测新生成的影子目录封面 */
+    fun clearMissing() {
+        val keys = noCover.toList()
+        noCover.clear()
+        keys.forEach { cache.remove(it) }
     }
 
     /** 清缓存也清「缺图」记忆：家长补了封面后，用「清空所有播放进度」即可重新探测 */
