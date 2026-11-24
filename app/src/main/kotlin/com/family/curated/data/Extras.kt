@@ -588,13 +588,14 @@ object Extras {
         }
     }
 
-    /** 确保今日队列已锁定（同一天不重抽，防止反复进出变题） */
+    /** 确保今日队列已锁定（同一天不重抽；但若词库从内置切换为在线导致旧 ID 全部失效，则自动重抽） */
     fun ensureTodayWordQueue(
         allWords: List<LearningCard>,
         dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
         dayKey: String = day()
     ): List<String> {
-        val existing = wordQueue(dayKey)
+        val validIds = allWords.mapTo(HashSet()) { LearningMath.cardId(it) }
+        val existing = wordQueue(dayKey).filter { it in validIds }
         if (existing.isNotEmpty()) return existing
         val seed = dayKey.hashCode().toLong()
         val picked = WordCheckInMath.pickDailyWords(allWords, allWordMemories(), dayKey, dailyCount, seed)
@@ -661,10 +662,13 @@ object Extras {
         dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
         dayKey: String = day()
     ): List<String> {
-        val existing = hanziQueue(dayKey)
+        val validIds = allHanzi.mapTo(HashSet()) { LearningMath.cardId(it) }
+        val existing = hanziQueue(dayKey).filter { it in validIds }
         if (existing.isNotEmpty()) return existing
         val seed = ("hanzi_$dayKey").hashCode().toLong()
-        val picked = WordCheckInMath.pickDailyWords(allHanzi, allWordMemories(), dayKey, dailyCount, seed)
+        val picked = WordCheckInMath.pickDailyWords(
+            allHanzi, allWordMemories(), dayKey, dailyCount, seed, targetType = CardType.TEXT
+        )
         val ids = picked.map { LearningMath.cardId(it) }
         if (ids.isNotEmpty()) {
             p().edit().putString("hanzi_queue_$dayKey", ids.joinToString(",")).apply()

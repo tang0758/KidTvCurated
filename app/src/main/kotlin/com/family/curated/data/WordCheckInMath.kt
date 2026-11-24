@@ -73,14 +73,15 @@ object WordCheckInMath {
         memoryMap: Map<String, MemoryState>,
         todayDay: String,
         count: Int = DEFAULT_DAILY_COUNT,
-        seed: Long = 0L
+        seed: Long = 0L,
+        targetType: CardType = CardType.WORD
     ): List<LearningCard> {
         if (count <= 0 || allWords.isEmpty()) return emptyList()
 
         val seen = LinkedHashSet<String>()
         val unique = ArrayList<LearningCard>()
         for (c in allWords) {
-            if (c.type != CardType.WORD || c.title.isBlank()) continue
+            if (c.type != targetType || c.title.isBlank()) continue
             val id = LearningMath.cardId(c)
             if (seen.add(id)) unique.add(c)
         }

@@ -140,4 +140,17 @@ class WordCheckInMathTest {
         assertEquals("香蕉" to "", WordCheckInMath.splitZhNote("香蕉"))
         assertEquals("" to "", WordCheckInMath.splitZhNote(null))
     }
+
+    @Test
+    fun `pickDailyWords supports TEXT card type for daily hanzi check-in`() {
+        val hanzi = listOf(
+            LearningCard(CardType.TEXT, "哭", id = "text_ku"),
+            LearningCard(CardType.TEXT, "笑", id = "text_xiao"),
+            LearningCard(CardType.WORD, "apple", id = "word_apple")
+        )
+        val picked = WordCheckInMath.pickDailyWords(
+            hanzi, emptyMap(), "2026-11-24", count = 10, seed = 1L, targetType = CardType.TEXT
+        )
+        assertEquals(listOf("text_ku", "text_xiao"), picked.map { it.id })
+    }
 }
