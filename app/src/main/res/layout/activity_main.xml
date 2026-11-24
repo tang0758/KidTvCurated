@@ -37,7 +37,7 @@
                 android:id="@+id/btnRewards"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="18dp"
+                android:layout_marginEnd="14dp"
                 android:background="@drawable/pill_bg"
                 android:clickable="true"
                 android:focusable="true"
@@ -48,6 +48,23 @@
                 android:text="我的奖励"
                 android:textColor="@color/accent"
                 android:textSize="17sp" />
+
+            <!-- 学习角入口：允许时段内可自由进锁屏学习角，按返回键回片单 -->
+            <TextView
+                android:id="@+id/btnStudy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="14dp"
+                android:background="@drawable/pill_bg"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp"
+                android:text="@string/main_btn_study"
+                android:textColor="#9FC2FF"
+                android:textSize="16sp" />
 
             <!-- 家长入口：孩子可以按，但要 PIN 才进得去；颜色比「我的奖励」淡，不抢注意力 -->
             <TextView

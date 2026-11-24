@@ -100,10 +100,11 @@
         </LinearLayout>
 
         <TextView
+            android:id="@+id/tvLockFooterHint"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="34dp"
-            android:text="按遥控器「菜单」键 · 家长临时放行"
+            android:text="@string/lock_parent_override_hint"
             android:textColor="#5F6875"
             android:textSize="13sp" />
 

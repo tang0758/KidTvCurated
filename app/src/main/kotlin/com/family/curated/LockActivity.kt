@@ -1,5 +1,6 @@
 package com.family.curated
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -24,7 +25,11 @@ import com.family.curated.data.GateKeeper
 import com.family.curated.data.KioskKeys
 import com.family.curated.data.Learning
 import com.family.curated.data.LearningCard
+import com.family.curated.data.LearningLibrary
 import com.family.curated.data.LearningMath
+import com.family.curated.data.RemoteCommand
+import com.family.curated.data.Smb
+import com.family.curated.data.StateBackup
 import com.family.curated.data.Store
 import com.family.curated.databinding.ActivityLockBinding
 import com.family.curated.ui.PinPadDialog
@@ -87,6 +92,12 @@ class LockActivity : AppCompatActivity() {
         TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
             b.tvCountdown, 26, 68, 2, TypedValue.COMPLEX_UNIT_SP
         )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        render()
     }
 
     override fun onResume() {
@@ -160,17 +171,47 @@ class LockActivity : AppCompatActivity() {
         private const val DIM_SCREEN_BRIGHTNESS = 0.14f
     }
 
-    // ---------------- 左：倒计时 ----------------
+    // ---------------- 左：状态与倒计时 ----------------
 
     private fun render() {
         val st = GateKeeper.status()
-        if (st.open) {
-            finish()
-            return
+        when {
+            st.open -> {
+                // 普通锁屏 + 允许时间内：绿色提示可随时按返回键进入内容页
+                b.tvHeadline.text = getString(R.string.lock_study_headline)
+                b.tvHeadline.setTextColor(Color.parseColor("#6EE7B7"))
+                b.tvCountdown.text = timeFmt.format(Date())
+                b.tvCountdown.setTextColor(Color.parseColor("#6EE7B7"))
+                val leftMin = (st.limitMinutes - st.usedMinutes).coerceAtLeast(0)
+                b.tvDetail.text = when {
+                    st.reason == GateKeeper.Reason.TEMP -> st.detail
+                    st.limitMinutes > 0 -> getString(R.string.lock_study_detail_limit, leftMin)
+                    else -> getString(R.string.lock_study_detail_open)
+                }
+                b.tvLockFooterHint.text = getString(R.string.lock_study_back_hint)
+                b.tvLockFooterHint.setTextColor(Color.parseColor("#6EE7B7"))
+            }
+            st.reason == GateKeeper.Reason.REMOTE -> {
+                // 强制锁屏（权限高于允许时段）：红色 + 强制状态
+                b.tvHeadline.text = getString(R.string.lock_force_headline)
+                b.tvHeadline.setTextColor(Color.parseColor("#EF4444"))
+                b.tvCountdown.text = GateKeeper.hms(st.secondsLeft)
+                b.tvCountdown.setTextColor(Color.parseColor("#EF4444"))
+                b.tvDetail.text = getString(R.string.lock_force_detail)
+                b.tvLockFooterHint.text = getString(R.string.lock_force_footer_hint)
+                b.tvLockFooterHint.setTextColor(Color.parseColor("#EF4444"))
+            }
+            else -> {
+                // 普通锁屏 + 非允许时间/额度用完：红色提示需家长临时放行
+                b.tvHeadline.text = st.headline
+                b.tvHeadline.setTextColor(Color.parseColor("#F87171"))
+                b.tvCountdown.text = GateKeeper.hms(st.secondsLeft)
+                b.tvCountdown.setTextColor(Color.parseColor("#FFC44D"))
+                b.tvDetail.text = st.detail
+                b.tvLockFooterHint.text = getString(R.string.lock_parent_override_hint)
+                b.tvLockFooterHint.setTextColor(Color.parseColor("#F87171"))
+            }
         }
-        b.tvHeadline.text = st.headline
-        b.tvCountdown.text = GateKeeper.hms(st.secondsLeft)
-        b.tvDetail.text = st.detail
         b.tvUsed.text = if (st.limitMinutes > 0)
             getString(R.string.lock_time_of_limit, st.usedMinutes, st.limitMinutes)
         else getString(R.string.lock_time, st.usedMinutes)
@@ -196,7 +237,12 @@ class LockActivity : AppCompatActivity() {
         b.learningPane.visibility = View.VISIBLE
         b.divider.visibility = View.VISIBLE
 
-        val base = learning.deck(Extras.allCardMasteries())
+        val onlineWords = if (learning.useBuiltin) {
+            LearningLibrary.parseOnlineWordsOnly(Store.cachedLearningJson)
+        } else {
+            emptyList()
+        }
+        val base = learning.deck(Extras.allCardMasteries(), onlineWords)
         if (base.isEmpty()) {
             // 家长关掉内置又没写自定义卡片：右侧留一句提示，不显示空白
             b.learningPane.visibility = View.GONE
@@ -226,6 +272,8 @@ class LockActivity : AppCompatActivity() {
 
     private fun nextCard() {
         if (deck.isEmpty()) return
+        stopCardAudio()
+        paused = false
         idx = (idx + 1) % deck.size
         leftSeconds = learning.intervalSeconds
         showCard()
@@ -233,6 +281,8 @@ class LockActivity : AppCompatActivity() {
 
     private fun prevCard() {
         if (deck.isEmpty()) return
+        stopCardAudio()
+        paused = false
         idx = (idx - 1 + deck.size) % deck.size
         leftSeconds = learning.intervalSeconds
         showCard()
@@ -276,13 +326,26 @@ class LockActivity : AppCompatActivity() {
         b.cardBody.animate().alpha(1f).setDuration(260).start()
 
         if (c.type == CardType.ART) showArt(c) else showText(c)
+
+        // 后台预加载接下来 3 张与前 1 张卡片图片，翻页时直接命中内存缓存（0ms 出图）
+        if (deck.size > 1) {
+            val neighbors = listOf(1, 2, 3, -1)
+                .map { (idx + it + deck.size) % deck.size }
+                .distinct()
+                .filter { it != idx }
+                .map { deck[it] }
+            ArtImages.prefetch(this, neighbors, Store.nas(), learning.artShare)
+        }
     }
 
     private fun showText(c: LearningCard) {
         b.textFrame.visibility = View.VISIBLE
         b.artFrame.visibility = View.GONE
 
+        b.ivCardIllust.setImageDrawable(null)
         if (!c.image.isNullOrBlank()) {
+            // 先占位（INVISIBLE）再加载，防止文字居中闪一下再被图片向右挤
+            b.ivCardIllust.visibility = View.INVISIBLE
             ArtImages.load(this, b.ivCardIllust, c, Store.nas(), learning.artShare, 400, 400) { bmp ->
                 if (bmp != null) {
                     b.ivCardIllust.setImageBitmap(bmp)
@@ -292,7 +355,6 @@ class LockActivity : AppCompatActivity() {
                 }
             }
         } else {
-            b.ivCardIllust.setImageDrawable(null)
             b.ivCardIllust.visibility = View.GONE
         }
 
@@ -313,15 +375,26 @@ class LockActivity : AppCompatActivity() {
         b.tvCardNote.text = c.note
         b.tvCardNote.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
 
-        val maxLen = c.lines.maxOfOrNull { it.length } ?: 1
+        val displayLines = if (c.type == CardType.POEM) LearningMath.splitPoemLines(c.lines) else c.lines
+        val hasImage = !c.image.isNullOrBlank()
+        val maxLen = displayLines.maxOfOrNull { it.length } ?: 1
         val lineSize = when (c.type) {
-            CardType.POEM -> (500f / maxLen.coerceAtLeast(1)).coerceIn(22f, 33f)
+            CardType.POEM -> {
+                val widthBudget = if (hasImage) 250f else 480f
+                val maxSp = when {
+                    displayLines.size >= 8 -> 21f
+                    displayLines.size >= 6 -> 24f
+                    hasImage -> 28f
+                    else -> 33f
+                }
+                (widthBudget / maxLen.coerceAtLeast(1)).coerceIn(19f, maxSp)
+            }
             CardType.WORD -> 24f
             CardType.TEXT -> 23f
             else -> 22f
         }
         b.linesHost.removeAllViews()
-        c.lines.forEach { line ->
+        displayLines.forEach { line ->
             val tv = TextView(this).apply {
                 text = line
                 gravity = Gravity.CENTER
@@ -425,7 +498,15 @@ class LockActivity : AppCompatActivity() {
                 showParentOverride()
                 return true
             }
-            KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> return true
+            KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
+                if (GateKeeper.status().open) {
+                    if (isTaskRoot) {
+                        startActivity(Intent(this, MainActivity::class.java))
+                    }
+                    finish()
+                }
+                return true
+            }
             // 数字键直接当作 PIN 输入，省去对话框里找焦点
             in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
                 appendPinDigit(keyCode - KeyEvent.KEYCODE_0)
@@ -447,6 +528,7 @@ class LockActivity : AppCompatActivity() {
                 if (c != null) {
                     val cid = LearningMath.cardId(c)
                     Extras.setCardMastery(cid, CardMastery.MASTERED)
+                    StateBackup.nudge("mastery")
                     Toast.makeText(this, getString(R.string.lock_marked_mastered), Toast.LENGTH_SHORT).show()
                     showCard()
                 }
@@ -459,6 +541,7 @@ class LockActivity : AppCompatActivity() {
                     val cur = Extras.cardMastery(cid)
                     val target = if (cur == CardMastery.LEARNING) CardMastery.UNMARKED else CardMastery.LEARNING
                     Extras.setCardMastery(cid, target)
+                    StateBackup.nudge("mastery")
                     Toast.makeText(this, getString(R.string.lock_marked_learning), Toast.LENGTH_SHORT).show()
                     showCard()
                 }
@@ -491,22 +574,88 @@ class LockActivity : AppCompatActivity() {
     }
 
     private var cardAudioPlayer: MediaPlayer? = null
+    private var audioReqSeq = 0
+
+    private fun stopCardAudio() {
+        audioReqSeq++
+        cardAudioPlayer?.release()
+        cardAudioPlayer = null
+    }
 
     private fun playCardAudio(c: LearningCard) {
-        val audioPath = c.audio?.takeIf { it.isNotBlank() } ?: run {
+        val audioPath = c.audio?.trim()?.takeIf { it.isNotBlank() } ?: run {
             Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
             return
         }
-        val source = if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
-            audioPath
-        } else {
-            val localF = java.io.File(filesDir, "audio/" + audioPath.substringAfterLast("/"))
-            if (!localF.exists()) {
-                Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
-                return
-            }
-            localF.absolutePath
+        stopCardAudio()
+        val seq = audioReqSeq
+
+        if (audioPath.startsWith("http://") || audioPath.startsWith("https://")) {
+            startCardMediaPlayer(audioPath, isAsync = true)
+            return
         }
+
+        val localF = java.io.File(filesDir, "audio/" + audioPath.substringAfterLast("/"))
+        if (localF.exists()) {
+            startCardMediaPlayer(localF.absolutePath, isAsync = false)
+            return
+        }
+
+        // 从 NAS SMB 拉取音频并缓存到 cacheDir/card_audio/，避免每次按 OK 重复走网络
+        val cfg = Store.nas()
+        if (cfg == null) {
+            Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val cacheDirAudio = java.io.File(cacheDir, "card_audio")
+        val ext = audioPath.substringAfterLast('.', "mp3").lowercase().takeIf { it.length in 2..5 } ?: "mp3"
+        val hash = RemoteCommand.sha256Hex(audioPath.toByteArray(Charsets.UTF_8)).take(24)
+        val cachedF = java.io.File(cacheDirAudio, "$hash.$ext")
+        if (cachedF.exists() && cachedF.length() > 0) {
+            startCardMediaPlayer(cachedF.absolutePath, isAsync = false)
+            return
+        }
+
+        Thread({
+            val bytes = try {
+                val raw = audioPath.removePrefix("smb:").trim()
+                val colon = raw.indexOf(':')
+                val explicitShare = if (colon > 0) raw.substring(0, colon).trim() else ""
+                val relPath = (if (colon > 0) raw.substring(colon + 1) else raw).trimStart('/')
+                if (explicitShare.isNotEmpty()) {
+                    Smb.readAllIsolated(cfg, explicitShare, relPath, 15_000)
+                } else {
+                    val primary = Store.playlistShare ?: Store.DEFAULT_PLAYLIST_SHARE
+                    try {
+                        Smb.readAllIsolated(cfg, primary, relPath, 15_000)
+                    } catch (_: Exception) {
+                        if (cfg.share.isNotBlank() && cfg.share != primary) {
+                            Smb.readAllIsolated(cfg, cfg.share, relPath, 15_000)
+                        } else null
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
+            if (bytes != null && bytes.isNotEmpty()) {
+                try {
+                    cacheDirAudio.mkdirs()
+                    cachedF.writeBytes(bytes)
+                } catch (_: Exception) {
+                }
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed || seq != audioReqSeq) return@runOnUiThread
+                if (cachedF.exists() && cachedF.length() > 0) {
+                    startCardMediaPlayer(cachedF.absolutePath, isAsync = false)
+                } else {
+                    Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }, "lock-audio").apply { isDaemon = true }.start()
+    }
+
+    private fun startCardMediaPlayer(source: String, isAsync: Boolean) {
         try {
             cardAudioPlayer?.release()
             cardAudioPlayer = MediaPlayer().apply {
@@ -515,10 +664,25 @@ class LockActivity : AppCompatActivity() {
                     paused = false
                     updateCardTimer()
                 }
-                prepare()
-                start()
-                paused = true
-                updateCardTimer()
+                setOnErrorListener { _, _, _ ->
+                    paused = false
+                    updateCardTimer()
+                    Toast.makeText(this@LockActivity, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+                    true
+                }
+                if (isAsync) {
+                    setOnPreparedListener {
+                        it.start()
+                        paused = true
+                        updateCardTimer()
+                    }
+                    prepareAsync()
+                } else {
+                    prepare()
+                    start()
+                    paused = true
+                    updateCardTimer()
+                }
             }
         } catch (_: Exception) {
             cardAudioPlayer?.release()
@@ -531,8 +695,7 @@ class LockActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        cardAudioPlayer?.release()
-        cardAudioPlayer = null
+        stopCardAudio()
     }
 
     private val pinBuffer = StringBuilder()

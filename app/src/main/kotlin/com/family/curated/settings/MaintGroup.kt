@@ -34,10 +34,11 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
         )
         add(
             Entry.Row(
-                h.str(R.string.set_lock_now),
-                h.str(R.string.set_lock_now_hint),
-                ""
-            ) { lockNow() }
+                h.str(R.string.set_force_lock),
+                if (Extras.remoteLockActive())
+                    h.str(R.string.set_force_lock_hint_active) else h.str(R.string.set_force_lock_hint_idle),
+                forceLockText()
+            ) { chooseForceLock() }
         )
         add(
             Entry.Row(h.str(R.string.set_reset_today), h.str(R.string.set_reset_today_hint), "") {
@@ -102,19 +103,44 @@ class MaintGroup(private val h: SettingsHost) : SettingsGroup {
         )
     }
 
-    // ---------------- 立刻回到锁屏 ----------------
+    // ---------------- 强制锁屏 ----------------
 
-    private fun lockNow() {
-        Extras.clearTemp()
-        // 当前若仍在允许时段内且未超额，仅清 tempUntil 会被门禁立刻放行收掉，需同步激活暂停锁
-        if (GateKeeper.status().open) {
-            Extras.setRemoteLock(true)
-        }
-        h.act.startActivity(
-            Intent(h.act, LockActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-        )
-        h.act.finish()
+    private fun forceLockText(): String {
+        val left = Extras.remoteLockRemainingMs()
+        if (left <= 0L) return h.str(R.string.set_force_lock_idle)
+        return h.str(R.string.set_force_lock_left, (left / 60_000L) + 1)
+    }
+
+    private fun chooseForceLock() {
+        val active = Extras.remoteLockActive()
+        val labels = (if (active) arrayListOf(h.str(R.string.set_force_lock_end)) else arrayListOf()) +
+            listOf(
+                h.str(R.string.set_force_lock_15),
+                h.str(R.string.set_force_lock_30),
+                h.str(R.string.set_force_lock_60)
+            )
+        val minutes = listOf(15, 30, 60)
+        h.act.darkDialog()
+            .setTitle(h.str(R.string.set_force_lock))
+            .setItems(labels.toTypedArray()) { _, which ->
+                if (active && which == 0) {
+                    Extras.clearRemoteLock()
+                    h.toast(h.str(R.string.set_force_lock_cleared))
+                    h.refresh()
+                } else {
+                    val idx = if (active) which - 1 else which
+                    val m = minutes.getOrNull(idx) ?: return@setItems
+                    Extras.lockForMinutes(m)
+                    h.toast(h.str(R.string.set_force_lock_done, m))
+                    h.act.startActivity(
+                        Intent(h.act, LockActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    )
+                    h.act.finish()
+                }
+            }
+            .setNegativeButton(h.str(R.string.common_cancel), null)
+            .show()
     }
 
     // ---------------- 临时放行 ----------------

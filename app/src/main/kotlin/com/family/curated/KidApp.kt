@@ -49,7 +49,7 @@ class KidApp : Application(), Application.ActivityLifecycleCallbacks {
                 if (!st.open && Extras.appLaunchActive()) Extras.clearAppLaunch()
                 val a = current
                 if (a is LockActivity) {
-                    if (st.open) a.finish()
+                    // 锁屏页自身每秒按 GateKeeper.status() 切换绿色（允许时段可按返回进片单）或红色（锁定/强制锁屏）
                 } else if (a != null && a !is SettingsActivity && !st.open &&
                     System.currentTimeMillis() - lastLockLaunch > 1500
                 ) {
