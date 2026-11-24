@@ -430,5 +430,48 @@ class ConfigVersionTest(unittest.TestCase):
         self.assertEqual(st["tvConfigVersion"], "2026-11-19 22:15:08")
 
 
+class LearningReportTest(unittest.TestCase):
+    """学情反馈聚合逻辑：四类统计、薄弱项排序、近 7 天新掌握。"""
+
+    def test_compute_learning_report(self):
+        now_ms = 1_795_500_000_000  # 2026-11-24 左右
+        two_days = now_ms - 2 * 24 * 3600 * 1000
+        ten_days = now_ms - 10 * 24 * 3600 * 1000
+        tv_obj = {
+            "learning": {
+                "custom": [
+                    {"id": "poem_1", "type": "poem", "title": "绝句"},
+                    {"id": "art_1", "type": "art", "title": "星夜"},
+                    {"id": "text_ku", "type": "text", "title": "哭"},
+                ]
+            }
+        }
+        learning_obj = {
+            "cards": [
+                {"id": "word_apple", "type": "word", "title": "apple"},
+                {"id": "word_arm", "type": "word", "title": "arm"},
+            ]
+        }
+        state_obj = {
+            "savedAt": now_ms,
+            "longs": {
+                "ltag_word_apple": 1,
+                "ltag_ts_word_apple": two_days,
+                "ltag_word_arm": -1,
+                "ltag_text_ku": 1,
+                "ltag_ts_text_ku": now_ms - 3600 * 1000,
+                "ltag_poem_1": 1,
+                "ltag_ts_poem_1": ten_days,
+            },
+        }
+        rep = console.compute_learning_report(tv_obj, learning_obj, state_obj, now_ms=now_ms)
+        self.assertTrue(rep["ok"])
+        self.assertEqual(rep["summary"]["total"], 5)
+        self.assertEqual(rep["summary"]["mastered"], 3)
+        self.assertEqual(rep["summary"]["learning"], 1)
+        self.assertEqual([w["id"] for w in rep["weakItems"]], ["word_arm"])
+        self.assertEqual([r["id"] for r in rep["recentMastered"]], ["text_ku", "word_apple"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

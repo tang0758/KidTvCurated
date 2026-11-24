@@ -99,6 +99,12 @@
             android:screenOrientation="landscape" />
 
         <activity
+            android:name=".StudyReportActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
             android:name=".SettingsActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode"
             android:exported="false"

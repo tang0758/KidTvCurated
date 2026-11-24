@@ -452,6 +452,173 @@ def read_sync_status(cfg: dict) -> dict:
     return {"ok": True, **compute_sync_status(tv_hash, learning_hash, ack, nas_cfg_ver)}
 
 
+_CARD_TYPE_LABELS = {
+    "word": "英语单词",
+    "text": "汉字识字",
+    "poem": "唐诗",
+    "art": "名画",
+}
+
+
+def _card_id(c: dict) -> str:
+    cid = str(c.get("id") or "").strip()
+    if cid:
+        return cid
+    t = str(c.get("type") or "text").strip().lower()
+    title = re.sub(r"\s+", "_", str(c.get("title") or "").strip().lower())
+    return f"{t}_{title}"
+
+
+def _fmt_ts_ms(ts_ms: int) -> str:
+    if not ts_ms or ts_ms <= 0:
+        return ""
+    try:
+        dt_obj = datetime.datetime.fromtimestamp(ts_ms / 1000.0, tz=_TZ_CN)
+        return dt_obj.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return ""
+
+
+def compute_learning_report(
+    tv_obj: dict | None,
+    learning_obj: dict | None,
+    state_obj: dict | None,
+    now_ms: int | None = None,
+) -> dict:
+    """汇总四类学情掌握度、薄弱项与近 7 天新掌握（与电视端 StudyReportMath 口径一致）。"""
+    now_ms = int(now_ms if now_ms is not None else time.time() * 1000)
+    today_date = datetime.datetime.fromtimestamp(now_ms / 1000.0, tz=_TZ_CN).date()
+    today_num = int(today_date.strftime("%Y%m%d"))
+    cutoff_ms = now_ms - 7 * 24 * 3600 * 1000
+
+    custom = ((tv_obj or {}).get("learning") or {}).get("custom") or []
+    custom = [c for c in custom if isinstance(c, dict) and str(c.get("title") or "").strip()]
+    online_cards = (learning_obj or {}).get("cards") or []
+    online_words = [
+        c for c in online_cards
+        if isinstance(c, dict) and str(c.get("type") or "") == "word" and str(c.get("title") or "").strip()
+    ]
+
+    custom_words = [c for c in custom if str(c.get("type") or "") == "word"]
+    pools = [
+        ("word", custom_words if custom_words else online_words),
+        ("text", [c for c in custom if str(c.get("type") or "") == "text"]),
+        ("poem", [c for c in custom if str(c.get("type") or "") == "poem"]),
+        ("art", [c for c in custom if str(c.get("type") or "") == "art"]),
+    ]
+
+    longs = (state_obj or {}).get("longs") or {}
+    saved_at = int((state_obj or {}).get("savedAt") or 0)
+
+    by_type = []
+    all_items = []
+    weak_items = []
+    recent_mastered = []
+
+    for ctype, clist in pools:
+        label = _CARD_TYPE_LABELS[ctype]
+        m_cnt = l_cnt = d_cnt = u_cnt = 0
+        for c in clist:
+            cid = _card_id(c)
+            ltag = int(longs.get(f"ltag_{cid}") or 0)
+            ltag_ts = int(longs.get(f"ltag_ts_{cid}") or 0)
+            lstage = int(longs.get(f"lstage_{cid}") or 0)
+            ldue = int(longs.get(f"ldue_{cid}") or 0)
+
+            if ltag == 1 or lstage >= 5:
+                status = "mastered"
+                m_cnt += 1
+            elif ltag == -1:
+                status = "learning"
+                l_cnt += 1
+            elif lstage > 0 and 0 < ldue <= today_num:
+                status = "due"
+                d_cnt += 1
+            else:
+                status = "unmarked"
+                u_cnt += 1
+
+            row = {
+                "id": cid,
+                "type": ctype,
+                "typeLabel": label,
+                "title": str(c.get("title") or ""),
+                "sub": str(c.get("sub") or ""),
+                "note": str(c.get("note") or ""),
+                "status": status,
+                "stage": lstage,
+                "ts": ltag_ts,
+                "timeText": _fmt_ts_ms(ltag_ts),
+            }
+            all_items.append(row)
+            if status in ("learning", "due"):
+                weak_items.append(row)
+            elif status == "mastered" and cutoff_ms <= ltag_ts <= now_ms:
+                recent_mastered.append(row)
+
+        total = len(clist)
+        pct = int(m_cnt * 100 / total) if total > 0 else 0
+        by_type.append({
+            "type": ctype,
+            "label": label,
+            "total": total,
+            "mastered": m_cnt,
+            "learning": l_cnt,
+            "due": d_cnt,
+            "unmarked": u_cnt,
+            "percent": pct,
+        })
+
+    weak_items.sort(key=lambda x: (0 if x["status"] == "learning" else 1, x["stage"], x["type"]))
+    recent_mastered.sort(key=lambda x: x["ts"], reverse=True)
+
+    tot = sum(x["total"] for x in by_type)
+    tot_m = sum(x["mastered"] for x in by_type)
+    tot_l = sum(x["learning"] for x in by_type)
+    tot_d = sum(x["due"] for x in by_type)
+    tot_u = sum(x["unmarked"] for x in by_type)
+
+    return {
+        "ok": True,
+        "savedAt": saved_at,
+        "savedAtText": _fmt_ts_ms(saved_at),
+        "summary": {
+            "total": tot,
+            "mastered": tot_m,
+            "learning": tot_l,
+            "due": tot_d,
+            "unmarked": tot_u,
+            "percent": int(tot_m * 100 / tot) if tot > 0 else 0,
+        },
+        "byType": by_type,
+        "weakItems": weak_items,
+        "recentMastered": recent_mastered,
+        "items": all_items,
+    }
+
+
+def read_learning_report(cfg: dict) -> dict:
+    share = cfg.get("playlistShare") or "data"
+    p = norm(cfg.get("playlistPath") or "curated/tv.json")
+    parent = p.rsplit("/", 1)[0] or "/"
+    c = smb(cfg)
+    try:
+        def _read_json(rel_path: str):
+            try:
+                buf = io.BytesIO()
+                c.retrieveFile(share, rel_path, buf, timeout=15)
+                return json.loads(buf.getvalue().decode("utf-8-sig"))
+            except Exception:
+                return None
+
+        tv_obj = _read_json(p)
+        learning_obj = _read_json(parent + "/learning.json")
+        state_obj = _read_json(parent + "/state.json")
+        return compute_learning_report(tv_obj, learning_obj, state_obj)
+    finally:
+        c.close()
+
+
 # --------------------------------------------------------------------------- 远程控制卡（OPT-06）
 # control.json 与 tv.json 同目录同共享，但**是独立文件**：家长改指令碰不坏片单。
 # 电视端每 15 秒读一次，执行后写 control.ack.json 回执，网页据此显示「已生效」。
@@ -1344,6 +1511,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == "/api/learning":
                 return self.json_out(read_learning_data(cfg))
+
+            if path == "/api/learning-report":
+                return self.json_out(read_learning_report(cfg))
 
             if path == "/api/download":
                 share = self.one(q, "share") or cfg["share"]

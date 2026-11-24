@@ -4,6 +4,7 @@ import android.content.Intent
 import com.family.curated.ParentTools
 import com.family.curated.R
 import com.family.curated.ReportActivity
+import com.family.curated.StudyReportActivity
 import com.family.curated.data.Extras
 import com.family.curated.data.Store
 
@@ -27,6 +28,13 @@ class OverviewGroup(private val h: SettingsHost) : SettingsGroup {
                     h.str(R.string.set_report_desc),
                     h.str(R.string.act_open)
                 ) { h.act.startActivity(Intent(h.act, ReportActivity::class.java)) }
+            )
+            list.add(
+                Entry.Row(
+                    h.str(R.string.set_study_report),
+                    h.str(R.string.set_study_report_desc),
+                    h.str(R.string.act_open)
+                ) { h.act.startActivity(Intent(h.act, StudyReportActivity::class.java)) }
             )
         }
         // OPT-07：写回失败不是「弹个 Toast 就过去」，这一项让家长随时能重试
