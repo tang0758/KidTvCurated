@@ -216,6 +216,7 @@ a{color:var(--brand)}
         <button class="tiny" data-act="up">上一级</button>
         <button class="tiny" data-act="refresh">刷新</button>
         <button class="tiny" data-act="scan">把本层子目录全部做成卡片</button>
+        <button class="tiny" data-act="setAutoFromBrowse">设为目标分区自动轮换</button>
         <button class="tiny" data-act="toggleCount">显示集数</button>
       </div>
       <div class="crumbs" id="crumbs"></div>
@@ -670,6 +671,7 @@ function renderBrowse(){
       '<button class="nm" data-act="open" data-path="' + esc(d.path) + '">[目录] ' + esc(d.name) + "</button>" +
       '<span class="cnt" data-count="' + esc(d.path) + '">' + (n === undefined ? "" : n + " 集") + "</span>" +
       '<button class="tiny" data-act="count" data-path="' + esc(d.path) + '">集数</button>' +
+      '<button class="tiny" data-act="setAutoFolder" data-path="' + esc(d.path) + '">自动轮换</button>' +
       '<button class="tiny primary" data-act="addFolder" data-path="' + esc(d.path) + '" data-name="' + esc(d.name) + '">＋ 加入</button>' +
       "</div>";
   });
@@ -761,11 +763,12 @@ function renderSections(){
     h += "</div>";
     if (!s.auto) h += '<div class="rowbtn"><button class="tiny" data-act="addAuto" data-i="' + i + '">＋ 每日自动轮换</button></div>';
     const hasVideoItems = (s.items || []).some(it => it && (it.file || it.folder));
+    const canGenCovers = hasVideoItems || !!(s.auto && s.auto.folder);
     h += '<div class="rowbtn">' +
       '<button class="tiny" data-act="secUp" data-i="' + i + '">上移</button>' +
       '<button class="tiny" data-act="secDown" data-i="' + i + '">下移</button>' +
       '<button class="tiny" data-act="gotoBrowse" data-i="' + i + '">去资源浏览添加</button>' +
-      (hasVideoItems ? '<button class="tiny" data-act="secGenCovers" data-i="' + i + '">生成封面</button>' : '') +
+      (canGenCovers ? '<button class="tiny" data-act="secGenCovers" data-i="' + i + '">生成封面</button>' : '') +
       ((s.gate || (s.items || []).length) ? '<button class="tiny danger" data-act="secClear" data-i="' + i + '">清空内容</button>' : '') +
       '<button class="tiny danger" data-act="secDel" data-i="' + i + '">删除分区</button></div>' +
       "</div></div>";
@@ -1289,33 +1292,40 @@ async function resolveCoversQuietly(secIdx, addedItems){
 }
 async function genSectionCovers(secIdx, btn){
   const s = S.data && S.data.sections && S.data.sections[secIdx];
-  if (!s || !(s.items || []).length){ toast("这个分区里没有视频条目"); return; }
+  const autoFolder = (s && s.auto && s.auto.folder) ? String(s.auto.folder).trim() : "";
+  const hasItems = !!(s && (s.items || []).length);
+  if (!s || (!hasItems && !autoFolder)){ toast("这个分区里没有视频条目或自动轮换目录"); return; }
   const oldTxt = btn ? btn.textContent : "";
-  if (btn){ btn.disabled = true; btn.textContent = "生成封面中…"; }
+  if (btn){ btn.disabled = true; btn.textContent = autoFolder && !hasItems ? "批量生成中…" : "生成封面中…"; }
   try {
     const r = await api("/api/covers/generate", {
       method:"POST",
       body:JSON.stringify({
-        items: s.items,
+        items: hasItems ? s.items : [],
+        autoFolder: hasItems ? "" : autoFolder,
         videoShare: S.share || (S.cfg && S.cfg.share) || ""
       })
     });
     let changed = 0;
-    (r.results || []).forEach(res => {
-      if (!res || res.index === undefined) return;
-      const it = s.items[res.index];
-      if (it && res.cover && it.cover !== res.cover){
-        it.cover = res.cover;
-        changed++;
-      }
-    });
-    renderSections(); renderJson();
+    if (hasItems){
+      (r.results || []).forEach(res => {
+        if (!res || res.index === undefined) return;
+        const it = s.items[res.index];
+        if (it && res.cover && it.cover !== res.cover){
+          it.cover = res.cover;
+          changed++;
+        }
+      });
+      renderSections(); renderJson();
+    }
     const sum = r.summary || {};
     const reused = (sum.reused || 0) + (sum.adjacent || 0);
-    const msg = "封面处理完成：复用已有 " + reused + " 张，新生成 " + (sum.generated || 0) + " 张" +
-      ((sum.failed || 0) ? ("，失败 " + sum.failed + " 张") : "") +
-      (changed > 0 ? "（已回填，记得点「保存到 NAS」）" : "");
-    toast(msg, (sum.failed || 0) > 0 && (sum.generated || 0) === 0 && reused === 0, 5000);
+    const tail = !hasItems && autoFolder
+      ? "（已存入影子目录，电视自动轮换时直接复用）"
+      : (changed > 0 ? "（已回填，记得点「保存到 NAS」）" : "");
+    const msg = "封面处理完成：共 " + (sum.total || 0) + " 集，复用已有 " + reused + " 张，新生成 " + (sum.generated || 0) + " 张" +
+      ((sum.failed || 0) ? ("，失败 " + sum.failed + " 张") : "") + tail;
+    toast(msg, (sum.failed || 0) > 0 && (sum.generated || 0) === 0 && reused === 0, 5500);
     if (r.warnings && r.warnings.length) notice(r.warnings.join("；"));
   } finally {
     if (btn){ btn.disabled = false; btn.textContent = oldTxt || "生成封面"; }
@@ -1520,6 +1530,18 @@ document.addEventListener("click", async e => {
       }
       case "addFolder": addItem({title:cleanName(b.dataset.name), folder:b.dataset.path}); break;
       case "addFile": addItem({title:cleanName(b.dataset.name.replace(/\.[^.]+$/,"")), file:b.dataset.path}); break;
+      case "setAutoFromBrowse":
+      case "setAutoFolder": {
+        const folderPath = (a === "setAutoFolder" ? b.dataset.path : S.path) || "";
+        if (!folderPath){ toast("请先进入一个具体的视频目录", true); break; }
+        const s = sec();
+        if (!s){ toast("先到「片单编排」新建一个分区", true); break; }
+        s.auto = {folder: folderPath, count: (s.auto && s.auto.count) || 6};
+        S.secOpen[s.key] = true;
+        renderSections(); renderJson(); switchTab("sections");
+        toast("已将「" + folderPath + "」设为「" + s.title + "」的每日自动轮换目录，记得点「保存到 NAS」", false, 4500);
+        break;
+      }
       case "scan": {
         const r = await api("/api/scan?share=" + encodeURIComponent(S.share) +
                             "&path=" + encodeURIComponent(S.path));

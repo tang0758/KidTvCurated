@@ -354,6 +354,29 @@ object Store {
         }
     }
 
+    /**
+     * 按「实际开机使用日」推进自动轮换天序号：关机没看的天数不跳过。
+     */
+    fun advanceAutoRotationDay(sectionKey: String, folder: String, today: String = ClockGuard.day()): Int {
+        val kIdx = "auto_rot_idx_$sectionKey"
+        val kDay = "auto_rot_day_$sectionKey"
+        val kDir = "auto_rot_dir_$sectionKey"
+        val prevDay = sp.getString(kDay, "") ?: ""
+        val prevDir = sp.getString(kDir, "") ?: ""
+        val prev = if (prevDay.isNotBlank()) {
+            RotationMath.State(sp.getInt(kIdx, 0), prevDay, prevDir)
+        } else null
+        val next = RotationMath.advance(prev, folder, today)
+        if (next != prev) {
+            sp.edit()
+                .putInt(kIdx, next.dayIndex)
+                .putString(kDay, next.lastDay)
+                .putString(kDir, next.folder)
+                .apply()
+        }
+        return next.dayIndex
+    }
+
     // ---------- OPT-20: 剧集两级缓存 ----------
     fun getCachedEpisodes(folder: String): List<Item>? {
         val s = sp.getString("ep_cache_$folder", null) ?: return null

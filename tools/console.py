@@ -1686,14 +1686,39 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/covers/generate":
                 cfg = current_cfg()
                 items = data.get("items")
+                auto_folder = str(data.get("autoFolder") or "").strip().strip("/")
                 if not isinstance(items, list):
-                    raise SmbError("缺少 items 数组")
+                    items = []
+                if not items and not auto_folder:
+                    raise SmbError("缺少 items 数组或 autoFolder 目录")
                 v_share = str(data.get("videoShare") or cfg.get("share") or "")
                 c_share = str(data.get("coverShare") or cfg.get("playlistShare") or "data")
                 port = self.server.server_port if getattr(self, "server", None) else STATE.get("port", 8765)
                 stream_base = f"http://127.0.0.1:{port}"
                 c = smb(cfg)
                 try:
+                    if not items and auto_folder:
+                        def _collect_videos(cur_rel: str, depth: int = 0) -> list[dict]:
+                            if depth > 3:
+                                return []
+                            out_v: list[dict] = []
+                            try:
+                                entries = c.listPath(v_share, norm(cur_rel), timeout=20)
+                            except Exception:
+                                return []
+                            entries = [e for e in entries if e.filename not in (".", "..")
+                                       and not e.filename.startswith(".") and e.filename != "@tmp"]
+                            entries.sort(key=lambda e: natural_key(e.filename))
+                            for e in entries:
+                                sub = rel(norm(cur_rel) + "/" + e.filename)
+                                if e.isDirectory:
+                                    out_v.extend(_collect_videos(sub, depth + 1))
+                                elif is_video(e.filename):
+                                    out_v.append({"title": clean_title(e.filename.rsplit(".", 1)[0]), "file": sub})
+                            return out_v
+                        items = _collect_videos(auto_folder)
+                        if not items:
+                            raise SmbError(f"自动轮换目录 {auto_folder} 里没有找到视频文件")
                     res = cover_gen.generate_missing_covers(
                         c, cfg, items,
                         stream_base_url=stream_base,
@@ -1701,6 +1726,8 @@ class Handler(BaseHTTPRequestHandler):
                         cover_share=c_share,
                         force=bool(data.get("force")),
                     )
+                    if auto_folder:
+                        res["autoFolder"] = auto_folder
                 finally:
                     c.close()
                 return self.json_out(res)

@@ -187,12 +187,12 @@ object Repo {
     fun expandAuto(pl: Playlist): Playlist {
         if (pl.sections.none { it.autoFolder != null }) return pl
         val cfg = Store.nas() ?: pl.nas ?: return pl
-        val start = Store.rotationStart()
-        val day = Store.daysSince(start)
+        val today = ClockGuard.day()
 
         val expanded = pl.sections.map { sec ->
             val folder = sec.autoFolder ?: return@map sec
             val count = sec.autoCount.coerceAtLeast(1)
+            val day = Store.advanceAutoRotationDay(sec.key, folder, today)
             try {
                 val all = listVideos(cfg, folder)
                 if (all.isEmpty()) {
@@ -220,7 +220,12 @@ object Repo {
             }
             return listOf(CoverRef(c))
         }
-        val out = ArrayList<CoverRef>(5)
+        val out = ArrayList<CoverRef>(6)
+        val shadowShare = try {
+            Store.playlistShare ?: Store.DEFAULT_PLAYLIST_SHARE
+        } catch (_: Exception) {
+            Store.DEFAULT_PLAYLIST_SHARE
+        }
         if (item.file != null) {
             val base = item.file.substringBeforeLast('.', item.file)
             out.add(CoverRef("$base.jpg"))
@@ -230,6 +235,8 @@ object Repo {
             if (dir.isNotEmpty()) {
                 out.add(CoverRef("$dir/${name.substringBeforeLast('.', name)}-poster.jpg"))
             }
+            // 影子目录兜底：自动轮换（auto）生成的条目无显式 cover 字段时，自动复用 8765 生成的封面
+            out.add(CoverRef("curated/covers/${base.trimStart('/')}.jpg", shadowShare))
         }
         if (item.folder != null) {
             val f = item.folder.trimEnd('/')
@@ -237,6 +244,7 @@ object Repo {
             out.add(CoverRef("$f/poster.jpg"))
             out.add(CoverRef("$f/cover.jpg"))
             out.add(CoverRef("$f/封面.jpg"))
+            out.add(CoverRef("curated/covers/${f.trimStart('/')}/folder.jpg", shadowShare))
         }
         return out
     }
