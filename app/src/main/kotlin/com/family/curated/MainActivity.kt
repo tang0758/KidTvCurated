@@ -37,7 +37,10 @@ import com.family.curated.ui.SectionsAdapter
 
 class MainActivity : AppCompatActivity() {
 
-    companion object { private const val TAG = "MainActivity" }
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val IDLE_LOCK_TIMEOUT_MS = 3L * 60_000L
+    }
 
     private lateinit var b: ActivityMainBinding
     private var playlist: Playlist? = null
@@ -63,6 +66,33 @@ class MainActivity : AppCompatActivity() {
             updateHeader()
             ui.postDelayed(this, 5000)
         }
+    }
+    private val idleLock = Runnable {
+        if (!isFinishing && !isDestroyed && hasWindowFocus()) {
+            openLockScreen()
+        }
+    }
+
+    private fun resetIdleLock() {
+        ui.removeCallbacks(idleLock)
+        ui.postDelayed(idleLock, IDLE_LOCK_TIMEOUT_MS)
+    }
+
+    private fun cancelIdleLock() {
+        ui.removeCallbacks(idleLock)
+    }
+
+    private fun openLockScreen() {
+        cancelIdleLock()
+        // 若当前处于「临时放行」状态，主动进入锁屏即结束本次临时放行：
+        // 时长已用完或时段外时锁屏将立即回到不可进入态，避免显示「剩余 0 分钟」却仍可按返回继续播。
+        if (Extras.tempRemainingMs() > 0L) {
+            Extras.clearTemp()
+        }
+        startActivity(
+            Intent(this, LockActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        )
     }
 
     /** NAS 清单变了就无感重绘：复用 adapter，滚动位置和已解锁状态都留着 */
@@ -95,6 +125,13 @@ class MainActivity : AppCompatActivity() {
 
         b.btnRewards.setOnClickListener { openRewards() }
         b.btnRewards.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f)
+                .setDuration(120).start()
+        }
+
+        // 锁屏入口：进入普通锁屏界面；允许时段内按返回键可随时回到片单
+        b.btnStudy.setOnClickListener { openLockScreen() }
+        b.btnStudy.setOnFocusChangeListener { v, has ->
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f)
                 .setDuration(120).start()
         }
@@ -132,7 +169,22 @@ class MainActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) enterImmersive()
+        if (hasFocus) {
+            enterImmersive()
+            resetIdleLock()
+        } else {
+            cancelIdleLock()
+        }
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        if (hasWindowFocus()) resetIdleLock()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (hasWindowFocus()) resetIdleLock()
+        return super.dispatchKeyEvent(event)
     }
 
     private fun loadPlaylist() {
@@ -233,7 +285,16 @@ class MainActivity : AppCompatActivity() {
         val a = SectionsAdapter(
             this, shown, cfg, skipGateOnce,
             onWordCheckInClick = {
-                startActivity(Intent(this, WordCheckInActivity::class.java))
+                startActivity(
+                    Intent(this, WordCheckInActivity::class.java)
+                        .putExtra(WordCheckInActivity.EXTRA_MODE, WordCheckInActivity.MODE_WORD)
+                )
+            },
+            onHanziCheckInClick = {
+                startActivity(
+                    Intent(this, WordCheckInActivity::class.java)
+                        .putExtra(WordCheckInActivity.EXTRA_MODE, WordCheckInActivity.MODE_HANZI)
+                )
             },
             onItemClick = { section, item -> onItemClick(section, item) },
             onItemFocus = { section, item ->
@@ -254,10 +315,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun focusFirstCard() {
         val a = adapter ?: return
-        // 如果今日单词还没打完，焦点先落在列表第 0 行的「每日英语打卡」入口；否则落到第一张视频海报
-        if (!a.wordDoneToday()) {
-            val wordVh = b.rvSections.findViewHolderForAdapterPosition(0) as? SectionsAdapter.WordVH
-            if (wordVh != null && wordVh.itemView.requestFocus()) return
+        // 如果今日英语或汉字打卡还没打完，焦点先落在第 0 行对应的打卡卡片；否则落到第一张视频海报
+        val wordVh = b.rvSections.findViewHolderForAdapterPosition(0) as? SectionsAdapter.WordVH
+        if (wordVh != null) {
+            if (!a.wordDoneToday() && wordVh.wordCard.requestFocus()) return
+            if (!a.hanziDoneToday() && wordVh.hanziCard.requestFocus()) return
         }
         for (i in 0 until a.itemCount) {
             val vh = b.rvSections.findViewHolderForAdapterPosition(i) as? SectionsAdapter.SectionVH ?: continue
@@ -431,7 +493,18 @@ class MainActivity : AppCompatActivity() {
         val unlocked = skipGateOnce || (adapter?.isUnlocked(section) ?: true)
         if (!unlocked) {
             val left = adapter?.gateRemaining() ?: 0
-            Toast.makeText(this, "先做完上面那 $left 个，就能看了", Toast.LENGTH_SHORT).show()
+            val msg = if (left > 0) {
+                "先做完上面那 $left 个，就能看了"
+            } else {
+                val wDone = adapter?.wordDoneToday() ?: true
+                val hDone = adapter?.hanziDoneToday() ?: true
+                when {
+                    !wDone && !hDone -> getString(R.string.checkin_need_both)
+                    !wDone -> getString(R.string.word_need_checkin)
+                    else -> getString(R.string.hanzi_need_checkin)
+                }
+            }
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -511,6 +584,7 @@ class MainActivity : AppCompatActivity() {
         }
         ui.removeCallbacks(clockTick)
         ui.postDelayed(clockTick, 5000)
+        resetIdleLock()
         // 回到主界面时也提醒一次，不必等下一次清单变化（内部有 30 秒节流）
         if (Store.hasUnsyncedEdit) {
             b.root.post { ParentTools.showUnsyncedConflict(this) { updateHeader() } }
@@ -556,12 +630,14 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         ui.removeCallbacks(clockTick)
+        cancelIdleLock()
     }
 
     override fun onDestroy() {
         PlaylistSync.unregister(syncListener)
         PlaylistSync.onUnsyncedConflict = null
         ui.removeCallbacks(clockTick)
+        cancelIdleLock()
         super.onDestroy()
     }
 

@@ -120,6 +120,10 @@ class WordCheckInMathTest {
         assertFalse(WordCheckInMath.canUnlockDailyGate(true, false, true, true))
         assertTrue(WordCheckInMath.canUnlockDailyGate(false, false, true, true))
         assertFalse(WordCheckInMath.canUnlockDailyGate(false, false, true, false))
+        // 三重并列门禁：视频必看 + 英语打卡 + 汉字打卡
+        assertTrue(WordCheckInMath.canUnlockDailyGate(true, true, true, true, true, true))
+        assertFalse(WordCheckInMath.canUnlockDailyGate(true, true, true, true, true, false))
+        assertFalse(WordCheckInMath.canUnlockDailyGate(true, true, true, false, true, true))
     }
 
     @Test

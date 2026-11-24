@@ -25,6 +25,7 @@ class SectionsAdapter(
     private var cfg: NasConfig?,
     private var skipGate: Boolean = false,
     private val onWordCheckInClick: () -> Unit,
+    private val onHanziCheckInClick: () -> Unit,
     private val onItemClick: (Section, Item) -> Unit,
     private val onItemFocus: ((Section, Item) -> Unit)? = null,
     private val onItemLongClick: ((Section, Item) -> Boolean)? = null
@@ -70,7 +71,13 @@ class SectionsAdapter(
         return Extras.isWordDoneToday(allWords, dailyCount, ClockGuard.day())
     }
 
-    /** 某个分区是否已解锁（视频必看 + 每日英语打卡并列门禁） */
+    /** 今日汉字打卡是否已完成（与英语打卡、每日必看并列门禁） */
+    fun hanziDoneToday(): Boolean {
+        val allHanzi = LearningLibrary.loadHanziCards(Extras.learning())
+        return Extras.isHanziDoneToday(allHanzi, WordCheckInMath.DEFAULT_DAILY_COUNT, ClockGuard.day())
+    }
+
+    /** 某个分区是否已解锁（视频必看 + 每日英语打卡 + 每日汉字打卡并列门禁） */
     fun isUnlocked(section: Section): Boolean {
         if (skipGate) return true
         val req = section.requires ?: return true
@@ -80,7 +87,9 @@ class SectionsAdapter(
             hasVideoGate = true,
             videoGateDone = videoDone,
             wordCheckInEnabled = true,
-            wordDoneToday = wordDoneToday()
+            wordDoneToday = wordDoneToday(),
+            hanziCheckInEnabled = true,
+            hanziDoneToday = hanziDoneToday()
         )
     }
 
@@ -105,7 +114,10 @@ class SectionsAdapter(
     }
 
     inner class WordVH(v: View) : RecyclerView.ViewHolder(v) {
-        val status: TextView = v.findViewById(R.id.tvWordEntryStatus)
+        val wordCard: View = v.findViewById(R.id.cardWordCheckIn)
+        val wordStatus: TextView = v.findViewById(R.id.tvWordEntryStatus)
+        val hanziCard: View = v.findViewById(R.id.cardHanziCheckIn)
+        val hanziStatus: TextView = v.findViewById(R.id.tvHanziEntryStatus)
     }
 
     inner class SectionVH(v: View) : RecyclerView.ViewHolder(v) {
@@ -143,7 +155,16 @@ class SectionsAdapter(
             !unlocked -> {
                 val req = section.requires?.let { key -> playlist.sections.firstOrNull { it.key == key } }
                 val left = req?.items?.count { !Store.isDoneToday(it.key()) } ?: 0
-                if (left > 0) "还差 $left 个才解锁" else ctx.getString(R.string.word_need_checkin)
+                if (left > 0) "还差 $left 个才解锁"
+                else {
+                    val wDone = wordDoneToday()
+                    val hDone = hanziDoneToday()
+                    when {
+                        !wDone && !hDone -> ctx.getString(R.string.checkin_need_both)
+                        !wDone -> ctx.getString(R.string.word_need_checkin)
+                        else -> ctx.getString(R.string.hanzi_need_checkin)
+                    }
+                }
             }
             section.gate && total > 0 -> "必修 $doneCount/$total"
             total > 0 -> "$total 个"
@@ -187,24 +208,43 @@ class SectionsAdapter(
     }
 
     private fun bindWordHeader(holder: WordVH) {
-        val (allWords, dailyCount) = LearningLibrary.loadOnlineWords(Store.cachedLearningJson)
         val dayKey = ClockGuard.day()
-        val queue = Extras.ensureTodayWordQueue(allWords, dailyCount, dayKey)
-        val answered = Extras.wordAnswered(dayKey)
-        val doneCount = queue.count { it in answered }
-        val total = queue.size
-        val finished = total == 0 || doneCount >= total
-        if (finished) {
-            holder.status.text = ctx.getString(R.string.word_entry_done, Extras.wordStreak())
-            holder.status.setTextColor(ctx.getColor(R.color.done_green))
+
+        // 左卡：每日英语打卡
+        val (allWords, dailyCount) = LearningLibrary.loadOnlineWords(Store.cachedLearningJson)
+        val wQueue = Extras.ensureTodayWordQueue(allWords, dailyCount, dayKey)
+        val wAnswered = Extras.wordAnswered(dayKey)
+        val wDoneCount = wQueue.count { it in wAnswered }
+        val wTotal = wQueue.size
+        if (wTotal == 0 || wDoneCount >= wTotal) {
+            holder.wordStatus.text = ctx.getString(R.string.word_entry_done, Extras.wordStreak())
+            holder.wordStatus.setTextColor(ctx.getColor(R.color.done_green))
         } else {
-            holder.status.text = ctx.getString(R.string.word_entry_progress, doneCount, total)
-            holder.status.setTextColor(ctx.getColor(R.color.accent))
+            holder.wordStatus.text = ctx.getString(R.string.word_entry_progress, wDoneCount, wTotal)
+            holder.wordStatus.setTextColor(ctx.getColor(R.color.accent))
         }
-        holder.itemView.setOnClickListener { onWordCheckInClick() }
-        holder.itemView.setOnFocusChangeListener { v, has ->
-            // 横条宽度接近屏幕全宽，不横向放大以免左右贴边被裁切，靠 word_entry_bg 金框高亮提示焦点
-            v.animate().scaleX(1f).scaleY(if (has) 1.03f else 1f)
+        holder.wordCard.setOnClickListener { onWordCheckInClick() }
+        holder.wordCard.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.02f else 1f).scaleY(if (has) 1.03f else 1f)
+                .setDuration(120).start()
+        }
+
+        // 右卡：每日汉字打卡
+        val allHanzi = LearningLibrary.loadHanziCards(Extras.learning())
+        val hQueue = Extras.ensureTodayHanziQueue(allHanzi, WordCheckInMath.DEFAULT_DAILY_COUNT, dayKey)
+        val hAnswered = Extras.hanziAnswered(dayKey)
+        val hDoneCount = hQueue.count { it in hAnswered }
+        val hTotal = hQueue.size
+        if (hTotal == 0 || hDoneCount >= hTotal) {
+            holder.hanziStatus.text = ctx.getString(R.string.hanzi_entry_done, Extras.hanziStreak())
+            holder.hanziStatus.setTextColor(ctx.getColor(R.color.done_green))
+        } else {
+            holder.hanziStatus.text = ctx.getString(R.string.hanzi_entry_progress, hDoneCount, hTotal)
+            holder.hanziStatus.setTextColor(ctx.getColor(R.color.accent))
+        }
+        holder.hanziCard.setOnClickListener { onHanziCheckInClick() }
+        holder.hanziCard.setOnFocusChangeListener { v, has ->
+            v.animate().scaleX(if (has) 1.02f else 1f).scaleY(if (has) 1.03f else 1f)
                 .setDuration(120).start()
         }
     }

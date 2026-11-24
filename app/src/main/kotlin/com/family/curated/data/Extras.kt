@@ -304,6 +304,12 @@ object Extras {
         else clearRemoteLock()
     }
 
+    /** 家长在设置页主动触发「强制锁屏 N 分钟」：清掉临时放行并置定时锁定 */
+    fun lockForMinutes(minutes: Int) {
+        clearTemp()
+        grant("remoteLockRt", "remoteLockUntil", minutes.coerceIn(1, 8 * 60))
+    }
+
     fun clearRemoteLock() = p().edit()
         .remove("remoteLockUntil").remove("remoteLockRt").apply()
 
@@ -488,6 +494,17 @@ object Extras {
         return result
     }
 
+    fun allMasteryTimestamps(): Map<String, Long> {
+        val all = p().all
+        val result = HashMap<String, Long>()
+        all.forEach { (k, v) ->
+            if (k.startsWith("ltag_ts_") && v is Long) {
+                result[k.removePrefix("ltag_ts_")] = v
+            }
+        }
+        return result
+    }
+
     // ---------- 每日单词打卡（FR-35 / OPT-34 · 艾宾浩斯记忆阶段，与 stamps 严格隔离） ----------
 
     fun wordMemory(cardId: String): WordCheckInMath.MemoryState {
@@ -604,6 +621,73 @@ object Extras {
             .putStringSet("word_stamps", stamps)
             .remove("word_queue_$dayKey")
             .remove("word_done_$dayKey")
+            .apply()
+    }
+
+    // ---------- 每日汉字打卡（独立进度键，复用 lstage_/ldue_/ltag_ 记忆状态） ----------
+
+    fun hanziStamps(): MutableSet<String> =
+        HashSet(p().getStringSet("hanzi_stamps", emptySet()) ?: emptySet())
+
+    fun markHanziCheckIn(now: Long = ClockGuard.now()) {
+        val d = day(now)
+        val set = hanziStamps()
+        if (set.add(d)) {
+            p().edit().putStringSet("hanzi_stamps", set).apply()
+        }
+    }
+
+    fun hanziStreak(now: Long = ClockGuard.now()): Int =
+        WordCheckInMath.streak(hanziStamps(), day(now))
+
+    fun hanziQueue(dayKey: String = day()): List<String> {
+        val raw = p().getString("hanzi_queue_$dayKey", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun hanziAnswered(dayKey: String = day()): MutableSet<String> =
+        HashSet(p().getStringSet("hanzi_done_$dayKey", emptySet()) ?: emptySet())
+
+    fun markHanziAnswered(cardId: String, dayKey: String = day()) {
+        val set = hanziAnswered(dayKey)
+        if (set.add(cardId)) {
+            p().edit().putStringSet("hanzi_done_$dayKey", set).apply()
+        }
+    }
+
+    fun ensureTodayHanziQueue(
+        allHanzi: List<LearningCard>,
+        dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
+        dayKey: String = day()
+    ): List<String> {
+        val existing = hanziQueue(dayKey)
+        if (existing.isNotEmpty()) return existing
+        val seed = ("hanzi_$dayKey").hashCode().toLong()
+        val picked = WordCheckInMath.pickDailyWords(allHanzi, allWordMemories(), dayKey, dailyCount, seed)
+        val ids = picked.map { LearningMath.cardId(it) }
+        if (ids.isNotEmpty()) {
+            p().edit().putString("hanzi_queue_$dayKey", ids.joinToString(",")).apply()
+        }
+        return ids
+    }
+
+    fun isHanziDoneToday(
+        allHanzi: List<LearningCard>,
+        dailyCount: Int = WordCheckInMath.DEFAULT_DAILY_COUNT,
+        dayKey: String = day()
+    ): Boolean {
+        val q = ensureTodayHanziQueue(allHanzi, dailyCount, dayKey)
+        return WordCheckInMath.isDone(q, hanziAnswered(dayKey))
+    }
+
+    fun clearTodayHanziCheckIn(dayKey: String = day()) {
+        val stamps = hanziStamps()
+        stamps.remove(dayKey)
+        p().edit()
+            .putStringSet("hanzi_stamps", stamps)
+            .remove("hanzi_queue_$dayKey")
+            .remove("hanzi_done_$dayKey")
             .apply()
     }
 }

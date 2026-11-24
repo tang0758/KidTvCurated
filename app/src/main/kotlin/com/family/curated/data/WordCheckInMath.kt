@@ -190,16 +190,19 @@ object WordCheckInMath {
         return queueIds.all { it in answeredIds }
     }
 
-    /** 并列前置门禁判定：视频每日必看（若有）与每日单词打卡（若启用）必须同时完成 */
+    /** 并列前置门禁判定：视频每日必看（若有）、每日英语打卡（若启用）与每日汉字打卡（若启用）必须同时完成 */
     fun canUnlockDailyGate(
         hasVideoGate: Boolean,
         videoGateDone: Boolean,
         wordCheckInEnabled: Boolean,
-        wordDoneToday: Boolean
+        wordDoneToday: Boolean,
+        hanziCheckInEnabled: Boolean = false,
+        hanziDoneToday: Boolean = true
     ): Boolean {
         val videoOk = !hasVideoGate || videoGateDone
         val wordOk = !wordCheckInEnabled || wordDoneToday
-        return videoOk && wordOk
+        val hanziOk = !hanziCheckInEnabled || hanziDoneToday
+        return videoOk && wordOk && hanziOk
     }
 
     /** 计算单词打卡连续天数（与 Extras.streak 口径一致，仅使用纯日期字符串 yyyy-MM-dd） */

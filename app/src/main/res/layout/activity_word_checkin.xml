@@ -31,6 +31,7 @@
             android:paddingBottom="4dp">
 
             <TextView
+                android:id="@+id/tvCheckInTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -298,6 +299,7 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/tvSummaryTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/word_summary_title"

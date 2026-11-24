@@ -309,4 +309,62 @@
     <string name="main_config_updated_toast">片单已更新（配置 %1$s）</string>
     <string name="set_footer_with_cfg">方向键选择 · OK 修改 · 返回键回到片单 · v%1$s(%2$d) · 配置 %3$s</string>
     <string name="set_about_config_ver">当前配置版本：%1$s\n</string>
+
+    <!-- ==================== 首页锁屏入口与强制锁屏 ==================== -->
+    <string name="main_btn_study">锁屏</string>
+    <string name="lock_study_headline">锁屏学习角</string>
+    <string name="lock_study_detail_limit">当前为可观看时段 · 今日剩余 %1$d 分钟</string>
+    <string name="lock_study_detail_open">当前为可观看时段 · 随时可回到片单</string>
+    <string name="lock_study_back_hint">按遥控器「返回」键 · 进入片单</string>
+    <string name="lock_parent_override_hint">按遥控器「菜单」键 · 家长临时放行</string>
+    <string name="lock_force_headline">强制锁屏中</string>
+    <string name="lock_force_detail">已开启强制锁屏（优先于允许时段），倒计时结束或家长输 PIN 后解除</string>
+    <string name="lock_force_footer_hint">强制锁屏中 · 按遥控器「菜单」键输入家长 PIN 解除</string>
+
+    <!-- ==================== 每日汉字打卡 ==================== -->
+    <string name="hanzi_entry_title">每日汉字打卡</string>
+    <string name="hanzi_entry_progress">已完成 %1$d / %2$d 字</string>
+    <string name="hanzi_entry_done">今日已完成 · 已连续 %1$d 天</string>
+    <string name="hanzi_checkin_progress">第 %1$d / %2$d 字</string>
+    <string name="hanzi_btn_prev">← 上一字</string>
+    <string name="hanzi_summary_title">🎉 太棒了！今日汉字打卡完成</string>
+    <string name="hanzi_summary_stats">今日共打卡 %1$d 字 · 认识 %2$d 字 · 需巩固 %3$d 字</string>
+    <string name="hanzi_summary_streak">已连续识字打卡 %1$d 天，继续加油！</string>
+    <string name="hanzi_empty_toast">暂无汉字可打卡，已自动解锁</string>
+    <string name="hanzi_need_checkin">还要完成今日汉字打卡</string>
+    <string name="checkin_need_both">还要完成英语与汉字打卡</string>
+    <string name="hanzi_graduate_confirm_title">确认「%1$s」不再出现？</string>
+    <string name="hanzi_graduate_confirm_msg">标记后这个汉字会移出每日打卡队列（除非所有字都学完）。确定已经完全认识了吗？</string>
+    <string name="hanzi_no_image">这个汉字暂无配图</string>
+    <string name="set_force_lock">强制锁屏</string>
+    <string name="set_force_lock_hint_idle">在允许时段内也锁住电视，需输入家长 PIN 才能解除</string>
+    <string name="set_force_lock_hint_active">正在强制锁屏中，点这里可提前解除或调整时长</string>
+    <string name="set_force_lock_idle">未开启</string>
+    <string name="set_force_lock_left">剩余 %1$d 分钟</string>
+    <string name="set_force_lock_end">立即解除强制锁屏</string>
+    <string name="set_force_lock_15">强制锁屏 15 分钟</string>
+    <string name="set_force_lock_30">强制锁屏 30 分钟</string>
+    <string name="set_force_lock_60">强制锁屏 60 分钟</string>
+    <string name="set_force_lock_done">已强制锁屏 %1$d 分钟</string>
+    <string name="set_force_lock_cleared">已解除强制锁屏</string>
+
+    <!-- ==================== 学情总览 ==================== -->
+    <string name="set_study_report">学情总览</string>
+    <string name="set_study_report_desc">查看英语、汉字、唐诗、名画掌握进度、薄弱项与近 7 天新学会内容</string>
+    <string name="study_report_title">学情总览</string>
+    <string name="study_summary_badge">总掌握 %1$d / %2$d（%3$d%%）</string>
+    <string name="study_type_word">🔤 英语单词</string>
+    <string name="study_type_hanzi">✍️ 汉字识字</string>
+    <string name="study_type_poem">📜 唐诗</string>
+    <string name="study_type_art">🎨 名画</string>
+    <string name="study_stat_ratio">%1$d / %2$d（%3$d%%）</string>
+    <string name="study_stat_sub">重点再学 %1$d · 未学 %2$d</string>
+    <string name="study_weak_title">薄弱项 / 待巩固</string>
+    <string name="study_weak_title_count">薄弱项 / 待巩固（%1$d）</string>
+    <string name="study_weak_empty">目前没有标为「重点再学」或到期未巩固的内容，继续保持！</string>
+    <string name="study_recent_title">近 7 天新掌握</string>
+    <string name="study_recent_title_count">近 7 天新掌握（%1$d）</string>
+    <string name="study_recent_empty">近 7 天还没有新标为「已认识」的卡片</string>
+    <string name="study_more_hint">… 还有 %1$d 项，可在手机 8765 网页端「学情反馈」查看全部明细</string>
+    <string name="study_report_footer">按遥控器「返回」键回到家长控制 · 手机打开 8765 网页端可筛选和导出完整学情明细</string>
 </resources>
