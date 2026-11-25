@@ -34,6 +34,7 @@ data class LearningCard(
     val image: String? = null,
     val id: String = "",
     val audio: String? = null,
+    val storyAudio: String? = null,
     val ttsText: String = ""
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
@@ -45,6 +46,7 @@ data class LearningCard(
         if (note.isNotBlank()) put("note", note)
         if (!image.isNullOrBlank()) put("image", image)
         if (!audio.isNullOrBlank()) put("audio", audio)
+        if (!storyAudio.isNullOrBlank()) put("storyAudio", storyAudio)
         if (ttsText.isNotBlank()) put("ttsText", ttsText)
     }
 
@@ -69,6 +71,7 @@ data class LearningCard(
                 image = o.optString("image").ifBlank { null },
                 id = o.optString("id").ifBlank { "" },
                 audio = o.optString("audio").ifBlank { null },
+                storyAudio = o.optString("storyAudio").ifBlank { null },
                 ttsText = o.optString("ttsText").ifBlank { "" }
             )
         }

@@ -273,6 +273,7 @@ class LockActivity : AppCompatActivity() {
     private fun nextCard() {
         if (deck.isEmpty()) return
         stopCardAudio()
+        nextPlayStory = false
         paused = false
         idx = (idx + 1) % deck.size
         leftSeconds = learning.intervalSeconds
@@ -282,6 +283,7 @@ class LockActivity : AppCompatActivity() {
     private fun prevCard() {
         if (deck.isEmpty()) return
         stopCardAudio()
+        nextPlayStory = false
         paused = false
         idx = (idx - 1 + deck.size) % deck.size
         leftSeconds = learning.intervalSeconds
@@ -292,9 +294,12 @@ class LockActivity : AppCompatActivity() {
         b.tvCardTimer.text = if (paused) getString(R.string.lock_paused) else leftSeconds.toString() + "s"
         b.cardProgress.progress =
             (leftSeconds * 100 / learning.intervalSeconds.coerceAtLeast(1)).coerceIn(0, 100)
-        b.tvCardHint.text = if (paused)
-            getString(R.string.lock_hint_paused)
-        else getString(R.string.lock_hint_v2)
+        val hasStory = !deck.getOrNull(idx)?.storyAudio.isNullOrBlank()
+        b.tvCardHint.text = when {
+            paused -> getString(R.string.lock_hint_paused)
+            hasStory -> getString(R.string.lock_hint_v2_story)
+            else -> getString(R.string.lock_hint_v2)
+        }
     }
 
     private fun showCard() {
@@ -550,10 +555,26 @@ class LockActivity : AppCompatActivity() {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 val c = deck.getOrNull(idx)
                 if (c != null) {
-                    if (!c.audio.isNullOrBlank()) {
-                        playCardAudio(c)
-                    } else {
-                        Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
+                    val hasMain = !c.audio.isNullOrBlank()
+                    val hasStory = !c.storyAudio.isNullOrBlank()
+                    when {
+                        hasMain && hasStory -> {
+                            if (nextPlayStory) {
+                                nextPlayStory = false
+                                Toast.makeText(this, getString(R.string.lock_playing_story), Toast.LENGTH_SHORT).show()
+                                playCardAudio(c.storyAudio)
+                            } else {
+                                nextPlayStory = true
+                                Toast.makeText(this, getString(R.string.lock_playing_read), Toast.LENGTH_SHORT).show()
+                                playCardAudio(c.audio)
+                            }
+                        }
+                        hasMain -> playCardAudio(c.audio)
+                        hasStory -> {
+                            Toast.makeText(this, getString(R.string.lock_playing_story), Toast.LENGTH_SHORT).show()
+                            playCardAudio(c.storyAudio)
+                        }
+                        else -> Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
                     }
                 }
                 return true
@@ -575,6 +596,7 @@ class LockActivity : AppCompatActivity() {
 
     private var cardAudioPlayer: MediaPlayer? = null
     private var audioReqSeq = 0
+    private var nextPlayStory = false
 
     private fun stopCardAudio() {
         audioReqSeq++
@@ -582,8 +604,8 @@ class LockActivity : AppCompatActivity() {
         cardAudioPlayer = null
     }
 
-    private fun playCardAudio(c: LearningCard) {
-        val audioPath = c.audio?.trim()?.takeIf { it.isNotBlank() } ?: run {
+    private fun playCardAudio(rawAudioPath: String?) {
+        val audioPath = rawAudioPath?.trim()?.takeIf { it.isNotBlank() } ?: run {
             Toast.makeText(this, getString(R.string.lock_no_audio), Toast.LENGTH_SHORT).show()
             return
         }

@@ -492,7 +492,7 @@ function payload(){
       c.lines = (Array.isArray(c.lines) ? c.lines : []).filter(x => String(x).trim());
       if (!c.lines.length) delete c.lines;
       if (!c.type) c.type = "text";
-      ["sub","note","image","audio","ttsText"].forEach(k => { if (!c[k]) delete c[k]; });
+      ["sub","note","image","audio","storyAudio","ttsText"].forEach(k => { if (!c[k]) delete c[k]; });
     });
     if (!L.custom.length) delete L.custom;
     L.stage = Math.max(0, Math.min(99, Number(L.stage) || 0));

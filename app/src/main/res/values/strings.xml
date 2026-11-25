@@ -257,6 +257,9 @@
     <string name="lock_marked_mastered">已标记：认识了</string>
     <string name="lock_marked_learning">已标记：重点再学</string>
     <string name="lock_hint_v2">◀ ▶ 换一张 · OK 朗读 · ▲ 认识了 · ▼ 再学学</string>
+    <string name="lock_hint_v2_story">◀ ▶ 换一张 · OK 朗读/听故事 · ▲ 认识了 · ▼ 再学学</string>
+    <string name="lock_playing_read">正在朗读 · 再按 OK 听故事</string>
+    <string name="lock_playing_story">正在听故事讲解</string>
     <string name="lock_no_audio">当前卡片没有音频</string>
 
     <!-- ==================== 卡片管理与剧集 ==================== -->
