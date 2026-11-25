@@ -180,33 +180,52 @@ object Repo {
         }
     }
 
+    /** 最近一次 expandAuto 是否有未能展开的自动轮换分区（例如刚开机 Wi-Fi 未就绪），以及展开日期 */
+    @Volatile var lastAutoExpandIncomplete: Boolean = false
+    @Volatile var lastAutoExpandDay: String = ""
+
     /**
      * 把带 auto 的分区展开成今天的实际条目：
      * 从文件夹里按天轮换，每天取 count 个，不会重复（一轮放完再从头开始）。
+     * 联网成功时把目录视频列表缓存到本地；冷启动 Wi-Fi 尚未就绪时先用缓存兜底，避免今日必看空白。
      */
     fun expandAuto(pl: Playlist): Playlist {
-        if (pl.sections.none { it.autoFolder != null }) return pl
-        val cfg = Store.nas() ?: pl.nas ?: return pl
+        if (pl.sections.none { it.autoFolder != null }) {
+            lastAutoExpandIncomplete = false
+            return pl
+        }
+        val cfg = Store.nas() ?: pl.nas ?: run {
+            lastAutoExpandIncomplete = true
+            return pl
+        }
         val today = ClockGuard.day()
+        var incomplete = false
 
         val expanded = pl.sections.map { sec ->
             val folder = sec.autoFolder ?: return@map sec
             val count = sec.autoCount.coerceAtLeast(1)
-            val day = Store.advanceAutoRotationDay(sec.key, folder, today)
-            try {
-                val all = listVideos(cfg, folder)
-                if (all.isEmpty()) {
-                    sec.copy(items = emptyList())
-                } else {
-                    val n = minOf(count, all.size)
-                    val from = ((day.toLong() * count) % all.size).toInt()
-                    val picked = (0 until n).map { all[(from + it) % all.size] }
-                    sec.copy(items = picked)
+            val cacheKey = "auto:$folder"
+            val listed = try {
+                listVideos(cfg, folder).also {
+                    if (it.isNotEmpty()) Store.putCachedEpisodes(cacheKey, it)
                 }
             } catch (e: Exception) {
-                sec
+                Log.w(TAG, "自动轮换目录读取失败 ($folder)，尝试本地缓存: ${e.message}")
+                Store.getCachedEpisodes(cacheKey).orEmpty()
+            }
+            if (listed.isEmpty()) {
+                incomplete = true
+                sec.copy(items = emptyList())
+            } else {
+                val day = Store.advanceAutoRotationDay(sec.key, folder, today)
+                val n = minOf(count, listed.size)
+                val from = ((day.toLong() * count) % listed.size).toInt()
+                val picked = (0 until n).map { listed[(from + it) % listed.size] }
+                sec.copy(items = picked)
             }
         }
+        lastAutoExpandIncomplete = incomplete
+        if (!incomplete) lastAutoExpandDay = today
         return pl.copy(sections = expanded)
     }
 

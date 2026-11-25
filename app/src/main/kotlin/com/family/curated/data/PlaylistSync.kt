@@ -223,16 +223,19 @@ object PlaylistSync {
         failStreak = 0
         val learningChanged = Repo.syncLearningQuietly(cfg, share)
 
-        // 与本地缓存逐字比较：tv.json 一样时只处理词库更新与回执，不重绘全部视频列表
+        // 与本地缓存逐字比较：tv.json 一样时，若词库有变、或开机断网导致 auto 分区未展开、
+        // 或跨了自然日，仍需重新展开 auto 分区并刷新首页
         if (text == Store.cachedPlaylist) {
-            if (learningChanged) {
+            val needAutoRefresh = Repo.lastAutoExpandIncomplete ||
+                (Repo.lastAutoExpandDay.isNotBlank() && Repo.lastAutoExpandDay != ClockGuard.day())
+            if (learningChanged || needAutoRefresh) {
                 val parsed = runCatching { PlaylistParser.parse(text) }.getOrNull()
                 if (parsed != null) {
                     val expanded = Repo.expandAuto(parsed)
                     if (!Store.hasUnsyncedEdit) {
                         writeTvAckIfNeeded(cfg, share, expanded, text, Store.cachedLearningJson)
                     }
-                    notifyListeners(expanded, "learning")
+                    notifyListeners(expanded, if (learningChanged) "learning" else "auto_refresh")
                 }
             } else if (!ackWrittenThisSession && !Store.hasUnsyncedEdit) {
                 val parsed = runCatching { PlaylistParser.parse(text) }.getOrNull()
