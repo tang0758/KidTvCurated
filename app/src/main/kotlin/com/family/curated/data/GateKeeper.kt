@@ -45,6 +45,18 @@ object GateKeeper {
         if (sch == null || !sch.enabled) {
             return Status(true, Reason.OK, "", "", 0L, usedMin, 0, 0)
         }
+
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
+        val windows = sch.windowsAt(cal)
+        val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val inWindow = windows.isEmpty() || windows.any { it.contains(minute) }
+        val overLimit = limit > 0 && usedMs >= limit * 60_000L
+
+        // 当前本来就在允许时段内且未超今日上限：直接正常观看，不再被残留的「临时放行」倒计时盖住
+        if (inWindow && !overLimit) {
+            return Status(true, Reason.OK, "", "", 0L, usedMin, limit, bonus)
+        }
+
         val tempLeft = Extras.tempRemainingMs()
         if (tempLeft > 0L) {
             return Status(
@@ -54,11 +66,6 @@ object GateKeeper {
             )
         }
 
-        val cal = Calendar.getInstance().apply { timeInMillis = now }
-        val windows = sch.windowsAt(cal)
-        val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val inWindow = windows.isEmpty() || windows.any { it.contains(minute) }
-
         if (!inWindow) {
             val next = nextOpening(sch, now, includeToday = true)
             return Status(
@@ -67,7 +74,7 @@ object GateKeeper {
             )
         }
 
-        if (limit > 0 && usedMs >= limit * 60_000L) {
+        if (overLimit) {
             val next = nextOpening(sch, now, includeToday = false)
             return Status(
                 false, Reason.LIMIT, "今天的时间用完啦",
@@ -78,6 +85,24 @@ object GateKeeper {
         }
 
         return Status(true, Reason.OK, "", "", 0L, usedMin, limit, bonus)
+    }
+
+    /** 家长改完时段/上限或关闭限制后，如果当前已自然允许观看，清掉残留的临时放行 */
+    fun clearTempIfNaturallyOpen(now: Long = ClockGuard.now()) {
+        if (Extras.tempRemainingMs() <= 0L) return
+        val sch = Extras.schedule()
+        if (sch == null || !sch.enabled) {
+            Extras.clearTemp()
+            return
+        }
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
+        val windows = sch.windowsAt(cal)
+        val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        val inWindow = windows.isEmpty() || windows.any { it.contains(minute) }
+        val bonus = Extras.bonusMinutes()
+        val limit = RewardMath.limitWith(sch.dailyLimitMinutes, bonus)
+        val overLimit = limit > 0 && WatchClock.todayMs() >= limit * 60_000L
+        if (inWindow && !overLimit) Extras.clearTemp()
     }
 
     /** 找下一个「可以开始看」的时刻 */

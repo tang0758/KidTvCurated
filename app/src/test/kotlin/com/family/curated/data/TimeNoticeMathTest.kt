@@ -86,6 +86,28 @@ class TimeNoticeMathTest {
     }
 
     @Test
+    fun `非允许时段内临时放行仍生效`() {
+        val w = listOf(TimeWindow(16 * 60, 17 * 60))
+        val r = left(
+            usedMs = 10 * 60_000L, limit = 50, tempMs = 15 * 60_000L,
+            enabled = true, minute = 15 * 60 + 40, windows = w
+        )
+        assertEquals(TimeNoticeMath.Kind.TEMP, r.kind)
+        assertEquals(15 * 60_000L, r.ms)
+    }
+
+    @Test
+    fun `当前已在允许时段且未超限时忽略残留临时放行`() {
+        val w = listOf(TimeWindow(13 * 60, 21 * 60))
+        val r = left(
+            usedMs = 10 * 60_000L, limit = 50, tempMs = 15 * 60_000L,
+            enabled = true, minute = 15 * 60 + 40, windows = w
+        )
+        assertEquals(TimeNoticeMath.Kind.LIMIT, r.kind)
+        assertEquals(40 * 60_000L, r.ms)
+    }
+
+    @Test
     fun `远程锁定优先级最高`() {
         val r = left(limit = 30, tempMs = 60_000L, remoteMs = 60_000L)
         assertEquals(TimeNoticeMath.Kind.REMOTE, r.kind)

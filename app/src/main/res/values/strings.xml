@@ -54,9 +54,11 @@
     <string name="set_minutes">%1$d 分钟</string>
     <string name="set_unlimited">不限制</string>
     <string name="set_window_weekday">平日时段</string>
-    <string name="set_window_weekday_hint">留空 = 全天可看</string>
+    <string name="set_window_weekday_today">平日时段（今天生效）</string>
+    <string name="set_window_weekday_hint">周一至周五 · 留空 = 全天可看</string>
     <string name="set_window_weekend">周末时段</string>
-    <string name="set_window_weekend_hint">可以设两段</string>
+    <string name="set_window_weekend_today">周末时段（今天生效）</string>
+    <string name="set_window_weekend_hint">周六日 · 可以设两段</string>
     <string name="set_window_enable">时段限制</string>
     <string name="set_window_enable_on">按上面的时段执行</string>
     <string name="set_window_enable_off">完全不受时段限制</string>
@@ -370,4 +372,11 @@
     <string name="study_recent_empty">近 7 天还没有新标为「已认识」的卡片</string>
     <string name="study_more_hint">… 还有 %1$d 项，可在手机 8765 网页端「学情反馈」查看全部明细</string>
     <string name="study_report_footer">按遥控器「返回」键回到家长控制 · 手机打开 8765 网页端可筛选和导出完整学情明细</string>
+
+    <!-- ==================== 播放器底部选项栏 ==================== -->
+    <string name="player_speed_label">倍速 %1$s</string>
+    <string name="player_resize_fit">画面 适应</string>
+    <string name="player_resize_zoom">画面 铺满</string>
+    <string name="player_hint_idle">按「下」调整倍速 / 画面</string>
+    <string name="player_hint_options">左右选按钮 · 确认切换 · 上/返回退出</string>
 </resources>

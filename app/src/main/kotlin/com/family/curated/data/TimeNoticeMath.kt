@@ -27,13 +27,19 @@ object TimeNoticeMath {
         windows: List<TimeWindow>
     ): Left {
         if (remoteLockMs > 0L) return Left(0L, Kind.REMOTE)
-        if (tempMs > 0L) return Left(tempMs, Kind.TEMP)
 
         val limitMinLeft = if (limitMinutes > 0) {
             ((limitMinutes * 60_000L - usedMs + 59_999L) / 60_000L)
         } else NONE_LEFT
         val windowMinLeft = if (!scheduleEnabled || windows.isEmpty()) NONE_LEFT
         else minutesToWindowEnd(minuteOfDay, windows)
+
+        val inWindow = !scheduleEnabled || windows.isEmpty() || windowMinLeft != NONE_LEFT
+        val overLimit = limitMinutes > 0 && usedMs >= limitMinutes * 60_000L
+
+        // 只有在正常规则下会被锁住（时段外或已超限额）时，才显示「临时放行」倒计时；
+        // 家长把时段/上限改成当前可看后，直接恢复正常剩余时长显示
+        if (tempMs > 0L && (!inWindow || overLimit)) return Left(tempMs, Kind.TEMP)
 
         val mins = minOf(limitMinLeft, windowMinLeft)
         if (mins == NONE_LEFT) return Left(0L, Kind.NONE)

@@ -8,6 +8,13 @@
             <stroke android:width="2dp" android:color="@color/accent" />
         </shape>
     </item>
+    <item android:state_selected="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#4DFFC44D" />
+            <corners android:radius="20dp" />
+            <stroke android:width="2dp" android:color="@color/accent" />
+        </shape>
+    </item>
     <item>
         <shape android:shape="rectangle">
             <solid android:color="#CC000000" />

@@ -79,6 +79,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:layout_marginTop="12dp">
 
             <TextView
@@ -95,27 +96,36 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="20dp"
                 android:background="@drawable/pill_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
                 android:textColor="#E0E0E0"
-                android:textSize="13sp"
-                android:text="1.0x" />
+                android:textSize="14sp"
+                android:text="倍速 1.0x" />
 
             <TextView
                 android:id="@+id/tvResize"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="12dp"
                 android:background="@drawable/pill_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:paddingTop="2dp"
-                android:paddingBottom="2dp"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
                 android:textColor="#E0E0E0"
+                android:textSize="14sp"
+                android:text="画面 适应" />
+
+            <TextView
+                android:id="@+id/tvOptionHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:textColor="#99FFFFFF"
                 android:textSize="13sp"
-                android:text="FIT" />
+                android:text="@string/player_hint_idle" />
 
             <Space
                 android:layout_width="0dp"

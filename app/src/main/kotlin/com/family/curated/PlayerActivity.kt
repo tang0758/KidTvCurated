@@ -66,11 +66,12 @@ class PlayerActivity : AppCompatActivity() {
     private var currentSpeedIndex = 1
     private val speeds = floatArrayOf(0.75f, 1.0f, 1.25f)
     private val speedLabels = arrayOf("0.75x", "1.0x", "1.25x")
+    /** 必看内容只允许 0.75x 和 1.0x，禁用 1.25x */
+    private val allowedSpeedCount: Int get() = if (seekLock) 2 else speeds.size
     private var isZoomMode = false
+    /** 底部选项栏焦点：-1=未聚焦（正常播放控制），0=倍速，1=画面比例 */
+    private var optionFocusIndex = -1
 
-    /** 这个视频「真正看到过」的最远位置，快进不能超过它 */
-    private var frontier = 0L
-    private var lastFrontierSaved = 0L
     private var lastPos = 0L
 
     private var lastGuardAt = 0L
@@ -86,7 +87,11 @@ class PlayerActivity : AppCompatActivity() {
     private var seenPauseVersion = 0L
 
     private val ui = Handler(Looper.getMainLooper())
-    private var hideUi = Runnable { b.controls.visibility = View.GONE }
+    private var hideUi = Runnable {
+        optionFocusIndex = -1
+        renderOptionFocus()
+        b.controls.visibility = View.GONE
+    }
 
     // ---------- OPT-11 自动连播 ----------
     private var queueRaw = ""
@@ -145,7 +150,7 @@ class PlayerActivity : AppCompatActivity() {
 
         b.tvTitle.text = title
         b.tvTitle.postDelayed({ b.tvTitle.animate().alpha(0f).setDuration(600).start() }, 4000)
-        b.tvState.text = if (seekLock) "必看内容：没看过的地方不能快进哦" else ""
+        b.tvState.text = if (seekLock) "必看内容：不能快进哦" else ""
 
         if (file.isEmpty()) {
             fail("没有指定要播放的文件")
@@ -202,15 +207,15 @@ class PlayerActivity : AppCompatActivity() {
         val lastDur = Store.duration(key)
         val shouldResume = resumeAt > 5_000 && (lastDur == 0L || resumeAt < lastDur - 5_000)
 
-        // 续播位置本身属于「已经看过」，算进可 seek 的边界
-        frontier = maxOf(Extras.frontier(key), resumeAt, lastPos)
-        lastFrontierSaved = frontier
         if (shouldResume) {
-            p.seekTo(minOf(resumeAt, frontier))
+            lastPos = resumeAt
+            p.seekTo(resumeAt)
         } else if (skipIntroSec > 0) {
             val target = (skipIntroSec * 1000L).coerceAtLeast(0)
-            frontier = maxOf(frontier, target)
+            lastPos = target
             p.seekTo(target)
+        } else {
+            lastPos = 0L
         }
 
         p.playWhenReady = true
@@ -244,13 +249,13 @@ class PlayerActivity : AppCompatActivity() {
                 if (isPlaying) WatchClock.start(clockToken) else WatchClock.stop(clockToken)
             }
 
-            /** 不管是谁发起的 seek（遥控器、PlayerView、进度条），越过已看边界一律拉回来 */
+            /** 必看内容兜底拦截：不管是谁发起的向前 seek，一律拉回当前位置 */
             override fun onPositionDiscontinuity(reason: Int) {
                 if (!seekLock || reason != Player.DISCONTINUITY_REASON_SEEK) return
                 val cur = p.currentPosition
-                if (cur > frontier + 2_000L) {
-                    p.seekTo(frontier)
-                    nudge("后面的还没看过，要一小段一小段看哦")
+                if (cur > lastPos + 2_000L) {
+                    p.seekTo(lastPos)
+                    nudge("必看内容不能快进哦")
                 }
             }
 
@@ -389,17 +394,6 @@ class PlayerActivity : AppCompatActivity() {
                     checkNearingEnd(pos, dur)
                 }
                 b.tvPosition.text = fmt(pos)
-
-                // 只在「连续观看」时推进边界；跳跃式的位置变化不算看过
-                if (seekLock && p.isPlaying && pos >= lastPos && pos - lastPos <= 2_500L) {
-                    if (pos > frontier) {
-                        frontier = pos
-                        if (frontier - lastFrontierSaved >= 5_000L) {
-                            Extras.setFrontier(key, frontier)
-                            lastFrontierSaved = frontier
-                        }
-                    }
-                }
                 lastPos = pos
 
                 // 到点 / 时长用尽：停下并交给锁屏
@@ -458,8 +452,6 @@ class PlayerActivity : AppCompatActivity() {
         doneMarked = false
         endedHandled = false
         lastPos = 0L
-        frontier = Extras.frontier(key)
-        lastFrontierSaved = frontier
         retryCount = 0
         useSoftwareCodec = false
 
@@ -479,12 +471,14 @@ class PlayerActivity : AppCompatActivity() {
             val lastDur = Store.duration(key)
             val shouldResume = resumeAt > 5_000 && (lastDur == 0L || resumeAt < lastDur - 5_000)
             if (shouldResume) {
-                p.seekTo(minOf(resumeAt, frontier))
+                lastPos = resumeAt
+                p.seekTo(resumeAt)
             } else if (skipIntroSec > 0) {
                 val target = (skipIntroSec * 1000L).coerceAtLeast(0)
-                frontier = maxOf(frontier, target)
+                lastPos = target
                 p.seekTo(target)
             } else {
+                lastPos = 0L
                 p.seekTo(0)
             }
             p.prepare()
@@ -510,7 +504,6 @@ class PlayerActivity : AppCompatActivity() {
         ui.removeCallbacks(nextTick)
         b.nextOverlay.visibility = View.GONE
         flushWatch()
-        Extras.setFrontier(key, frontier)
         try { player?.pause() } catch (e: Exception) { }
         startActivity(
             android.content.Intent(this, LockActivity::class.java)
@@ -565,9 +558,13 @@ class PlayerActivity : AppCompatActivity() {
         doneMarked = true
         Store.markDone(key)
         Store.setProgress(key, 0)
-        frontier = maxOf(frontier, player?.duration ?: 0L)
-        Extras.setFrontier(key, frontier)
         Extras.addVideo()
+        if (seekLock) {
+            val title = intent.getStringExtra(EXTRA_TITLE)?.trim().orEmpty().ifBlank { key }
+            com.family.curated.data.DailyLogStore.recordMustWatchVideo(
+                com.family.curated.data.ClockGuard.day(), key, title
+            )
+        }
     }
 
     private fun savePosition() {
@@ -582,24 +579,50 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun flushWatch() {
         WatchClock.stop(clockToken)
+        com.family.curated.data.DailyLogStore.refreshTodayWatchMs()
     }
 
-    private fun showControls() {
+    private fun showControls(timeoutMs: Long = 4000L) {
         b.controls.visibility = View.VISIBLE
         b.controls.alpha = 1f
+        renderOptionFocus()
         ui.removeCallbacks(hideUi)
-        ui.postDelayed(hideUi, 4000)
+        ui.postDelayed(hideUi, timeoutMs)
+    }
+
+    private fun hideControls() {
+        optionFocusIndex = -1
+        renderOptionFocus()
+        ui.removeCallbacks(hideUi)
+        b.controls.visibility = View.GONE
+    }
+
+    private fun renderOptionFocus() {
+        val speedFocused = optionFocusIndex == 0
+        val resizeFocused = optionFocusIndex == 1
+        b.tvSpeed.isSelected = speedFocused
+        b.tvResize.isSelected = resizeFocused
+        b.tvSpeed.setTextColor(if (speedFocused) 0xFFFFFFFF.toInt() else 0xFFE0E0E0.toInt())
+        b.tvResize.setTextColor(if (resizeFocused) 0xFFFFFFFF.toInt() else 0xFFE0E0E0.toInt())
+        b.tvSpeed.scaleX = if (speedFocused) 1.06f else 1f
+        b.tvSpeed.scaleY = if (speedFocused) 1.06f else 1f
+        b.tvResize.scaleX = if (resizeFocused) 1.06f else 1f
+        b.tvResize.scaleY = if (resizeFocused) 1.06f else 1f
+        b.tvOptionHint.setText(
+            if (optionFocusIndex >= 0) R.string.player_hint_options else R.string.player_hint_idle
+        )
     }
 
     private fun toggleSpeed() {
-        currentSpeedIndex = (currentSpeedIndex + 1) % speeds.size
+        currentSpeedIndex = (currentSpeedIndex + 1) % allowedSpeedCount
         applySpeed()
     }
 
     private fun applySpeed() {
+        if (currentSpeedIndex >= allowedSpeedCount) currentSpeedIndex = 1
         val spd = speeds[currentSpeedIndex]
         player?.playbackParameters = PlaybackParameters(spd)
-        b.tvSpeed.text = speedLabels[currentSpeedIndex]
+        b.tvSpeed.text = getString(R.string.player_speed_label, speedLabels[currentSpeedIndex])
     }
 
     private fun toggleResizeMode() {
@@ -612,19 +635,20 @@ class PlayerActivity : AppCompatActivity() {
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         else
             AspectRatioFrameLayout.RESIZE_MODE_FIT
-        b.tvResize.text = if (isZoomMode) "ZOOM" else "FIT"
+        b.tvResize.setText(if (isZoomMode) R.string.player_resize_zoom else R.string.player_resize_fit)
     }
 
-    /** 快进时把目标限制在已看边界内 */
+    /** 必看内容直接禁止快进，允许回退重看 */
     private fun seekBy(deltaMs: Long) {
         val p = player ?: return
+        if (seekLock && deltaMs > 0) {
+            nudge("必看内容不能快进哦")
+            showControls()
+            return
+        }
         val dur = p.duration
         var target = (p.currentPosition + deltaMs).coerceAtLeast(0)
         if (dur > 0) target = target.coerceAtMost(dur - 1_000)
-        if (seekLock && target > frontier + 1_000L && deltaMs > 0) {
-            target = frontier
-            nudge("后面的还没看过，不能快进哦")
-        }
         p.seekTo(target)
         showControls()
     }
@@ -661,12 +685,52 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         val p = player ?: return super.onKeyDown(keyCode, event)
+        // 选项栏已聚焦：左右切换按钮、确认修改、上/返回退出选项栏（不误退播放页）
+        if (optionFocusIndex >= 0 && b.controls.visibility == View.VISIBLE) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (optionFocusIndex > 0) optionFocusIndex--
+                    showControls(6000L)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (optionFocusIndex < 1) optionFocusIndex++
+                    showControls(6000L)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (optionFocusIndex == 0) toggleSpeed() else toggleResizeMode()
+                    showControls(6000L)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    optionFocusIndex = -1
+                    showControls()
+                    return true
+                }
+                KeyEvent.KEYCODE_BACK -> {
+                    hideControls()
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    if (p.isPlaying) p.pause() else p.play()
+                    showControls(6000L)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    showControls(6000L)
+                    return true
+                }
+            }
+            return super.onKeyDown(keyCode, event)
+        }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 if (b.controls.visibility != View.VISIBLE) {
                     showControls()
                 } else {
                     if (p.isPlaying) p.pause() else p.play()
+                    showControls()
                 }
                 return true
             }
@@ -675,19 +739,14 @@ class PlayerActivity : AppCompatActivity() {
                 showControls()
                 return true
             }
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                if (b.controls.visibility == View.VISIBLE) {
-                    toggleSpeed()
-                    showControls()
-                    return true
-                }
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_MENU -> {
+                optionFocusIndex = 0
+                showControls(6000L)
+                return true
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (b.controls.visibility == View.VISIBLE) {
-                    toggleResizeMode()
-                    showControls()
-                    return true
-                }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (b.controls.visibility != View.VISIBLE) showControls()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                 seekBy(-15_000)
@@ -729,6 +788,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        optionFocusIndex = -1
         // 页面被盖住（家长锁屏、切走）时不许后台继续倒计时启动下一集
         if (autoNextRunning) {
             autoNextRunning = false
@@ -739,7 +799,6 @@ class PlayerActivity : AppCompatActivity() {
         SmbPlaybackContext.playing = false
         PlaylistSync.nudge()
         flushWatch()
-        Extras.setFrontier(key, frontier)
         savePosition()
         player?.pause()
     }
@@ -748,7 +807,6 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
         ui.removeCallbacksAndMessages(null)
         flushWatch()
-        Extras.setFrontier(key, frontier)
         savePosition()
         b.playerView.player = null
         player?.release()

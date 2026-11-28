@@ -23,6 +23,10 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
     override fun rows(): List<Entry> {
         val sch = Extras.schedule()
         val st = GateKeeper.status()
+        val dow = java.util.Calendar.getInstance().apply {
+            timeInMillis = com.family.curated.data.ClockGuard.now()
+        }.get(java.util.Calendar.DAY_OF_WEEK)
+        val isWeekendToday = dow == java.util.Calendar.SATURDAY || dow == java.util.Calendar.SUNDAY
         return buildList<Entry> {
             add(Entry.Group(h.str(R.string.set_group_time)))
             add(
@@ -37,14 +41,14 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
             )
             add(
                 Entry.Row(
-                    h.str(R.string.set_window_weekday),
+                    h.str(if (isWeekendToday) R.string.set_window_weekday else R.string.set_window_weekday_today),
                     h.str(R.string.set_window_weekday_hint),
                     windowsText(sch?.weekday ?: emptyList())
                 ) { chooseWindows(weekend = false) }
             )
             add(
                 Entry.Row(
-                    h.str(R.string.set_window_weekend),
+                    h.str(if (isWeekendToday) R.string.set_window_weekend_today else R.string.set_window_weekend),
                     h.str(R.string.set_window_weekend_hint),
                     windowsText(sch?.weekend ?: emptyList())
                 ) { chooseWindows(weekend = true) }
@@ -234,7 +238,10 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
             putWindows(o, "weekday", next.weekday)
             putWindows(o, "weekend", next.weekend)
             o.put("enabled", true)
-        }, { Extras.saveSchedule(next) },
+        }, {
+            Extras.saveSchedule(next)
+            GateKeeper.clearTempIfNaturallyOpen()
+        },
             if (weekend) h.str(R.string.set_window_weekend) else h.str(R.string.set_window_weekday)
         )
     }
@@ -269,7 +276,10 @@ class TimeGroup(private val h: SettingsHost) : SettingsGroup {
             else o.remove("rewardMinutes")
             o.put("lockMessage", next.lockMessage)
             if (next.pin.isNotBlank()) o.put("pin", next.pin)
-        }, { Extras.saveSchedule(next) }, label)
+        }, {
+            Extras.saveSchedule(next)
+            GateKeeper.clearTempIfNaturallyOpen()
+        }, label)
     }
 
     private fun putWindows(o: JSONObject, key: String, w: List<TimeWindow>) {

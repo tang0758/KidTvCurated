@@ -72,6 +72,7 @@ object PlaylistSync {
     fun applyToLocal(pl: Playlist, skipSettings: Boolean = false) {
         if (!skipSettings) {
             Extras.saveSchedule(pl.schedule)
+            GateKeeper.clearTempIfNaturallyOpen()
             Extras.savePin(pl.pin)
             Extras.savePassRatio(pl.passRatio)
             Extras.saveLearning(pl.learning ?: Learning())

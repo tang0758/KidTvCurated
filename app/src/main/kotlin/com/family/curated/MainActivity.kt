@@ -516,8 +516,8 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        // 必看分区里的视频禁止跳到没看过的地方
-        val seekLock = section.gate && !skipGateOnce
+        // 必看分区里的视频一律禁止快进（家长点「这次先跳过必看」时也仍然禁止快进）
+        val seekLock = section.gate
 
         if (item.isFolder) {
             startActivity(
